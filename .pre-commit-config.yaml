@@ -1,0 +1,28 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        name: ruff (lint)
+        args: ["--no-fix"]
+        stages: [pre-commit]
+      - id: ruff-format
+        name: ruff-format (check)
+        args: ["--check"]
+        stages: [pre-commit]
+
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v3.29.1
+    hooks:
+      - id: commitizen
+        name: commitizen (commit message)
+        stages: [commit-msg]
+
+  - repo: local
+    hooks:
+      - id: run-unit-tests
+        name: run unit tests (unittest)
+        entry: python3 -m unittest discover -s tests -p test_*.py
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

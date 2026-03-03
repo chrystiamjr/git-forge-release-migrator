@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "git-forge-release-migrator"
+version = "0.1.0"
+description = "Provider-based migration tool for releases/tags across Git forges"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.scripts]
+gfrm = "git_forge_release_migrator.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["git_forge_release_migrator*"]
+
+[project.optional-dependencies]
+dev = [
+  "pre-commit>=3.7",
+  "commitizen>=3.29",
+  "ruff>=0.6.9",
+]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+tag_format = "v$version"
+version_scheme = "semver"
+version_provider = "pep621"
+update_changelog_on_bump = false
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]

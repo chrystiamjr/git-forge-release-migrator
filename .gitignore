@@ -1,0 +1,31 @@
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Runtime work directories
+workdir/
+migration-results/
+sessions/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+
+# macOS
+.DS_Store
+
+# Node / semantic-release
+node_modules/
+.npm/
+
+# Local configuration (user-specific paths)
+.local-config.json
+.claude/settings.local.json
