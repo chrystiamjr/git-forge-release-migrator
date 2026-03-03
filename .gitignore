@@ -24,7 +24,11 @@ dist/
 
 # Node / semantic-release
 node_modules/
-.npm/
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
 
 # Local configuration (user-specific paths)
 .local-config.json
