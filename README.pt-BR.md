@@ -23,6 +23,7 @@ Projetado para reexecução segura: itens concluídos são ignorados, itens inco
 - [Requisitos](#requisitos)
 - [Início Rápido](#início-rápido)
 - [Receitas de Comando](#receitas-de-comando)
+- [Perfis de Settings](#perfis-de-settings)
 - [Regras de Seleção de Tags](#regras-de-seleção-de-tags)
 - [Saída, Retry e Sessões](#saída-retry-e-sessões)
 - [Modelo de Segurança](#modelo-de-segurança)
@@ -119,6 +120,9 @@ pip install -e .
 # Interativo (recomendado na primeira execução)
 ./bin/repo-migrator.py
 
+# Bootstrap de settings (recomendado)
+./bin/repo-migrator.py settings init
+
 # Retomar última sessão
 ./bin/repo-migrator.py --resume-session
 
@@ -140,6 +144,123 @@ pip install -e .
 # Reexecutar somente tags com falha da execução anterior
 ./bin/repo-migrator.py --resume-session --tags-file ./migration-results/<run>/failed-tags.txt
 ```
+
+## Perfis de Settings
+
+O sistema de `settings` evita pedir token em toda execução.
+
+### Estrutura de Arquivos e Merge
+
+Os settings são carregados de dois arquivos:
+
+- global: `~/.config/gfrm/settings.yaml`
+- override local: `./.gfrm/settings.yaml`
+
+Estratégia de carga:
+
+1. lê arquivo global (se existir)
+2. lê arquivo local (se existir)
+3. aplica merge profundo com local sobre global
+
+Ou seja: o local sobrescreve apenas chaves iguais, mantendo o restante do global.
+
+### Regras de Seleção de Perfil
+
+A escolha do perfil efetivo segue:
+
+1. `--settings-profile <nome>` no comando de execução
+2. `defaults.profile` no merge final
+3. `default`
+
+Como trocar perfil em runtime:
+
+```bash
+./bin/repo-migrator.py --settings-profile work ...
+./bin/repo-migrator.py --settings-profile personal ...
+```
+
+Como mudar o perfil padrão:
+
+- editar `defaults.profile` no YAML
+- ou sempre informar `--settings-profile`
+
+### Formato YAML (v1)
+
+```yaml
+version: 1
+defaults:
+  profile: work
+profiles:
+  work:
+    providers:
+      github:
+        token_env: GH_WORK_TOKEN
+      gitlab:
+        token_env: GL_WORK_TOKEN
+  personal:
+    providers:
+      github:
+        token_env: GH_PERSONAL_TOKEN
+      bitbucket:
+        token_plain: bbp_exemplo_token_plain
+```
+
+Campos de provider:
+
+- `token_env`: preferido e mais seguro, referencia nome de variável de ambiente
+- `token_plain`: opcional e explícito, token em texto puro
+
+Se ambos existirem, `token_env` é tentado primeiro.
+
+### Comandos de Settings
+
+```bash
+./bin/repo-migrator.py settings init [--profile <nome>] [--local] [--yes]
+./bin/repo-migrator.py settings set-token-env --provider <github|gitlab|bitbucket> --env-name <ENV_NAME> [--profile <nome>] [--local]
+./bin/repo-migrator.py settings set-token-plain --provider <github|gitlab|bitbucket> [--token <valor>] [--profile <nome>] [--local]
+./bin/repo-migrator.py settings unset-token --provider <github|gitlab|bitbucket> [--profile <nome>] [--local]
+./bin/repo-migrator.py settings show [--profile <nome>]
+```
+
+Observações:
+
+- `--local` grava em `./.gfrm/settings.yaml`; sem `--local`, grava no global.
+- sem `--profile`, o comando usa a mesma lógica de perfil efetivo.
+- `settings show` exibe merge efetivo e mascara `token_plain`.
+- `settings init` faz apenas leitura de `~/.zshrc`, `~/.zprofile`, `~/.bashrc` e `~/.bash_profile` para sugerir nomes de variáveis.
+- `settings init` não define `token_plain`; para isso use `settings set-token-plain`.
+
+### Fluxo Recomendado com Perfis
+
+1. Inicializar settings locais do projeto:
+```bash
+./bin/repo-migrator.py settings init --local
+```
+2. Criar/ajustar perfil dedicado:
+```bash
+./bin/repo-migrator.py settings set-token-env --provider github --env-name GH_WORK_TOKEN --profile work --local
+./bin/repo-migrator.py settings set-token-env --provider gitlab --env-name GL_WORK_TOKEN --profile work --local
+```
+3. Executar migração usando esse perfil:
+```bash
+./bin/repo-migrator.py --settings-profile work --source-provider github --target-provider gitlab ...
+```
+
+### Ordem de Resolução de Token em Runtime
+
+Para cada lado (`source` e `target`), a ordem é:
+
+1. argumentos CLI: `--source-token` / `--target-token`
+2. valores carregados da sessão (`--load-session` / `--resume-session`)
+3. settings do provider no perfil efetivo:
+   - `token_env` (via `os.getenv`)
+   - `token_plain`
+4. fallback de ambiente:
+   - `GFRM_SOURCE_TOKEN` / `GFRM_TARGET_TOKEN`
+   - GitHub: `GITHUB_TOKEN`, `GH_TOKEN`, `GH_PERSONAL_TOKEN`
+   - GitLab: `GITLAB_TOKEN`, `GL_TOKEN`
+   - Bitbucket: `BITBUCKET_TOKEN`, `BB_TOKEN`
+5. prompt interativo (apenas modo interativo)
 
 ## Regras de Seleção de Tags
 
