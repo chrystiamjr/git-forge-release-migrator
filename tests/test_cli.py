@@ -1,10 +1,26 @@
 from __future__ import annotations
 
+import json
+import os
 import tempfile
 import unittest
+from contextlib import contextmanager, redirect_stdout
+from io import StringIO
 from pathlib import Path
+from unittest import mock
 
 from git_forge_release_migrator.cli import _allocate_run_workdir, main
+from git_forge_release_migrator.core.settings import default_local_settings_path, load_settings_file
+
+
+@contextmanager
+def _chdir(path: Path) -> object:
+    previous = Path.cwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(previous)
 
 
 class AllocateRunWorkdirTests(unittest.TestCase):
@@ -146,6 +162,138 @@ class MainDemoModeTests(unittest.TestCase):
             summary_file = next(Path(tmp).rglob("summary.json"))
             summary = json.loads(summary_file.read_text(encoding="utf-8"))
             self.assertEqual(summary["counts"]["releases_created"], 3)
+
+
+class MainSettingsCommandTests(unittest.TestCase):
+    def _read_local_settings(self, cwd: Path) -> dict:
+        path = default_local_settings_path(cwd=cwd)
+        return load_settings_file(path)
+
+    def test_settings_set_token_env_local(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            with _chdir(cwd):
+                result = main(
+                    [
+                        "settings",
+                        "set-token-env",
+                        "--provider",
+                        "github",
+                        "--env-name",
+                        "GH_PERSONAL_TOKEN",
+                        "--local",
+                        "--profile",
+                        "work",
+                    ]
+                )
+            self.assertEqual(result, 0)
+            payload = self._read_local_settings(cwd)
+            self.assertEqual(payload["profiles"]["work"]["providers"]["github"]["token_env"], "GH_PERSONAL_TOKEN")
+
+    def test_settings_set_token_plain_and_unset_local(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            with _chdir(cwd):
+                result_set = main(
+                    [
+                        "settings",
+                        "set-token-plain",
+                        "--provider",
+                        "bitbucket",
+                        "--token",
+                        "bb-token",
+                        "--local",
+                        "--profile",
+                        "work",
+                    ]
+                )
+                result_unset = main(
+                    [
+                        "settings",
+                        "unset-token",
+                        "--provider",
+                        "bitbucket",
+                        "--local",
+                        "--profile",
+                        "work",
+                    ]
+                )
+            self.assertEqual(result_set, 0)
+            self.assertEqual(result_unset, 0)
+            payload = self._read_local_settings(cwd)
+            self.assertEqual(payload["profiles"], {})
+
+    def test_settings_show_masks_plain_tokens(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            with _chdir(cwd):
+                result_set = main(
+                    [
+                        "settings",
+                        "set-token-plain",
+                        "--provider",
+                        "github",
+                        "--token",
+                        "secret-token",
+                        "--local",
+                        "--profile",
+                        "work",
+                    ]
+                )
+                out = StringIO()
+                with redirect_stdout(out):
+                    result_show = main(["settings", "show", "--profile", "work"])
+            self.assertEqual(result_set, 0)
+            self.assertEqual(result_show, 0)
+
+            shown = json.loads(out.getvalue())
+            token_value = shown["settings"]["profiles"]["work"]["providers"]["github"]["token_plain"]
+            self.assertEqual(token_value, "***")
+
+    def test_settings_init_yes_uses_detected_env_names(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            with (
+                _chdir(cwd),
+                mock.patch.dict(
+                    os.environ,
+                    {"GITHUB_TOKEN": "x", "GITLAB_TOKEN": "y", "BITBUCKET_TOKEN": "z"},
+                    clear=False,
+                ),
+            ):
+                result = main(["settings", "init", "--yes", "--local", "--profile", "default"])
+            self.assertEqual(result, 0)
+            payload = self._read_local_settings(cwd)
+            providers = payload["profiles"]["default"]["providers"]
+            self.assertEqual(providers["github"]["token_env"], "GITHUB_TOKEN")
+            self.assertEqual(providers["gitlab"]["token_env"], "GITLAB_TOKEN")
+            self.assertEqual(providers["bitbucket"]["token_env"], "BITBUCKET_TOKEN")
+
+    def test_settings_uses_effective_default_profile_when_profile_not_provided(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cwd = Path(tmp)
+            with (
+                _chdir(cwd),
+                mock.patch(
+                    "git_forge_release_migrator.cli.load_effective_settings",
+                    return_value={"version": 1, "defaults": {"profile": "team"}},
+                ),
+            ):
+                result = main(
+                    [
+                        "settings",
+                        "set-token-env",
+                        "--provider",
+                        "gitlab",
+                        "--env-name",
+                        "GL_TOKEN",
+                        "--local",
+                    ]
+                )
+            self.assertEqual(result, 0)
+            payload = self._read_local_settings(cwd)
+            self.assertIn("team", payload["profiles"])
+            self.assertEqual(payload["profiles"]["team"]["providers"]["gitlab"]["token_env"], "GL_TOKEN")
 
 
 if __name__ == "__main__":

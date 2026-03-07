@@ -9,6 +9,12 @@ from typing import Callable
 
 from .core.logging import ConsoleLogger
 from .core.session_store import load_session
+from .core.settings import (
+    load_effective_settings,
+    resolve_profile_name,
+    token_from_env_aliases,
+    token_from_settings,
+)
 from .core.versioning import version_le
 from .models import RuntimeOptions
 
@@ -24,6 +30,8 @@ _PROVIDER_MAP = {
 
 @dataclass
 class RawCLIOptions:
+    command: str = "migrate"
+
     source_provider: str = ""
     source_url: str = ""
     source_token: str = ""
@@ -45,6 +53,8 @@ class RawCLIOptions:
     session_token_mode: str = "env"
     session_source_token_env: str = "GFRM_SOURCE_TOKEN"
     session_target_token_env: str = "GFRM_TARGET_TOKEN"
+    settings_profile: str = ""
+
     download_workers: int = 4
     download_workers_provided: bool = False
     release_workers: int = 1
@@ -58,6 +68,13 @@ class RawCLIOptions:
     demo_mode: bool = False
     demo_releases: int = 5
     demo_sleep_seconds: float = 1.0
+
+    settings_action: str = ""
+    settings_provider: str = ""
+    settings_env_name: str = ""
+    settings_token: str = ""
+    settings_scope_local: bool = False
+    settings_yes: bool = False
 
 
 def _normalize_provider(value: str | None) -> str:
@@ -155,12 +172,56 @@ def _load_session_fill_missing(raw: RawCLIOptions, logger: ConsoleLogger) -> Non
     logger.info(f"Session loaded from {session_path}")
 
 
+def _resolve_side_token(
+    *,
+    raw: RawCLIOptions,
+    side: str,
+    provider: str,
+    settings_payload: dict,
+    profile: str,
+) -> str:
+    if not _known_provider(provider):
+        return ""
+
+    from_settings = token_from_settings(settings_payload, profile, provider)
+    if from_settings:
+        return from_settings
+
+    side_env_name = raw.session_source_token_env if side == "source" else raw.session_target_token_env
+    return token_from_env_aliases(provider, side_env_name=side_env_name)
+
+
+def _apply_settings_and_env_fallback(raw: RawCLIOptions, settings_payload: dict, profile: str) -> None:
+    source_provider = _normalize_provider(raw.source_provider)
+    target_provider = _normalize_provider(raw.target_provider)
+
+    if not raw.source_token and _known_provider(source_provider):
+        raw.source_token = _resolve_side_token(
+            raw=raw,
+            side="source",
+            provider=source_provider,
+            settings_payload=settings_payload,
+            profile=profile,
+        )
+
+    if not raw.target_token and _known_provider(target_provider):
+        raw.target_token = _resolve_side_token(
+            raw=raw,
+            side="target",
+            provider=target_provider,
+            settings_payload=settings_payload,
+            profile=profile,
+        )
+
+
 def _prompt_missing(
     raw: RawCLIOptions,
     input_fn: Callable[[str], str],
     getpass_fn: Callable[[str], str],
     *,
     prompt_skip_tags: bool,
+    settings_payload: dict,
+    profile: str,
 ) -> None:
     while not _known_provider(_normalize_provider(raw.source_provider)):
         raw.source_provider = input_fn("Source provider (github/gitlab/bitbucket): ").strip()
@@ -168,6 +229,15 @@ def _prompt_missing(
     if not raw.source_url:
         raw.source_url = input_fn("Source project URL: ").strip()
 
+    if not raw.source_token:
+        provider = _normalize_provider(raw.source_provider)
+        raw.source_token = _resolve_side_token(
+            raw=raw,
+            side="source",
+            provider=provider,
+            settings_payload=settings_payload,
+            profile=profile,
+        )
     if not raw.source_token:
         raw.source_token = getpass_fn("Source token: ").strip()
 
@@ -177,6 +247,15 @@ def _prompt_missing(
     if not raw.target_url:
         raw.target_url = input_fn("Target project URL: ").strip()
 
+    if not raw.target_token:
+        provider = _normalize_provider(raw.target_provider)
+        raw.target_token = _resolve_side_token(
+            raw=raw,
+            side="target",
+            provider=provider,
+            settings_payload=settings_payload,
+            profile=profile,
+        )
     if not raw.target_token:
         raw.target_token = getpass_fn("Target token: ").strip()
 
@@ -190,6 +269,9 @@ def resolve_runtime_options(
     input_fn: Callable[[str], str] = input,
     getpass_fn: Callable[[str], str] = getpass.getpass,
 ) -> RuntimeOptions:
+    if raw.command != "migrate":
+        raise ValueError("resolve_runtime_options only supports migrate command")
+
     if raw.resume_session:
         raw.load_session = True
         raw.save_session = True
@@ -203,22 +285,35 @@ def resolve_runtime_options(
     raw.source_provider = _normalize_provider(raw.source_provider)
     raw.target_provider = _normalize_provider(raw.target_provider)
 
+    settings_payload = load_effective_settings()
+    profile = resolve_profile_name(settings_payload, raw.settings_profile)
+    raw.settings_profile = profile
+    _apply_settings_and_env_fallback(raw, settings_payload, profile)
+
     if not raw.non_interactive:
         prompt_skip_tags = sys.stdin.isatty() or input_fn is not input
-        _prompt_missing(raw, input_fn, getpass_fn, prompt_skip_tags=prompt_skip_tags)
+        _prompt_missing(
+            raw,
+            input_fn,
+            getpass_fn,
+            prompt_skip_tags=prompt_skip_tags,
+            settings_payload=settings_payload,
+            profile=profile,
+        )
         raw.source_provider = _normalize_provider(raw.source_provider)
         raw.target_provider = _normalize_provider(raw.target_provider)
+        _apply_settings_and_env_fallback(raw, settings_payload, profile)
 
     if not all([raw.source_provider, raw.source_url, raw.target_provider, raw.target_url]):
         raise ValueError("Missing required canonical inputs. Provide source/target provider URL and token.")
 
     if not raw.source_token:
         raise ValueError(
-            f"Missing source token. Provide --source-token or set env var '{raw.session_source_token_env}'."
+            "Missing source token. Provide --source-token, settings profile token, or relevant env variable."
         )
     if not raw.target_token:
         raise ValueError(
-            f"Missing target token. Provide --target-token or set env var '{raw.session_target_token_env}'."
+            "Missing target token. Provide --target-token, settings profile token, or relevant env variable."
         )
 
     if not _known_provider(raw.source_provider):
@@ -300,6 +395,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--session-token-mode", choices=["env", "plain"], default="env")
     parser.add_argument("--session-source-token-env", default="GFRM_SOURCE_TOKEN")
     parser.add_argument("--session-target-token-env", default="GFRM_TARGET_TOKEN")
+    parser.add_argument("--settings-profile", default="")
 
     parser.add_argument("--download-workers", type=int, default=4)
     parser.add_argument("--release-workers", type=int, default=1)
@@ -325,10 +421,60 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def build_settings_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="gfrm settings", description="Manage gfrm settings")
+    sub = parser.add_subparsers(dest="settings_action", required=True)
+
+    init = sub.add_parser("init", help="Interactive bootstrap for provider token settings")
+    init.add_argument("--profile", default="")
+    init.add_argument("--local", action="store_true")
+    init.add_argument("--yes", action="store_true")
+
+    set_env = sub.add_parser("set-token-env", help="Store token environment variable name for a provider")
+    set_env.add_argument("--provider", required=True)
+    set_env.add_argument("--env-name", required=True)
+    set_env.add_argument("--profile", default="")
+    set_env.add_argument("--local", action="store_true")
+
+    set_plain = sub.add_parser("set-token-plain", help="Store plain token value for a provider")
+    set_plain.add_argument("--provider", required=True)
+    set_plain.add_argument("--token", default="")
+    set_plain.add_argument("--profile", default="")
+    set_plain.add_argument("--local", action="store_true")
+
+    unset = sub.add_parser("unset-token", help="Unset provider token settings")
+    unset.add_argument("--provider", required=True)
+    unset.add_argument("--profile", default="")
+    unset.add_argument("--local", action="store_true")
+
+    show = sub.add_parser("show", help="Show effective settings")
+    show.add_argument("--profile", default="")
+
+    return parser
+
+
+def _parse_settings_args(args: list[str]) -> RawCLIOptions:
+    ns = build_settings_parser().parse_args(args)
+    raw = RawCLIOptions(command="settings")
+    raw.settings_action = str(getattr(ns, "settings_action", "") or "")
+    raw.settings_provider = _normalize_provider(str(getattr(ns, "provider", "") or ""))
+    raw.settings_env_name = str(getattr(ns, "env_name", "") or "")
+    raw.settings_token = str(getattr(ns, "token", "") or "")
+    raw.settings_profile = str(getattr(ns, "profile", "") or "")
+    raw.settings_scope_local = bool(getattr(ns, "local", False))
+    raw.settings_yes = bool(getattr(ns, "yes", False))
+    return raw
+
+
 def parse_raw_args(argv: list[str] | None = None) -> RawCLIOptions:
-    ns = build_parser().parse_args(argv)
+    arg_list = list(argv) if argv is not None else sys.argv[1:]
+
+    if arg_list and arg_list[0] == "settings":
+        return _parse_settings_args(arg_list[1:])
+
+    ns = build_parser().parse_args(arg_list)
     raw = RawCLIOptions(**vars(ns))
-    arg_list = argv if argv is not None else sys.argv[1:]
+    raw.command = "migrate"
     raw.skip_tags_provided = "--skip-tags" in arg_list
     raw.download_workers_provided = "--download-workers" in arg_list
     raw.release_workers_provided = "--release-workers" in arg_list

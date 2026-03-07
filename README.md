@@ -23,6 +23,7 @@ Designed for safe reruns: completed items are skipped, incomplete items are retr
 - [Requirements](#requirements)
 - [Quick Start](#quick-start)
 - [Command Recipes](#command-recipes)
+- [Settings Profiles](#settings-profiles)
 - [Tag Selection Rules](#tag-selection-rules)
 - [Output, Retry, and Sessions](#output-retry-and-sessions)
 - [Safety Model](#safety-model)
@@ -119,6 +120,9 @@ pip install -e .
 # Interactive (recommended first run)
 ./bin/repo-migrator.py
 
+# Bootstrap settings (recommended)
+./bin/repo-migrator.py settings init
+
 # Resume last session
 ./bin/repo-migrator.py --resume-session
 
@@ -140,6 +144,123 @@ pip install -e .
 # Retry only failed tags from previous run
 ./bin/repo-migrator.py --resume-session --tags-file ./migration-results/<run>/failed-tags.txt
 ```
+
+## Settings Profiles
+
+The `settings` system lets you avoid entering provider tokens every run.
+
+### File Layout and Merge Behavior
+
+Settings are loaded from two files:
+
+- global: `~/.config/gfrm/settings.yaml`
+- local override: `./.gfrm/settings.yaml`
+
+Load strategy:
+
+1. read global file (if present)
+2. read local file (if present)
+3. deep-merge local over global
+
+This means local values override global values only where keys overlap, while keeping the rest of global config.
+
+### Profile Selection Rules
+
+Effective profile is resolved in this order:
+
+1. `--settings-profile <name>` from runtime command
+2. `defaults.profile` from merged settings
+3. `default`
+
+How to switch profile at runtime:
+
+```bash
+./bin/repo-migrator.py --settings-profile work ...
+./bin/repo-migrator.py --settings-profile personal ...
+```
+
+How to change default profile:
+
+- edit `defaults.profile` in settings YAML
+- or keep no default and always pass `--settings-profile`
+
+### YAML Shape (v1)
+
+```yaml
+version: 1
+defaults:
+  profile: work
+profiles:
+  work:
+    providers:
+      github:
+        token_env: GH_WORK_TOKEN
+      gitlab:
+        token_env: GL_WORK_TOKEN
+  personal:
+    providers:
+      github:
+        token_env: GH_PERSONAL_TOKEN
+      bitbucket:
+        token_plain: bbp_example_plain_token
+```
+
+Provider keys:
+
+- `token_env`: preferred and safer, references an env var name
+- `token_plain`: optional explicit plaintext token
+
+If both are present for a provider profile, `token_env` is attempted first.
+
+### Settings Commands
+
+```bash
+./bin/repo-migrator.py settings init [--profile <name>] [--local] [--yes]
+./bin/repo-migrator.py settings set-token-env --provider <github|gitlab|bitbucket> --env-name <ENV_NAME> [--profile <name>] [--local]
+./bin/repo-migrator.py settings set-token-plain --provider <github|gitlab|bitbucket> [--token <value>] [--profile <name>] [--local]
+./bin/repo-migrator.py settings unset-token --provider <github|gitlab|bitbucket> [--profile <name>] [--local]
+./bin/repo-migrator.py settings show [--profile <name>]
+```
+
+Notes:
+
+- `--local` writes to `./.gfrm/settings.yaml`; without it, command writes global settings.
+- if `--profile` is omitted, command uses effective default profile resolution.
+- `settings show` prints merged effective settings and masks `token_plain`.
+- `settings init` only performs read-only scan of `~/.zshrc`, `~/.zprofile`, `~/.bashrc`, and `~/.bash_profile` to suggest env variable names.
+- `settings init` does not set `token_plain`; use `settings set-token-plain` for that.
+
+### Recommended Profile Workflow
+
+1. Initialize local project settings:
+```bash
+./bin/repo-migrator.py settings init --local
+```
+2. Create/update a dedicated profile:
+```bash
+./bin/repo-migrator.py settings set-token-env --provider github --env-name GH_WORK_TOKEN --profile work --local
+./bin/repo-migrator.py settings set-token-env --provider gitlab --env-name GL_WORK_TOKEN --profile work --local
+```
+3. Run migration with that profile:
+```bash
+./bin/repo-migrator.py --settings-profile work --source-provider github --target-provider gitlab ...
+```
+
+### Runtime Token Resolution Order
+
+For each side (`source` and `target`), token resolution is:
+
+1. CLI args: `--source-token` / `--target-token`
+2. loaded session values (`--load-session` / `--resume-session`)
+3. settings provider block in effective profile:
+   - `token_env` (resolved via `os.getenv`)
+   - `token_plain`
+4. environment fallback aliases:
+   - `GFRM_SOURCE_TOKEN` / `GFRM_TARGET_TOKEN`
+   - GitHub: `GITHUB_TOKEN`, `GH_TOKEN`, `GH_PERSONAL_TOKEN`
+   - GitLab: `GITLAB_TOKEN`, `GL_TOKEN`
+   - Bitbucket: `BITBUCKET_TOKEN`, `BB_TOKEN`
+5. interactive prompt (interactive mode only)
 
 ## Tag Selection Rules
 

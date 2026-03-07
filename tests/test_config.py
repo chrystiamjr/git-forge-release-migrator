@@ -2,9 +2,24 @@ from __future__ import annotations
 
 import os
 import unittest
+from unittest import mock
 
 from git_forge_release_migrator.config import RawCLIOptions, parse_raw_args, resolve_runtime_options
 from git_forge_release_migrator.core.logging import ConsoleLogger
+
+_TOKEN_ENV_KEYS = [
+    "GFRM_SOURCE_TOKEN",
+    "GFRM_TARGET_TOKEN",
+    "GITHUB_TOKEN",
+    "GH_TOKEN",
+    "GH_PERSONAL_TOKEN",
+    "GITLAB_TOKEN",
+    "GL_TOKEN",
+    "BITBUCKET_TOKEN",
+    "BB_TOKEN",
+    "SETTINGS_SOURCE_TOKEN",
+    "SETTINGS_TARGET_TOKEN",
+]
 
 
 def _silent_input(_prompt: str) -> str:
@@ -237,6 +252,172 @@ class ConfigTests(unittest.TestCase):
         self.assertIn("--release-workers must be >= 1", str(ctx.exception))
 
 
+class TokenResolutionPrecedenceTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._env_backup = {key: os.environ.get(key) for key in _TOKEN_ENV_KEYS}
+        for key in _TOKEN_ENV_KEYS:
+            os.environ.pop(key, None)
+
+    def tearDown(self) -> None:
+        for key in _TOKEN_ENV_KEYS:
+            original = self._env_backup.get(key)
+            if original is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = original
+
+    def _base_raw(self, **overrides: object) -> RawCLIOptions:
+        raw = RawCLIOptions(
+            source_provider="github",
+            source_url="https://github.com/acme/source",
+            source_token="",
+            target_provider="gitlab",
+            target_url="https://gitlab.com/acme/target",
+            target_token="",
+            non_interactive=True,
+        )
+        for key, value in overrides.items():
+            setattr(raw, key, value)
+        return raw
+
+    def test_args_tokens_have_highest_precedence(self) -> None:
+        os.environ["GH_PERSONAL_TOKEN"] = "env-source"
+        os.environ["GL_TOKEN"] = "env-target"
+        settings_payload = {
+            "version": 1,
+            "defaults": {"profile": "default"},
+            "profiles": {
+                "default": {
+                    "providers": {
+                        "github": {"token_plain": "settings-source"},
+                        "gitlab": {"token_plain": "settings-target"},
+                    }
+                }
+            },
+        }
+
+        raw = self._base_raw(
+            source_token="arg-source",
+            target_token="arg-target",
+            load_session=True,
+            session_file="/tmp/session.json",
+        )
+
+        with (
+            mock.patch("git_forge_release_migrator.config.load_session") as load_session_mock,
+            mock.patch("git_forge_release_migrator.config.load_effective_settings", return_value=settings_payload),
+        ):
+            load_session_mock.return_value = {"source_token": "session-source", "target_token": "session-target"}
+            options = resolve_runtime_options(
+                raw,
+                logger=ConsoleLogger(),
+                input_fn=_silent_input,
+                getpass_fn=_silent_getpass,
+            )
+
+        self.assertEqual(options.source_token, "arg-source")
+        self.assertEqual(options.target_token, "arg-target")
+
+    def test_session_tokens_override_settings_and_env(self) -> None:
+        os.environ["GH_PERSONAL_TOKEN"] = "env-source"
+        os.environ["GL_TOKEN"] = "env-target"
+        settings_payload = {
+            "version": 1,
+            "defaults": {"profile": "default"},
+            "profiles": {
+                "default": {
+                    "providers": {
+                        "github": {"token_plain": "settings-source"},
+                        "gitlab": {"token_plain": "settings-target"},
+                    }
+                }
+            },
+        }
+        raw = self._base_raw(load_session=True, session_file="/tmp/session.json")
+
+        with (
+            mock.patch(
+                "git_forge_release_migrator.config.load_session",
+                return_value={"source_token": "session-source", "target_token": "session-target"},
+            ),
+            mock.patch("git_forge_release_migrator.config.load_effective_settings", return_value=settings_payload),
+        ):
+            options = resolve_runtime_options(
+                raw,
+                logger=ConsoleLogger(),
+                input_fn=_silent_input,
+                getpass_fn=_silent_getpass,
+            )
+
+        self.assertEqual(options.source_token, "session-source")
+        self.assertEqual(options.target_token, "session-target")
+
+    def test_settings_override_environment_aliases(self) -> None:
+        os.environ["SETTINGS_SOURCE_TOKEN"] = "settings-env-source"
+        os.environ["GH_PERSONAL_TOKEN"] = "alias-source"
+        os.environ["GL_TOKEN"] = "alias-target"
+
+        settings_payload = {
+            "version": 1,
+            "defaults": {"profile": "prod"},
+            "profiles": {
+                "prod": {
+                    "providers": {
+                        "github": {"token_env": "SETTINGS_SOURCE_TOKEN"},
+                        "gitlab": {"token_plain": "settings-plain-target"},
+                    }
+                }
+            },
+        }
+
+        raw = self._base_raw()
+        with mock.patch("git_forge_release_migrator.config.load_effective_settings", return_value=settings_payload):
+            options = resolve_runtime_options(
+                raw,
+                logger=ConsoleLogger(),
+                input_fn=_silent_input,
+                getpass_fn=_silent_getpass,
+            )
+
+        self.assertEqual(options.source_token, "settings-env-source")
+        self.assertEqual(options.target_token, "settings-plain-target")
+
+    def test_environment_aliases_are_used_when_settings_are_empty(self) -> None:
+        os.environ["GH_PERSONAL_TOKEN"] = "alias-source"
+        os.environ["GL_TOKEN"] = "alias-target"
+
+        raw = self._base_raw()
+        with mock.patch("git_forge_release_migrator.config.load_effective_settings", return_value={}):
+            options = resolve_runtime_options(
+                raw,
+                logger=ConsoleLogger(),
+                input_fn=_silent_input,
+                getpass_fn=_silent_getpass,
+            )
+
+        self.assertEqual(options.source_token, "alias-source")
+        self.assertEqual(options.target_token, "alias-target")
+
+    def test_prompt_is_last_fallback_in_interactive_mode(self) -> None:
+        prompts: list[str] = []
+        getpass_values = iter(["prompt-source", "prompt-target"])
+
+        def _input(prompt: str) -> str:
+            prompts.append(prompt)
+            return "n"
+
+        def _getpass(_prompt: str) -> str:
+            return next(getpass_values)
+
+        raw = self._base_raw(non_interactive=False)
+        with mock.patch("git_forge_release_migrator.config.load_effective_settings", return_value={}):
+            options = resolve_runtime_options(raw, logger=ConsoleLogger(), input_fn=_input, getpass_fn=_getpass)
+
+        self.assertEqual(options.source_token, "prompt-source")
+        self.assertEqual(options.target_token, "prompt-target")
+        self.assertTrue(any("Skip tag migration?" in p for p in prompts))
+
+
 class ParseRawArgsTests(unittest.TestCase):
     def test_skip_tags_sets_provided_flag(self) -> None:
         raw = parse_raw_args(["--skip-tags"])
@@ -284,6 +465,10 @@ class ParseRawArgsTests(unittest.TestCase):
         raw = parse_raw_args(["--session-token-mode", "plain"])
         self.assertEqual(raw.session_token_mode, "plain")
 
+    def test_settings_profile_flag(self) -> None:
+        raw = parse_raw_args(["--settings-profile", "work"])
+        self.assertEqual(raw.settings_profile, "work")
+
     def test_help_exits_zero(self) -> None:
         with self.assertRaises(SystemExit) as ctx:
             parse_raw_args(["--help"])
@@ -318,6 +503,30 @@ class ParseRawArgsTests(unittest.TestCase):
         raw = parse_raw_args(["--from-tag", "v1.0.0", "--to-tag", "v2.0.0"])
         self.assertEqual(raw.from_tag, "v1.0.0")
         self.assertEqual(raw.to_tag, "v2.0.0")
+
+    def test_settings_show_command_is_parsed(self) -> None:
+        raw = parse_raw_args(["settings", "show", "--profile", "team"])
+        self.assertEqual(raw.command, "settings")
+        self.assertEqual(raw.settings_action, "show")
+        self.assertEqual(raw.settings_profile, "team")
+
+    def test_settings_set_token_env_command_is_parsed(self) -> None:
+        raw = parse_raw_args(
+            [
+                "settings",
+                "set-token-env",
+                "--provider",
+                "gh",
+                "--env-name",
+                "GH_PERSONAL_TOKEN",
+                "--local",
+            ]
+        )
+        self.assertEqual(raw.command, "settings")
+        self.assertEqual(raw.settings_action, "set-token-env")
+        self.assertEqual(raw.settings_provider, "github")
+        self.assertEqual(raw.settings_env_name, "GH_PERSONAL_TOKEN")
+        self.assertTrue(raw.settings_scope_local)
 
 
 if __name__ == "__main__":

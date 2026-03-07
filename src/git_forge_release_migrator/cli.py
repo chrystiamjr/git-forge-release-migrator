@@ -1,16 +1,30 @@
 from __future__ import annotations
 
+import getpass
 import json
 import os
 import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Callable
 
 from .config import parse_raw_args, resolve_runtime_options
 from .core.jsonl import append_log
 from .core.logging import ConsoleLogger
 from .core.session_store import save_session
+from .core.settings import (
+    env_aliases,
+    load_effective_settings,
+    read_scope_settings,
+    resolve_profile_name,
+    scan_shell_export_names,
+    set_provider_token_env,
+    set_provider_token_plain,
+    suggest_env_name,
+    unset_provider_token,
+    write_settings_file,
+)
 from .migrations.engine import MigrationEngine
 from .models import RuntimeOptions
 from .providers.registry import ProviderRegistry
@@ -83,6 +97,125 @@ def _demo_tags(options: RuntimeOptions) -> list[str]:
         else:
             tags.append(f"v3.{2 + idx}.0")
     return tags
+
+
+def _mask_settings_secrets(payload: Any) -> Any:
+    if isinstance(payload, dict):
+        masked: dict[str, Any] = {}
+        for key, value in payload.items():
+            if key == "token_plain" and isinstance(value, str) and value:
+                masked[key] = "***"
+            else:
+                masked[key] = _mask_settings_secrets(value)
+        return masked
+    if isinstance(payload, list):
+        return [_mask_settings_secrets(item) for item in payload]
+    return payload
+
+
+def _resolve_settings_profile(raw_profile: str, settings_payload: dict[str, Any]) -> str:
+    return resolve_profile_name(settings_payload, raw_profile)
+
+
+def _run_settings_init(
+    raw: Any,
+    logger: ConsoleLogger,
+    input_fn: Callable[[str], str] = input,
+) -> int:
+    path, scope_settings = read_scope_settings(local=raw.settings_scope_local)
+    effective_settings = load_effective_settings()
+    profile = _resolve_settings_profile(raw.settings_profile, effective_settings)
+    known_env_names = set(os.environ.keys()) | scan_shell_export_names()
+
+    updated = scope_settings
+    changed = False
+    for provider in ("github", "gitlab", "bitbucket"):
+        default_env = suggest_env_name(provider, known_env_names)
+        if not default_env:
+            for candidate in env_aliases(provider):
+                if candidate in known_env_names:
+                    default_env = candidate
+                    break
+
+        if raw.settings_yes:
+            chosen = default_env
+        else:
+            prompt = (
+                f"{provider} token env name" + (f" [{default_env}]" if default_env else " (leave empty to skip)") + ": "
+            )
+            chosen = input_fn(prompt).strip()
+            if not chosen:
+                chosen = default_env
+
+        if not chosen:
+            continue
+
+        updated = set_provider_token_env(updated, profile=profile, provider=provider, env_name=chosen)
+        changed = True
+
+    if changed:
+        write_settings_file(path, updated)
+        logger.info(f"Settings initialized at {path}")
+    else:
+        logger.info("No settings were changed")
+    return 0
+
+
+def _run_settings_command(
+    raw: Any,
+    logger: ConsoleLogger,
+    input_fn: Callable[[str], str] = input,
+    getpass_fn: Callable[[str], str] = getpass.getpass,
+) -> int:
+    action = str(raw.settings_action or "").strip()
+
+    if action == "show":
+        effective = load_effective_settings()
+        profile = _resolve_settings_profile(raw.settings_profile, effective)
+        masked = _mask_settings_secrets(effective)
+        print(json.dumps({"profile": profile, "settings": masked}, ensure_ascii=True, indent=2))
+        return 0
+
+    if action == "init":
+        return _run_settings_init(raw, logger, input_fn=input_fn)
+
+    provider = str(raw.settings_provider or "").strip()
+    if provider not in {"github", "gitlab", "bitbucket"}:
+        raise ValueError("--provider must be one of: github, gitlab, bitbucket")
+
+    path, scope_settings = read_scope_settings(local=raw.settings_scope_local)
+    effective_settings = load_effective_settings()
+    profile = _resolve_settings_profile(raw.settings_profile, effective_settings)
+    updated = scope_settings
+
+    if action == "set-token-env":
+        env_name = str(raw.settings_env_name or "").strip()
+        if not env_name:
+            raise ValueError("--env-name is required for settings set-token-env")
+        updated = set_provider_token_env(updated, profile=profile, provider=provider, env_name=env_name)
+        write_settings_file(path, updated)
+        logger.info(f"Stored env-token reference for provider '{provider}' in profile '{profile}' at {path}")
+        return 0
+
+    if action == "set-token-plain":
+        token = str(raw.settings_token or "")
+        if not token:
+            token = getpass_fn(f"Plain token for {provider}: ").strip()
+        if not token:
+            raise ValueError("Token value is empty")
+        updated = set_provider_token_plain(updated, profile=profile, provider=provider, token=token)
+        write_settings_file(path, updated)
+        logger.warn("Token stored in plain text. Keep file permissions restricted.")
+        logger.info(f"Stored plain token for provider '{provider}' in profile '{profile}' at {path}")
+        return 0
+
+    if action == "unset-token":
+        updated = unset_provider_token(updated, profile=profile, provider=provider)
+        write_settings_file(path, updated)
+        logger.info(f"Removed token settings for provider '{provider}' in profile '{profile}' at {path}")
+        return 0
+
+    raise ValueError(f"Unknown settings action: {action}")
 
 
 def _run_demo(options: RuntimeOptions, logger: ConsoleLogger, *, results_root: Path, run_workdir: Path) -> int:
@@ -182,6 +315,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         raw = parse_raw_args(argv)
         logger = ConsoleLogger(quiet=raw.quiet, json_output=raw.json_output)
+
+        if raw.command == "settings":
+            return _run_settings_command(raw, logger)
 
         if not raw.no_banner and not raw.json_output and not raw.quiet:
             _print_banner()

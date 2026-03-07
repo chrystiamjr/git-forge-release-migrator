@@ -6,10 +6,11 @@
 ./bin/repo-migrator.py \
   --source-provider <github|gitlab|bitbucket> \
   --source-url <url> \
-  --source-token <token> \
+  [--source-token <token>] \
   --target-provider <github|gitlab|bitbucket> \
   --target-url <url> \
-  --target-token <token>
+  [--target-token <token>] \
+  [--settings-profile <nome>]
 ```
 
 ## Pares Suportados
@@ -90,9 +91,104 @@ Não suportado nesta fase:
 - `--session-token-mode <env|plain>` (padrão: `env`)
 - `--session-source-token-env <env_name>` (padrão: `GFRM_SOURCE_TOKEN`)
 - `--session-target-token-env <env_name>` (padrão: `GFRM_TARGET_TOKEN`)
+- `--settings-profile <nome>`
 - `--demo-mode`
 - `--demo-releases <n>`
 - `--demo-sleep-seconds <seconds>`
+
+## Subcomandos de Settings
+
+```bash
+./bin/repo-migrator.py settings init [--profile <nome>] [--local] [--yes]
+./bin/repo-migrator.py settings set-token-env --provider <github|gitlab|bitbucket> --env-name <ENV_NAME> [--profile <nome>] [--local]
+./bin/repo-migrator.py settings set-token-plain --provider <github|gitlab|bitbucket> [--token <valor>] [--profile <nome>] [--local]
+./bin/repo-migrator.py settings unset-token --provider <github|gitlab|bitbucket> [--profile <nome>] [--local]
+./bin/repo-migrator.py settings show [--profile <nome>]
+```
+
+### Caminhos de Settings e Estratégia de Merge
+
+- global: `~/.config/gfrm/settings.yaml`
+- override local: `./.gfrm/settings.yaml`
+
+Comportamento do merge:
+
+1. lê settings globais
+2. lê settings locais
+3. aplica merge profundo com local sobre global
+
+O local sobrescreve apenas chaves iguais e preserva o restante do global.
+
+### Seleção e Troca de Perfil
+
+Ordem do perfil efetivo:
+
+1. `--settings-profile`
+2. `defaults.profile` no merge global+local
+3. `default`
+
+Troca de perfil em runtime:
+
+```bash
+./bin/repo-migrator.py --settings-profile work ...
+./bin/repo-migrator.py --settings-profile personal ...
+```
+
+Definição de credenciais por perfil:
+
+```bash
+./bin/repo-migrator.py settings set-token-env --provider github --env-name GH_WORK_TOKEN --profile work
+./bin/repo-migrator.py settings set-token-env --provider github --env-name GH_PERSONAL_TOKEN --profile personal
+```
+
+Se `--profile` for omitido em comandos de settings, vale a mesma regra de perfil efetivo.
+
+### Schema YAML (v1)
+
+```yaml
+version: 1
+defaults:
+  profile: work
+profiles:
+  work:
+    providers:
+      github:
+        token_env: GH_WORK_TOKEN
+      gitlab:
+        token_env: GL_WORK_TOKEN
+  personal:
+    providers:
+      github:
+        token_env: GH_PERSONAL_TOKEN
+      bitbucket:
+        token_plain: bbp_exemplo_token_plain
+```
+
+Campos de credencial por provider:
+
+- `token_env`: preferido, resolvido por nome de variável de ambiente
+- `token_plain`: token explícito em texto puro
+
+`settings show` mascara `token_plain`.
+
+`settings init` faz scan somente leitura de `~/.zshrc`, `~/.zprofile`, `~/.bashrc` e `~/.bash_profile` para sugerir nomes de variáveis. Ele não altera esses arquivos.
+`settings init` não define `token_plain`; para isso, use `settings set-token-plain`.
+
+## Ordem de Resolução de Tokens
+
+Para cada lado (`source` e `target`), a ordem é:
+
+1. token explícito via argumento (`--source-token` / `--target-token`)
+2. token da sessão carregada (`--load-session` / `--resume-session`)
+3. configuração do provider no perfil:
+   - `token_env` (resolvido por variável de ambiente)
+   - `token_plain` (opcional, texto puro explícito)
+4. aliases de ambiente:
+   - `GFRM_SOURCE_TOKEN` / `GFRM_TARGET_TOKEN`
+   - GitHub: `GITHUB_TOKEN`, `GH_TOKEN`, `GH_PERSONAL_TOKEN`
+   - GitLab: `GITLAB_TOKEN`, `GL_TOKEN`
+   - Bitbucket: `BITBUCKET_TOKEN`, `BB_TOKEN`
+5. prompt interativo (quando o modo interativo estiver ativo)
 
 ## Seleção e Ordenação de Tags
 
