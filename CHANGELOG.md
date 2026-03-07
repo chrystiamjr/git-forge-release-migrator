@@ -1,3 +1,9 @@
+## [1.1.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v1.0.0...v1.1.0) (2026-03-07)
+
+### Features
+
+* **bitbucket:** add cross-forge migration support ([6f2fb02](https://github.com/chrystiamjr/git-forge-release-migrator/commit/6f2fb02359f035957ce6b83650a57db1be301f98))
+
 ## 1.0.0 (2026-03-03)
 
 ### Features
