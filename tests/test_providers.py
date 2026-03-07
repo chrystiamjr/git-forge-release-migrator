@@ -4,6 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from git_forge_release_migrator.providers.base import ProviderRef
+from git_forge_release_migrator.providers.bitbucket import BitbucketAdapter
 from git_forge_release_migrator.providers.github import GitHubAdapter
 from git_forge_release_migrator.providers.gitlab import GitLabAdapter
 
@@ -26,6 +27,24 @@ def _make_gitlab_ref(resource: str = "group/proj") -> ProviderRef:
         host="gitlab.com",
         resource=resource,
         metadata={"project_path": resource, "project_encoded": resource.replace("/", "%2F")},
+    )
+
+
+def _make_bitbucket_ref(resource: str = "workspace/repo") -> ProviderRef:
+    workspace, repo = resource.split("/", 1)
+    return ProviderRef(
+        provider="bitbucket",
+        raw_url="",
+        base_url="https://bitbucket.org",
+        host="bitbucket.org",
+        resource=resource,
+        metadata={
+            "workspace": workspace,
+            "repo": repo,
+            "workspace_encoded": workspace,
+            "repo_encoded": repo,
+            "repo_ref": resource,
+        },
     )
 
 
@@ -115,6 +134,148 @@ class GitLabParseUrlTests(unittest.TestCase):
     def test_metadata_includes_encoded_path(self) -> None:
         ref = self.adapter.parse_url("https://gitlab.com/group/project")
         self.assertIn("project_encoded", ref.metadata)
+
+
+class BitbucketParseUrlTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.adapter = BitbucketAdapter()
+
+    def test_https_url(self) -> None:
+        ref = self.adapter.parse_url("https://bitbucket.org/workspace/repo")
+        self.assertEqual(ref.provider, "bitbucket")
+        self.assertEqual(ref.resource, "workspace/repo")
+        self.assertEqual(ref.host, "bitbucket.org")
+
+    def test_ssh_url(self) -> None:
+        ref = self.adapter.parse_url("git@bitbucket.org:workspace/repo.git")
+        self.assertEqual(ref.resource, "workspace/repo")
+
+    def test_invalid_host_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            self.adapter.parse_url("https://bb.example.com/workspace/repo")
+
+    def test_invalid_path_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            self.adapter.parse_url("https://bitbucket.org/workspace")
+
+
+class BitbucketApiTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.adapter = BitbucketAdapter()
+        self.ref = _make_bitbucket_ref()
+
+    def test_list_tags_paginates(self) -> None:
+        page1 = {
+            "values": [{"name": "v1.0.0"}, {"name": "v1.1.0"}],
+            "next": "https://api.bitbucket.org/2.0/repositories/workspace/repo/refs/tags?page=2",
+        }
+        page2 = {"values": [{"name": "v2.0.0"}]}
+        calls = {"count": 0}
+
+        def _fake_request_json(url: str, **kwargs) -> dict:
+            del kwargs
+            calls["count"] += 1
+            return page1 if calls["count"] == 1 else page2
+
+        with patch("git_forge_release_migrator.providers.bitbucket.request_json", side_effect=_fake_request_json):
+            tags = self.adapter.list_tags(self.ref, "token")
+
+        self.assertEqual(tags, ["v1.0.0", "v1.1.0", "v2.0.0"])
+        self.assertEqual(calls["count"], 2)
+
+    def test_create_tag_sends_message_when_present(self) -> None:
+        captured: list[dict] = []
+
+        def _fake_request_json(url: str, **kwargs) -> dict:
+            captured.append({"url": url, **kwargs})
+            return {}
+
+        with patch("git_forge_release_migrator.providers.bitbucket.request_json", side_effect=_fake_request_json):
+            self.adapter.create_tag(self.ref, "token", "v1.0.0", "abc123", "release notes")
+
+        self.assertEqual(len(captured), 1)
+        payload = captured[0]["json_data"]
+        self.assertEqual(payload["name"], "v1.0.0")
+        self.assertEqual(payload["target"]["hash"], "abc123")
+        self.assertEqual(payload["message"], "release notes")
+
+    def test_build_release_manifest_contains_expected_fields(self) -> None:
+        manifest = self.adapter.build_release_manifest(
+            tag="v1.0.0",
+            release_name="Release 1",
+            notes="hello",
+            uploaded_assets=[{"name": "app.zip", "url": "https://example/app.zip", "type": "package"}],
+            missing_assets=[],
+        )
+        self.assertEqual(manifest["version"], 1)
+        self.assertEqual(manifest["tag_name"], "v1.0.0")
+        self.assertEqual(manifest["release_name"], "Release 1")
+        self.assertTrue(manifest["notes_hash"])
+        self.assertEqual(manifest["uploaded_assets"][0]["name"], "app.zip")
+        self.assertEqual(manifest["missing_assets"], [])
+        self.assertTrue(manifest["updated_at"])
+
+    def test_manifest_is_complete(self) -> None:
+        self.assertTrue(self.adapter.manifest_is_complete({"uploaded_assets": [], "missing_assets": []}))
+        self.assertFalse(self.adapter.manifest_is_complete({"uploaded_assets": []}))
+        self.assertFalse(self.adapter.manifest_is_complete(None))
+
+    def test_list_releases_without_manifest_returns_legacy_release(self) -> None:
+        with (
+            patch.object(
+                self.adapter,
+                "list_tags_payload",
+                return_value=[{"name": "v1.0.0", "message": "notes", "target": {"hash": "abc123"}}],
+            ),
+            patch.object(self.adapter, "list_downloads", return_value=[]),
+        ):
+            releases = self.adapter.list_releases(self.ref, "token")
+
+        self.assertEqual(len(releases), 1)
+        release = releases[0]
+        canonical = self.adapter.to_canonical_release(release)
+        self.assertEqual(canonical["tag_name"], "v1.0.0")
+        self.assertEqual(canonical["description_markdown"], "notes")
+        self.assertEqual(canonical["assets"]["links"], [])
+        metadata = canonical["provider_metadata"]
+        self.assertTrue(metadata["legacy_no_manifest"])
+
+    def test_list_releases_with_manifest_maps_assets(self) -> None:
+        manifest = {
+            "version": 1,
+            "tag_name": "v1.0.0",
+            "release_name": "Release 1",
+            "uploaded_assets": [{"name": "app.zip", "url": "https://download/app.zip", "type": "package"}],
+            "missing_assets": [],
+        }
+        download_item = {
+            "name": ".gfrm-release-v1.0.0.json",
+            "links": {"download": {"href": "https://download/manifest.json"}},
+        }
+
+        def _fake_request_json(url: str, **kwargs) -> dict:
+            del kwargs
+            if url == "https://download/manifest.json":
+                return manifest
+            return {}
+
+        with (
+            patch.object(
+                self.adapter,
+                "list_tags_payload",
+                return_value=[{"name": "v1.0.0", "message": "notes", "target": {"hash": "abc123"}}],
+            ),
+            patch.object(self.adapter, "list_downloads", return_value=[download_item]),
+            patch("git_forge_release_migrator.providers.bitbucket.request_json", side_effect=_fake_request_json),
+        ):
+            releases = self.adapter.list_releases(self.ref, "token")
+
+        self.assertEqual(len(releases), 1)
+        canonical = self.adapter.to_canonical_release(releases[0])
+        self.assertEqual(canonical["name"], "Release 1")
+        self.assertEqual(len(canonical["assets"]["links"]), 1)
+        self.assertEqual(canonical["assets"]["links"][0]["url"], "https://download/app.zip")
+        self.assertFalse(canonical["provider_metadata"]["legacy_no_manifest"])
 
 
 class GitLabToCanonicalReleaseTests(unittest.TestCase):

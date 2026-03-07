@@ -28,18 +28,17 @@ class ProviderRegistry:
         return self.adapters[provider]
 
     def pair_status(self, source: str, target: str) -> str:
-        if (source, target) in {("gitlab", "github"), ("github", "gitlab")}:
+        known = {"github", "gitlab", "bitbucket"}
+        if source not in known or target not in known:
+            return "unsupported"
+        if source == target:
+            return "unsupported"
+        if source in known and target in known:
             return "enabled"
-        if "bitbucket" in {source, target}:
-            return "not_implemented"
         return "unsupported"
 
     def require_supported_pair(self, source: str, target: str) -> None:
         status = self.pair_status(source, target)
         if status == "enabled":
             return
-        if status == "not_implemented":
-            raise ValueError(
-                f"Provider pair {source}->{target} is registered but not implemented yet (Bitbucket phase pending)."
-            )
         raise ValueError(f"Provider pair {source}->{target} is unsupported.")

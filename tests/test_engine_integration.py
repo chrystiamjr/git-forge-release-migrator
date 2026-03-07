@@ -32,6 +32,23 @@ def _target_ref() -> ProviderRef:
     )
 
 
+def _bitbucket_ref() -> ProviderRef:
+    return ProviderRef(
+        provider="bitbucket",
+        raw_url="",
+        base_url="https://bitbucket.org",
+        host="bitbucket.org",
+        resource="workspace/repo",
+        metadata={
+            "workspace": "workspace",
+            "repo": "repo",
+            "workspace_encoded": "workspace",
+            "repo_encoded": "repo",
+            "repo_ref": "workspace/repo",
+        },
+    )
+
+
 def _options(tmp: str, *, tags_file: str = "", dry_run: bool = False) -> RuntimeOptions:
     return RuntimeOptions(
         source_provider="gitlab",
@@ -42,6 +59,35 @@ def _options(tmp: str, *, tags_file: str = "", dry_run: bool = False) -> Runtime
         target_token="ghp_x",
         migration_order="gitlab-to-github",
         skip_tag_migration=True,
+        workdir=tmp,
+        checkpoint_file=str(Path(tmp) / "checkpoints" / "state.jsonl"),
+        tags_file=tags_file,
+        no_banner=True,
+        save_session=False,
+        dry_run=dry_run,
+    )
+
+
+def _options_for(
+    tmp: str,
+    *,
+    source_provider: str,
+    source_url: str,
+    target_provider: str,
+    target_url: str,
+    tags_file: str = "",
+    dry_run: bool = False,
+    skip_tag_migration: bool = True,
+) -> RuntimeOptions:
+    return RuntimeOptions(
+        source_provider=source_provider,
+        source_url=source_url,
+        source_token="src_tok",
+        target_provider=target_provider,
+        target_url=target_url,
+        target_token="dst_tok",
+        migration_order=f"{source_provider}-to-{target_provider}",
+        skip_tag_migration=skip_tag_migration,
         workdir=tmp,
         checkpoint_file=str(Path(tmp) / "checkpoints" / "state.jsonl"),
         tags_file=tags_file,
@@ -219,6 +265,184 @@ class _FakeGitHubTarget:
 
     def create_tag_ref(self, ref: ProviderRef, token: str, tag: str, sha: str) -> None:
         del ref, token, tag, sha
+
+
+class _FakeGitHubSource:
+    def list_releases(self, ref: ProviderRef, token: str):
+        del ref, token
+        return [
+            {
+                "tag_name": "v1.0.0",
+                "name": "Release 1",
+                "body": "notes",
+                "assets": [{"name": "app.zip", "browser_download_url": "https://example.invalid/app.zip"}],
+                "zipball_url": "",
+                "tarball_url": "",
+            }
+        ]
+
+    def to_canonical_release(self, payload: dict):
+        del payload
+        return {
+            "tag_name": "v1.0.0",
+            "name": "Release 1",
+            "description_markdown": "notes",
+            "commit_sha": "abc123",
+            "assets": {
+                "links": [{"name": "app.zip", "url": "https://example.invalid/app.zip", "direct_url": ""}],
+                "sources": [],
+            },
+        }
+
+    def commit_sha_for_ref(self, ref: ProviderRef, token: str, ref_name: str) -> str:
+        del ref, token, ref_name
+        return "abc123"
+
+    def download_with_token(self, token: str, url: str, destination: str) -> bool:
+        del token, url
+        Path(destination).write_text("ok", encoding="utf-8")
+        return True
+
+
+class _FakeBitbucketTarget:
+    def __init__(self) -> None:
+        self.tags: set[str] = set()
+        self.manifests: dict[str, dict] = {}
+        self.uploaded_names: list[str] = []
+        self.create_tag_calls = 0
+
+    def list_tags(self, ref: ProviderRef, token: str) -> list[str]:
+        del ref, token
+        return sorted(self.tags)
+
+    def tag_exists(self, ref: ProviderRef, token: str, tag: str) -> bool:
+        del ref, token
+        return tag in self.tags
+
+    def create_tag(self, ref: ProviderRef, token: str, tag: str, ref_sha: str, message: str = "") -> None:
+        del ref, token, ref_sha, message
+        self.create_tag_calls += 1
+        self.tags.add(tag)
+
+    def read_release_manifest(self, ref: ProviderRef, token: str, tag: str) -> dict | None:
+        del ref, token
+        return self.manifests.get(tag)
+
+    def manifest_is_complete(self, manifest: dict | None) -> bool:
+        if not isinstance(manifest, dict):
+            return False
+        missing = manifest.get("missing_assets")
+        return isinstance(missing, list) and len(missing) == 0
+
+    def replace_download(self, ref: ProviderRef, token: str, filepath: str, *, upload_name: str = "") -> dict:
+        del ref, token, filepath
+        name = upload_name or "asset.bin"
+        self.uploaded_names.append(name)
+        return {"name": name, "links": {"download": {"href": f"https://download.invalid/{name}"}}}
+
+    def download_url(self, item: dict) -> str:
+        links = item.get("links", {}) if isinstance(item.get("links"), dict) else {}
+        download = links.get("download", {}) if isinstance(links.get("download"), dict) else {}
+        return str(download.get("href", ""))
+
+    def build_release_manifest(
+        self,
+        *,
+        tag: str,
+        release_name: str,
+        notes: str,
+        uploaded_assets: list[dict],
+        missing_assets: list[dict],
+    ) -> dict:
+        del notes
+        return {
+            "version": 1,
+            "tag_name": tag,
+            "release_name": release_name,
+            "notes_hash": "hash",
+            "uploaded_assets": uploaded_assets,
+            "missing_assets": missing_assets,
+            "updated_at": "2026-01-01T00:00:00Z",
+        }
+
+    def write_release_manifest(self, ref: ProviderRef, token: str, tag: str, manifest: dict) -> None:
+        del ref, token
+        self.manifests[tag] = manifest
+
+
+class _FakeBitbucketSource:
+    def __init__(self, *, legacy_no_manifest: bool = False) -> None:
+        self.legacy_no_manifest = legacy_no_manifest
+
+    def list_releases(self, ref: ProviderRef, token: str):
+        del ref, token
+        links = [] if self.legacy_no_manifest else [{"name": "app.zip", "url": "https://example.invalid/app.zip"}]
+        return [
+            {
+                "tag_name": "v1.0.0",
+                "name": "Release 1",
+                "description_markdown": "notes",
+                "commit_sha": "abc123",
+                "assets": {"links": links, "sources": []},
+                "provider_metadata": {
+                    "manifest_found": not self.legacy_no_manifest,
+                    "legacy_no_manifest": self.legacy_no_manifest,
+                    "manifest": {},
+                },
+            }
+        ]
+
+    def to_canonical_release(self, payload: dict):
+        return payload
+
+    def tag_commit_sha(self, ref: ProviderRef, token: str, tag: str) -> str:
+        del ref, token, tag
+        return "abc123"
+
+    def download_with_auth(self, token: str, url: str, destination: str) -> bool:
+        del token, url
+        Path(destination).write_text("ok", encoding="utf-8")
+        return True
+
+    def build_tag_url(self, ref: ProviderRef, tag: str) -> str:
+        del ref
+        return f"https://bitbucket.org/workspace/repo/src/{tag}"
+
+
+class _FakeGitLabTarget:
+    def __init__(self) -> None:
+        self.updated = 0
+        self.last_links: list[dict] = []
+
+    def list_tags(self, ref: ProviderRef, token: str):
+        del ref, token
+        return ["v1.0.0"]
+
+    def tag_exists(self, ref: ProviderRef, token: str, tag: str) -> bool:
+        del ref, token, tag
+        return True
+
+    def create_tag(self, ref: ProviderRef, token: str, tag: str, ref_sha: str) -> None:
+        del ref, token, tag, ref_sha
+
+    def release_exists(self, ref: ProviderRef, token: str, tag: str) -> bool:
+        del ref, token, tag
+        return False
+
+    def release_by_tag(self, ref: ProviderRef, token: str, tag: str):
+        del ref, token, tag
+        return None
+
+    def upload_file(self, ref: ProviderRef, token: str, filepath: str) -> str:
+        del ref, token, filepath
+        return "https://gitlab.invalid/uploads/file"
+
+    def create_or_update_release(
+        self, ref: ProviderRef, token: str, tag: str, name: str, description: str, links: list[dict]
+    ) -> None:
+        del ref, token, tag, name, description
+        self.updated += 1
+        self.last_links = links
 
 
 class EngineIntegrationTests(unittest.TestCase):
@@ -474,6 +698,174 @@ class FailedTagsFileTests(unittest.TestCase):
             self.assertTrue(failed_tags_path.exists())
             content = failed_tags_path.read_text(encoding="utf-8").strip()
             self.assertEqual(content, "")
+
+
+class BitbucketCrossForgeFlowTests(unittest.TestCase):
+    def test_github_to_bitbucket_happy_path(self) -> None:
+        registry = ProviderRegistry.default()
+        engine = MigrationEngine(registry=registry, logger=ConsoleLogger(quiet=True))
+        source = _FakeGitHubSource()
+        target = _FakeBitbucketTarget()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tags_file = Path(tmp) / "tags.txt"
+            tags_file.write_text("v1.0.0\n", encoding="utf-8")
+            opts = _options_for(
+                tmp,
+                source_provider="github",
+                source_url="https://github.com/owner/repo",
+                target_provider="bitbucket",
+                target_url="https://bitbucket.org/workspace/repo",
+                tags_file=str(tags_file),
+                skip_tag_migration=False,
+            )
+
+            engine._migrate_github_to_bitbucket(
+                opts,
+                source_ref=_target_ref(),
+                target_ref=_bitbucket_ref(),
+                source=source,
+                target=target,
+            )
+
+            self.assertIn("v1.0.0", target.tags)
+            self.assertIn("v1.0.0", target.manifests)
+            manifest = target.manifests["v1.0.0"]
+            self.assertEqual(len(manifest["uploaded_assets"]), 1)
+
+    def test_github_to_bitbucket_existing_complete_manifest_skips(self) -> None:
+        registry = ProviderRegistry.default()
+        engine = MigrationEngine(registry=registry, logger=ConsoleLogger(quiet=True))
+        source = _FakeGitHubSource()
+        target = _FakeBitbucketTarget()
+        target.tags.add("v1.0.0")
+        target.manifests["v1.0.0"] = {
+            "version": 1,
+            "tag_name": "v1.0.0",
+            "release_name": "Release 1",
+            "notes_hash": "hash",
+            "uploaded_assets": [{"name": "app.zip", "url": "https://download.invalid/app.zip", "type": "package"}],
+            "missing_assets": [],
+            "updated_at": "2026-01-01T00:00:00Z",
+        }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tags_file = Path(tmp) / "tags.txt"
+            tags_file.write_text("v1.0.0\n", encoding="utf-8")
+            opts = _options_for(
+                tmp,
+                source_provider="github",
+                source_url="https://github.com/owner/repo",
+                target_provider="bitbucket",
+                target_url="https://bitbucket.org/workspace/repo",
+                tags_file=str(tags_file),
+                skip_tag_migration=True,
+            )
+
+            engine._migrate_github_to_bitbucket(
+                opts,
+                source_ref=_target_ref(),
+                target_ref=_bitbucket_ref(),
+                source=source,
+                target=target,
+            )
+
+            self.assertEqual(target.create_tag_calls, 0)
+            self.assertEqual(target.uploaded_names, [])
+
+    def test_gitlab_to_bitbucket_dry_run(self) -> None:
+        import json
+
+        registry = ProviderRegistry.default()
+        engine = MigrationEngine(registry=registry, logger=ConsoleLogger(quiet=True))
+        source = _FakeGitLabSource()
+        target = _FakeBitbucketTarget()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tags_file = Path(tmp) / "tags.txt"
+            tags_file.write_text("v1.0.0\n", encoding="utf-8")
+            opts = _options_for(
+                tmp,
+                source_provider="gitlab",
+                source_url="https://gitlab.com/group/proj",
+                target_provider="bitbucket",
+                target_url="https://bitbucket.org/workspace/repo",
+                tags_file=str(tags_file),
+                dry_run=True,
+                skip_tag_migration=False,
+            )
+
+            engine._migrate_gitlab_to_bitbucket(
+                opts,
+                source_ref=_source_ref(),
+                target_ref=_bitbucket_ref(),
+                source=source,
+                target=target,
+            )
+
+            summary = json.loads((Path(tmp) / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(summary["counts"]["releases_would_create"], 1)
+            self.assertEqual(target.create_tag_calls, 0)
+            self.assertEqual(target.manifests, {})
+
+    def test_bitbucket_to_github_legacy_without_manifest(self) -> None:
+        registry = ProviderRegistry.default()
+        engine = MigrationEngine(registry=registry, logger=ConsoleLogger(quiet=True))
+        source = _FakeBitbucketSource(legacy_no_manifest=True)
+        target = _FakeGitHubTarget()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tags_file = Path(tmp) / "tags.txt"
+            tags_file.write_text("v1.0.0\n", encoding="utf-8")
+            opts = _options_for(
+                tmp,
+                source_provider="bitbucket",
+                source_url="https://bitbucket.org/workspace/repo",
+                target_provider="github",
+                target_url="https://github.com/owner/repo",
+                tags_file=str(tags_file),
+                skip_tag_migration=True,
+            )
+
+            engine._migrate_bitbucket_to_github(
+                opts,
+                source_ref=_bitbucket_ref(),
+                target_ref=_target_ref(),
+                source=source,
+                target=target,
+            )
+
+            self.assertEqual(target.created, 1)
+
+    def test_bitbucket_to_gitlab_legacy_adds_tag_link(self) -> None:
+        registry = ProviderRegistry.default()
+        engine = MigrationEngine(registry=registry, logger=ConsoleLogger(quiet=True))
+        source = _FakeBitbucketSource(legacy_no_manifest=True)
+        target = _FakeGitLabTarget()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tags_file = Path(tmp) / "tags.txt"
+            tags_file.write_text("v1.0.0\n", encoding="utf-8")
+            opts = _options_for(
+                tmp,
+                source_provider="bitbucket",
+                source_url="https://bitbucket.org/workspace/repo",
+                target_provider="gitlab",
+                target_url="https://gitlab.com/group/proj",
+                tags_file=str(tags_file),
+                skip_tag_migration=True,
+            )
+
+            engine._migrate_bitbucket_to_gitlab(
+                opts,
+                source_ref=_bitbucket_ref(),
+                target_ref=_source_ref(),
+                source=source,
+                target=target,
+            )
+
+            self.assertEqual(target.updated, 1)
+            self.assertTrue(any(str(link.get("name", "")).endswith("-tag-link") for link in target.last_links))
 
 
 if __name__ == "__main__":

@@ -6,18 +6,29 @@
 
 CLI em Python para migrar **tags + releases + notas de release + artefatos** entre plataformas Git.
 
-Foi pensado para reexecução segura: itens concluídos são ignorados, itens incompletos são retomados e cada execução gera saída estruturada para auditoria e retry.
+Projetado para reexecução segura: itens concluídos são ignorados, itens incompletos são retomados e cada execução gera saída estruturada para auditoria e retry.
+
+## Documentação
+
+- Referência completa da CLI: [docs/USAGE.pt-BR.md](docs/USAGE.pt-BR.md)
+- Referência da CLI em inglês: [docs/USAGE.md](docs/USAGE.md)
+- README em inglês: [README.md](README.md)
+- Guia para agentes de IA: [AGENTS.md](AGENTS.md)
 
 ## Conteúdo
 
 - [Matriz de Suporte](#matriz-de-suporte)
+- [Modelo dos Providers](#modelo-dos-providers)
+- [Contrato de Manifesto no Bitbucket](#contrato-de-manifesto-no-bitbucket)
 - [Requisitos](#requisitos)
 - [Início Rápido](#início-rápido)
-- [Comandos Copy/Paste](#comandos-copypaste)
-- [Modo Demo (para gravação de GIF)](#modo-demo-para-gravação-de-gif)
-- [Flags Mais Usadas](#flags-mais-usadas)
+- [Receitas de Comando](#receitas-de-comando)
+- [Regras de Seleção de Tags](#regras-de-seleção-de-tags)
 - [Saída, Retry e Sessões](#saída-retry-e-sessões)
+- [Modelo de Segurança](#modelo-de-segurança)
 - [Troubleshooting](#troubleshooting)
+- [Setup para Desenvolvimento](#setup-para-desenvolvimento)
+- [Processo de Release (deste projeto)](#processo-de-release-deste-projeto)
 
 ## Matriz de Suporte
 
@@ -25,15 +36,52 @@ Foi pensado para reexecução segura: itens concluídos são ignorados, itens in
 |---|---|---|
 | `gitlab` | `github` | Disponível |
 | `github` | `gitlab` | Disponível |
-| `bitbucket` | qualquer | Registrado, ainda não implementado |
+| `github` | `bitbucket` | Disponível (Bitbucket Cloud) |
+| `bitbucket` | `github` | Disponível (Bitbucket Cloud) |
+| `gitlab` | `bitbucket` | Disponível (Bitbucket Cloud) |
+| `bitbucket` | `gitlab` | Disponível (Bitbucket Cloud) |
+
+Observações:
+
+- Migrações para o mesmo provider seguem fora de escopo nesta fase (`github->github`, `gitlab->gitlab`, `bitbucket->bitbucket`).
+- O suporte a Bitbucket nesta fase é **somente Bitbucket Cloud** (`bitbucket.org`).
+
+## Modelo dos Providers
+
+- `gitlab`: release GitLab + links + sources.
+- `github`: release GitHub + assets + source archives automáticos.
+- `bitbucket` neste projeto: **tag + mensagem da tag + arquivos em Downloads**.
+
+Ou seja, no Bitbucket a noção de "release" é sintetizada com base em tag e artefatos de download.
+
+## Contrato de Manifesto no Bitbucket
+
+Para destinos Bitbucket, cada tag migrada grava um manifesto em Downloads:
+
+- nome do arquivo: `.gfrm-release-<tag>.json`
+- finalidade: idempotência e decisão de retry/skip
+- campos mínimos:
+  - `version`
+  - `tag_name`
+  - `release_name`
+  - `notes_hash`
+  - `uploaded_assets`
+  - `missing_assets`
+  - `updated_at`
+
+Comportamento em tags legadas do Bitbucket sem manifesto:
+
+- a migração continua (notas + link de rastreabilidade)
+- assets podem ficar vazios
+- a ausência do manifesto por si só não falha a migração
 
 ## Requisitos
 
 | Dependência | Versão | Observação |
 |---|---|---|
 | Python | `>=3.9` | Necessário para executar a CLI |
-| `curl` | qualquer | Usado para baixar artefatos de release |
-| `gh` (GitHub CLI) | qualquer | Necessário apenas em fluxos que envolvem GitHub (origem ou destino) |
+| `curl` | qualquer | Usado para chamadas de API e transferência de artefatos |
+| `gh` (GitHub CLI) | qualquer | Necessário apenas quando o fluxo envolve GitHub |
 
 Instalar o `gh`: https://cli.github.com
 
@@ -57,15 +105,15 @@ pip install -e .
 ./bin/repo-migrator.py \
   --source-provider gitlab \
   --source-url "https://gitlab.com/group/project" \
-  --source-token "<gitlab_pat>" \
+  --source-token "<gitlab_token>" \
   --target-provider github \
   --target-url "https://github.com/org/repo" \
-  --target-token "<github_pat>" \
+  --target-token "<github_token>" \
   --from-tag v3.2.1 \
   --to-tag v3.40.0
 ```
 
-## Comandos Copy/Paste
+## Receitas de Comando
 
 ```bash
 # Interativo (recomendado na primeira execução)
@@ -74,50 +122,30 @@ pip install -e .
 # Retomar última sessão
 ./bin/repo-migrator.py --resume-session
 
-# Somente dry-run
+# Somente dry-run (GitLab -> GitHub)
 ./bin/repo-migrator.py --dry-run \
-  --source-provider gitlab --source-url "https://gitlab.com/group/project" --source-token "<gitlab_pat>" \
-  --target-provider github --target-url "https://github.com/org/repo" --target-token "<github_pat>"
+  --source-provider gitlab --source-url "https://gitlab.com/group/project" --source-token "<gitlab_token>" \
+  --target-provider github --target-url "https://github.com/org/repo" --target-token "<github_token>"
 
-# Executar somente tags com falha da execução anterior
-./bin/repo-migrator.py --tags-file ./migration-results/<run>/failed-tags.txt
+# GitHub -> Bitbucket Cloud
+./bin/repo-migrator.py --non-interactive \
+  --source-provider github --source-url "https://github.com/org/repo" --source-token "<github_token>" \
+  --target-provider bitbucket --target-url "https://bitbucket.org/workspace/repo" --target-token "<bitbucket_bearer>"
+
+# Bitbucket Cloud -> GitLab
+./bin/repo-migrator.py --non-interactive \
+  --source-provider bitbucket --source-url "https://bitbucket.org/workspace/repo" --source-token "<bitbucket_bearer>" \
+  --target-provider gitlab --target-url "https://gitlab.com/group/project" --target-token "<gitlab_token>"
+
+# Reexecutar somente tags com falha da execução anterior
+./bin/repo-migrator.py --resume-session --tags-file ./migration-results/<run>/failed-tags.txt
 ```
 
-## Modo Demo (para gravação de GIF)
+## Regras de Seleção de Tags
 
-Use o modo demo para simular a migração sem chamadas reais de API.
-
-```bash
-./bin/repo-migrator.py \
-  --demo-mode \
-  --demo-releases 5 \
-  --demo-sleep-seconds 1.2 \
-  --source-provider gitlab \
-  --source-url "https://gitlab.com/teste" \
-  --source-token "foo" \
-  --target-provider github \
-  --target-url "https://github.com/teste" \
-  --target-token "bar" \
-  --non-interactive
-```
-
-| Modo | Gravação |
-|---|---|
-| Interativo | ![Demo interativo](docs/assets/interactive-mode.gif) |
-| Não interativo | ![Demo não interativo](docs/assets/non-interactive-mode.gif) |
-
-## Flags Mais Usadas
-
-- `--dry-run`: monta e valida o plano sem criar/atualizar releases.
-- `--skip-tags`: migra somente releases.
-- `--from-tag` / `--to-tag`: limita o intervalo de tags.
-- `--tags-file <path>`: executa apenas tags específicas.
-- `--release-workers <n>` e `--download-workers <n>`: ajuste de desempenho.
-- `--resume-session`: carrega+salva sessão em um único comando.
-- `--non-interactive`: execução totalmente scriptável.
-- `--progress-bar`: progresso amigável para CI.
-
-Referência completa da CLI: [docs/USAGE.pt-BR.md](docs/USAGE.pt-BR.md)
+- O engine atualmente seleciona tags no formato semântico `vX.Y.Z`.
+- `--from-tag` e `--to-tag` são inclusivos.
+- `--tags-file` funciona como filtro adicional sobre as releases descobertas no provider.
 
 ## Saída, Retry e Sessões
 
@@ -143,19 +171,27 @@ Padrões de sessão:
 - Migração de tags ocorre antes da migração de releases.
 - Release completa já existente é ignorada.
 - Release incompleta existente é retomada/atualizada.
-- Se source archives falharem, links de fallback podem preservar rastreabilidade.
+- Checkpoints evitam reprocessamento de estados terminais.
 - Tokens nunca são impressos em log.
 
-Para operações com GitHub, o comando é sempre executado como:
+Para operações com GitHub, comandos são executados com override de token em runtime:
 
 ```bash
 GH_TOKEN="<target_token>" gh ...
 ```
 
+Para operações com Bitbucket nesta fase, o auth esperado é:
+
+```text
+Authorization: Bearer <token>
+```
+
 ## Troubleshooting
 
 - `gh: Bad credentials (HTTP 401)` com `--dry-run`:
-  - O dry-run ainda valida o estado das releases no destino, então o token de destino precisa ser válido.
+  - O dry-run ainda valida estado de release no destino, então o token de destino precisa ser válido.
+- `Only Bitbucket Cloud URLs are supported in this phase`:
+  - Use `https://bitbucket.org/<workspace>/<repo>`.
 - `pip install -e .[dev]` falha no `zsh`:
   - Use aspas: `pip install -e '.[dev]'`.
 
@@ -187,8 +223,3 @@ Este repositório usa `semantic-release` + GitHub Actions na branch `main`.
 - GitHub Release e changelog são gerados.
 
 Veja: [CHANGELOG.md](CHANGELOG.md), [release.config.cjs](release.config.cjs), [.github/workflows/release.yml](.github/workflows/release.yml)
-
-## Documentação
-
-- Referência completa da CLI e opções avançadas: [docs/USAGE.pt-BR.md](docs/USAGE.pt-BR.md)
-- README em inglês: [README.md](README.md)
