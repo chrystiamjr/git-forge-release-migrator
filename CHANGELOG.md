@@ -1,3 +1,9 @@
+## [1.2.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v1.1.0...v1.2.0) (2026-03-07)
+
+### Features
+
+* **settings:** add profile-based token configuration system ([ae84006](https://github.com/chrystiamjr/git-forge-release-migrator/commit/ae84006a28dab7edcbc093dc6056c82867077ef7))
+
 ## [1.1.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v1.0.0...v1.1.0) (2026-03-07)
 
 ### Features
