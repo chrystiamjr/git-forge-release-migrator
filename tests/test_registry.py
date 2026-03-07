@@ -11,9 +11,12 @@ class RegistryTests(unittest.TestCase):
 
         self.assertEqual(registry.pair_status("gitlab", "github"), "enabled")
         self.assertEqual(registry.pair_status("github", "gitlab"), "enabled")
-        self.assertEqual(registry.pair_status("github", "bitbucket"), "not_implemented")
-        self.assertEqual(registry.pair_status("bitbucket", "gitlab"), "not_implemented")
+        self.assertEqual(registry.pair_status("github", "bitbucket"), "enabled")
+        self.assertEqual(registry.pair_status("bitbucket", "gitlab"), "enabled")
+        self.assertEqual(registry.pair_status("gitlab", "bitbucket"), "enabled")
+        self.assertEqual(registry.pair_status("bitbucket", "github"), "enabled")
         self.assertEqual(registry.pair_status("gitlab", "gitlab"), "unsupported")
+        self.assertEqual(registry.pair_status("bitbucket", "bitbucket"), "unsupported")
 
 
 if __name__ == "__main__":
