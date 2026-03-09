@@ -5,7 +5,7 @@ import 'package:gfrm_dart/src/core/adapters/provider_adapter.dart';
 import 'package:gfrm_dart/src/core/logging.dart';
 import 'package:gfrm_dart/src/core/types/phase.dart';
 import 'package:gfrm_dart/src/migrations/summary.dart';
-import 'package:gfrm_dart/src/models.dart';
+import 'package:gfrm_dart/src/models/runtime_options.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -73,7 +73,7 @@ void main() {
       final ProviderRef source = buildProviderRef('github', 'acme/source');
       final ProviderRef target = buildProviderRef('gitlab', 'acme/target');
 
-      final String signature = checkpointSignature(options, source, target);
+      final String signature = SummaryWriter.checkpointSignature(options, source, target);
 
       expect(signature, 'github-to-gitlab|acme/source|acme/target|<start>|<end>');
     });
@@ -88,7 +88,7 @@ void main() {
       );
       final File failedTags = File('/tmp/failed tags.txt');
 
-      final String command = buildRetryCommand(options, failedTags);
+      final String command = SummaryWriter.buildRetryCommand(options, failedTags);
 
       expect(command, startsWith('gfrm resume --tags-file '));
       expect(command, contains("'/tmp/failed tags.txt'"));
@@ -124,7 +124,7 @@ void main() {
       final String logPath = p.join(temp.path, 'migration-log.jsonl');
       final String checkpointPath = p.join(temp.path, 'checkpoints', 'state.jsonl');
 
-      await writeSummary(
+      await SummaryWriter.writeSummary(
         logger: logger,
         options: options,
         sourceRef: source,

@@ -6,7 +6,3 @@ class HttpRequestError implements Exception {
   @override
   String toString() => message;
 }
-
-class AuthenticationError extends HttpRequestError {
-  AuthenticationError(super.message);
-}

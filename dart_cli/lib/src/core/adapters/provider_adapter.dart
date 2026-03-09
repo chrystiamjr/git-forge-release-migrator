@@ -121,7 +121,7 @@ abstract class ProviderAdapter {
     String checkpointStatus,
     Set<String> targetReleaseTags,
   ) async {
-    if (!isTerminalReleaseStatus(checkpointStatus)) {
+    if (!CheckpointStore.isTerminalReleaseStatus(checkpointStatus)) {
       return false;
     }
 
@@ -151,6 +151,7 @@ abstract class ProviderAdapter {
       input.notesFile.readAsStringSync(),
       <Map<String, dynamic>>[],
     );
+
     return 'ok';
   }
 

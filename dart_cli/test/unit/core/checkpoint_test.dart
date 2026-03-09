@@ -10,7 +10,7 @@ void main() {
       addTearDown(() => temp.deleteSync(recursive: true));
 
       final String path = '${temp.path}/checkpoints/state.jsonl';
-      appendCheckpoint(
+      CheckpointStore.appendCheckpoint(
         path,
         signature: 'sig-1',
         key: 'tag:v1.0.0',
@@ -18,7 +18,7 @@ void main() {
         status: 'tag_created',
         message: 'ok',
       );
-      appendCheckpoint(
+      CheckpointStore.appendCheckpoint(
         path,
         signature: 'sig-1',
         key: 'release:v1.0.0',
@@ -26,7 +26,7 @@ void main() {
         status: 'created',
         message: 'ok',
       );
-      appendCheckpoint(
+      CheckpointStore.appendCheckpoint(
         path,
         signature: 'sig-2',
         key: 'tag:v2.0.0',
@@ -35,17 +35,17 @@ void main() {
         message: 'ok',
       );
 
-      final Map<String, String> state = loadCheckpointState(path, 'sig-1');
+      final Map<String, String> state = CheckpointStore.loadCheckpointState(path, 'sig-1');
       expect(state['tag:v1.0.0'], 'tag_created');
       expect(state['release:v1.0.0'], 'created');
       expect(state.containsKey('tag:v2.0.0'), isFalse);
     });
 
     test('terminal status helpers', () {
-      expect(isTerminalReleaseStatus('created'), isTrue);
-      expect(isTerminalReleaseStatus('failed'), isFalse);
-      expect(isTerminalTagStatus('tag_skipped_existing'), isTrue);
-      expect(isTerminalTagStatus('pending'), isFalse);
+      expect(CheckpointStore.isTerminalReleaseStatus('created'), isTrue);
+      expect(CheckpointStore.isTerminalReleaseStatus('failed'), isFalse);
+      expect(CheckpointStore.isTerminalTagStatus('tag_skipped_existing'), isTrue);
+      expect(CheckpointStore.isTerminalTagStatus('pending'), isFalse);
     });
   });
 }

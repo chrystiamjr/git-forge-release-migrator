@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:gfrm_dart/gfrm_dart.dart';
 import 'package:gfrm_dart/src/core/settings.dart';
-import 'package:gfrm_dart/src/models.dart';
+import 'package:gfrm_dart/src/models/runtime_options.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -15,7 +15,7 @@ void main() {
       Directory.current = temp.path;
       addTearDown(() => Directory.current = oldCwd);
 
-      final int setupExit = await runCli(<String>[
+      final int setupExit = await CliRunner.run(<String>[
         commandSetup,
         '--profile',
         'smoke',
@@ -25,8 +25,8 @@ void main() {
       ]);
       expect(setupExit, 0);
 
-      final String localSettingsPath = defaultLocalSettingsPath(cwd: temp.path);
-      final Map<String, dynamic> payload = loadSettingsFile(localSettingsPath);
+      final String localSettingsPath = SettingsManager.defaultLocalSettingsPath(cwd: temp.path);
+      final Map<String, dynamic> payload = SettingsManager.loadSettingsFile(localSettingsPath);
       final Map<String, dynamic> profiles = (payload['profiles'] as Map<String, dynamic>?) ?? <String, dynamic>{};
       final Map<String, dynamic> smoke = (profiles['smoke'] as Map<String, dynamic>?) ?? <String, dynamic>{};
       final Map<String, dynamic> providers = (smoke['providers'] as Map<String, dynamic>?) ?? <String, dynamic>{};
@@ -48,7 +48,7 @@ void main() {
       Directory.current = temp.path;
       addTearDown(() => Directory.current = oldCwd);
 
-      final int setExit = await runCli(<String>[
+      final int setExit = await CliRunner.run(<String>[
         commandSettings,
         settingsActionSetTokenEnv,
         '--provider',
@@ -61,15 +61,15 @@ void main() {
       ]);
       expect(setExit, 0);
 
-      final String localSettingsPath = defaultLocalSettingsPath(cwd: temp.path);
-      final Map<String, dynamic> afterSet = loadSettingsFile(localSettingsPath);
+      final String localSettingsPath = SettingsManager.defaultLocalSettingsPath(cwd: temp.path);
+      final Map<String, dynamic> afterSet = SettingsManager.loadSettingsFile(localSettingsPath);
       expect(
         (((afterSet['profiles'] as Map<String, dynamic>)['work'] as Map<String, dynamic>)['providers']
             as Map<String, dynamic>)['github'],
         <String, dynamic>{'token_env': 'GH_WORK_TOKEN'},
       );
 
-      final int unsetExit = await runCli(<String>[
+      final int unsetExit = await CliRunner.run(<String>[
         commandSettings,
         settingsActionUnsetToken,
         '--provider',
@@ -80,7 +80,7 @@ void main() {
       ]);
       expect(unsetExit, 0);
 
-      final Map<String, dynamic> afterUnset = loadSettingsFile(localSettingsPath);
+      final Map<String, dynamic> afterUnset = SettingsManager.loadSettingsFile(localSettingsPath);
       final Map<String, dynamic> profiles = (afterUnset['profiles'] as Map<String, dynamic>?) ?? <String, dynamic>{};
       expect(profiles.containsKey('work'), isFalse);
     });
@@ -93,8 +93,8 @@ void main() {
       Directory.current = temp.path;
       addTearDown(() => Directory.current = oldCwd);
 
-      final String localSettingsPath = defaultLocalSettingsPath(cwd: temp.path);
-      writeSettingsFile(
+      final String localSettingsPath = SettingsManager.defaultLocalSettingsPath(cwd: temp.path);
+      SettingsManager.writeSettingsFile(
         localSettingsPath,
         <String, dynamic>{
           'defaults': <String, dynamic>{'profile': 'work'},
@@ -110,7 +110,7 @@ void main() {
         },
       );
 
-      final int exitCode = await runCli(<String>[commandSettings, settingsActionShow]);
+      final int exitCode = await CliRunner.run(<String>[commandSettings, settingsActionShow]);
       expect(exitCode, 0);
     });
   });

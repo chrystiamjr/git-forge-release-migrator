@@ -30,17 +30,83 @@ jobs:
         run: |
           mkdir -p build
           if [ "${{ runner.os }}" = "Windows" ]; then
-            OUT="build/gfrm-windows.exe"
+            PLATFORM="windows"
+            BIN_NAME="gfrm.exe"
           elif [ "${{ runner.os }}" = "macOS" ]; then
-            OUT="build/gfrm-macos"
+            PLATFORM="macos"
+            BIN_NAME="gfrm"
           else
-            OUT="build/gfrm-linux"
+            PLATFORM="linux"
+            BIN_NAME="gfrm"
           fi
+          
+          OUT="build/${PLATFORM}/${BIN_NAME}"
+          mkdir -p "$(dirname "$OUT")"
+          
           dart compile exe bin/gfrm_dart.dart -o "$OUT"
+          
+          if [ "${{ runner.os }}" != "Windows" ]; then
+            chmod +x "$OUT"
+          fi
+          
           echo "OUT=$OUT" >> "$GITHUB_ENV"
+          echo "PLATFORM=$PLATFORM" >> "$GITHUB_ENV"
+          echo "BIN_NAME=$BIN_NAME" >> "$GITHUB_ENV"
+
+      - name: Import macOS signing certificate (optional)
+        if: runner.os == 'macOS' && secrets.APPLE_CERTIFICATE_P12_BASE64 != '' && secrets.APPLE_CERTIFICATE_PASSWORD != ''
+        shell: bash
+        env:
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+        run: |
+          CERT_PATH="$RUNNER_TEMP/apple-signing-cert.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/gfrm-build.keychain-db"
+          KEYCHAIN_PASSWORD="${APPLE_KEYCHAIN_PASSWORD:-gfrm-temporary-keychain-password}"
+
+          if ! printf '%s' "$APPLE_CERTIFICATE_P12_BASE64" | base64 --decode > "$CERT_PATH" 2>/dev/null; then
+            printf '%s' "$APPLE_CERTIFICATE_P12_BASE64" | base64 -D > "$CERT_PATH"
+          fi
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          security default-keychain -d user -s "$KEYCHAIN_PATH"
+
+          RESOLVED_IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | awk -F'"' '/"/ {print $2; exit}')"
+          if [ -n "$RESOLVED_IDENTITY" ]; then
+            echo "APPLE_SIGN_IDENTITY_RESOLVED=$RESOLVED_IDENTITY" >> "$GITHUB_ENV"
+          fi
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+
+      - name: Codesign macOS binary (optional)
+        if: runner.os == 'macOS'
+        working-directory: dart_cli
+        shell: bash
+        env:
+          APPLE_SIGN_IDENTITY: ${{ secrets.APPLE_SIGN_IDENTITY }}
+        run: |
+          SIGN_IDENTITY="${APPLE_SIGN_IDENTITY:-$APPLE_SIGN_IDENTITY_RESOLVED}"
+          if [ -z "$SIGN_IDENTITY" ]; then
+            echo "No macOS signing identity configured; publishing unsigned macOS binary."
+            exit 0
+          fi
+
+          codesign --force --timestamp --options runtime --sign "$SIGN_IDENTITY" "${OUT}"
+          codesign --verify --verbose "${OUT}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: gfrm-${{ runner.os }}
+          name: gfrm-${{ env.PLATFORM }}
           path: dart_cli/${{ env.OUT }}
+
+      - name: Cleanup temporary macOS keychain
+        if: runner.os == 'macOS' && env.KEYCHAIN_PATH != ''
+        shell: bash
+        run: |
+          security delete-keychain "${KEYCHAIN_PATH}" || true

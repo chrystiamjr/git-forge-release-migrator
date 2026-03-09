@@ -4,14 +4,17 @@ import 'dart:math';
 
 import 'package:gfrm_dart/src/core/enums/logger_prefix.dart';
 
+import 'test_helper.dart';
 import 'time.dart';
 
 class ConsoleLogger {
-  ConsoleLogger({required this.quiet, required this.jsonOutput})
-      : _tty = stdout.supportsAnsiEscapes && !quiet && !jsonOutput;
+  ConsoleLogger({required this.quiet, required this.jsonOutput, bool? silent})
+      : _silent = silent ?? TestEnvironment.isTestProcess(),
+        _tty = !(silent ?? TestEnvironment.isTestProcess()) && stdout.supportsAnsiEscapes && !quiet && !jsonOutput;
 
   final bool quiet;
   final bool jsonOutput;
+  final bool _silent;
   final bool _tty;
   final List<String> _frames = const <String>['|', '/', '-', '\\'];
 
@@ -21,10 +24,14 @@ class ConsoleLogger {
   LoggerPrefix _spinnerPrefix = LoggerPrefix.info;
 
   void _emit(LoggerPrefix prefix, String message, IOSink sink) {
+    if (_silent) {
+      return;
+    }
+
     if (jsonOutput) {
       sink.writeln(
         jsonEncode(<String, String>{
-          'timestamp': utcTimestamp(),
+          'timestamp': TimeUtils.utcTimestamp(),
           'level': prefix.label.toLowerCase(),
           'message': message,
         }),
@@ -33,10 +40,14 @@ class ConsoleLogger {
       return;
     }
 
-    sink.writeln('[$prefix] $message');
+    sink.writeln('[${prefix.label}] $message');
   }
 
   bool startSpinner(String message, {LoggerPrefix prefix = LoggerPrefix.info}) {
+    if (_silent) {
+      return false;
+    }
+
     if (!_tty) {
       info(message);
       return false;
@@ -80,7 +91,7 @@ class ConsoleLogger {
     final String glyph = _frames[_frame % _frames.length];
 
     _frame += 1;
-    stdout.write('\r[$_spinnerPrefix] $_spinnerMessage $glyph');
+    stdout.write('\r[${_spinnerPrefix.label}] $_spinnerMessage $glyph');
   }
 
   void tickSpinner() => _renderSpinner();

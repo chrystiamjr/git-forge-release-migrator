@@ -7,7 +7,7 @@ import 'package:dio/dio.dart';
 import '../core/adapters/dio_adapter.dart';
 import '../core/adapters/provider_adapter.dart';
 import '../core/checkpoint.dart';
-import '../core/exceptions.dart';
+import '../core/exceptions/http_request_error.dart';
 import '../core/http.dart';
 import '../core/time.dart';
 import '../core/types/canonical_release.dart';
@@ -361,7 +361,7 @@ class BitbucketAdapter extends ProviderAdapter {
       'notes_hash': notesHash,
       'uploaded_assets': uploadedAssets,
       'missing_assets': missingAssets,
-      'updated_at': utcTimestamp(),
+      'updated_at': TimeUtils.utcTimestamp(),
     };
   }
 
@@ -629,7 +629,7 @@ class BitbucketAdapter extends ProviderAdapter {
     String checkpointStatus,
     Set<String> targetReleaseTags,
   ) async {
-    if (!isTerminalReleaseStatus(checkpointStatus)) {
+    if (!CheckpointStore.isTerminalReleaseStatus(checkpointStatus)) {
       return false;
     }
 

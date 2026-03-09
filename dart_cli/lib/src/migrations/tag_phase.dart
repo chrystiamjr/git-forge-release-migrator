@@ -1,10 +1,10 @@
 import '../core/checkpoint.dart';
-import '../core/exceptions.dart';
+import '../core/exceptions/authentication_error.dart';
 import '../core/jsonl.dart';
 import '../core/logging.dart';
 import '../core/types/canonical_release.dart';
 import '../core/types/phase.dart';
-import '../models.dart';
+import '../models/migration_context.dart';
 import 'selection.dart';
 
 class TagPhaseRunner {
@@ -21,7 +21,7 @@ class TagPhaseRunner {
     required int durationMs,
     required bool dryRun,
   }) {
-    appendLog(
+    JsonlLogWriter.appendLog(
       logPath,
       status: status,
       tag: tag,
@@ -41,7 +41,7 @@ class TagPhaseRunner {
     required String status,
     required String message,
   }) {
-    appendCheckpoint(
+    CheckpointStore.appendCheckpoint(
       checkpointPath,
       signature: signature,
       key: key,
@@ -79,7 +79,7 @@ class TagPhaseRunner {
     String tag,
     String checkpointStatus,
   ) {
-    if (!isTerminalTagStatus(checkpointStatus) || !ctx.targetTags.contains(tag)) {
+    if (!CheckpointStore.isTerminalTagStatus(checkpointStatus) || !ctx.targetTags.contains(tag)) {
       return false;
     }
 
@@ -114,7 +114,7 @@ class TagPhaseRunner {
       ctx.logPath,
       status: 'tag_skipped_existing',
       tag: tag,
-      message: 'Tag already exists in ${capitalizeProvider(ctx.options.targetProvider)}',
+      message: 'Tag already exists in ${SelectionService.capitalizeProvider(ctx.options.targetProvider)}',
       assetCount: 0,
       durationMs: 0,
       dryRun: false,
@@ -126,14 +126,14 @@ class TagPhaseRunner {
       key: checkpointKey,
       tag: tag,
       status: 'tag_skipped_existing',
-      message: 'Tag already exists in ${capitalizeProvider(ctx.options.targetProvider)}',
+      message: 'Tag already exists in ${SelectionService.capitalizeProvider(ctx.options.targetProvider)}',
     );
     return true;
   }
 
   Future<({CanonicalRelease canonical, String commitSha})> _resolveCanonicalAndCommit(
       MigrationContext ctx, String tag) async {
-    final Map<String, dynamic>? releasePayload = releaseByTag(ctx.releases, tag);
+    final Map<String, dynamic>? releasePayload = SelectionService.releaseByTag(ctx.releases, tag);
     final CanonicalRelease canonical = ctx.source.toCanonicalRelease(releasePayload ?? <String, dynamic>{});
     try {
       final String commitSha = await ctx.source.resolveCommitShaForMigration(
@@ -159,7 +159,7 @@ class TagPhaseRunner {
       ctx.logPath,
       status: 'tag_failed',
       tag: tag,
-      message: 'Tag commit SHA not found in ${capitalizeProvider(ctx.options.sourceProvider)}',
+      message: 'Tag commit SHA not found in ${SelectionService.capitalizeProvider(ctx.options.sourceProvider)}',
       assetCount: 0,
       durationMs: 0,
       dryRun: false,
@@ -251,7 +251,8 @@ class TagPhaseRunner {
 
       counts.failed += 1;
       ctx.failedTags.add(tag);
-      logger.warn('[$tag] failed to create tag in ${capitalizeProvider(ctx.options.targetProvider)}: $exc');
+      logger.warn(
+          '[$tag] failed to create tag in ${SelectionService.capitalizeProvider(ctx.options.targetProvider)}: $exc');
     }
   }
 

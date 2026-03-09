@@ -5,7 +5,8 @@ import '../core/checkpoint.dart';
 import '../core/files.dart';
 import '../core/logging.dart';
 import '../core/types/phase.dart';
-import '../models.dart';
+import '../models/migration_context.dart';
+import '../models/runtime_options.dart';
 import '../providers/registry.dart';
 import 'release_phase.dart';
 import 'selection.dart';
@@ -26,21 +27,22 @@ class MigrationEngine {
     final ProviderAdapter source = registry.get(options.sourceProvider);
     final ProviderAdapter target = registry.get(options.targetProvider);
 
-    final Directory workdir = ensureDir(options.effectiveWorkdir());
+    final Directory workdir = FileSystemUtils.ensureDir(options.effectiveWorkdir());
     final String logPath = options.logFile.isNotEmpty ? options.logFile : '${workdir.path}/migration-log.jsonl';
     File(logPath).writeAsStringSync('');
 
     final String checkpointPath = options.effectiveCheckpointFile();
-    final String checkpointSig = checkpointSignature(options, sourceRef, targetRef);
-    final Map<String, String> checkpointState = loadCheckpointState(checkpointPath, checkpointSig);
+    final String checkpointSig = SummaryWriter.checkpointSignature(options, sourceRef, targetRef);
+    final Map<String, String> checkpointState = CheckpointStore.loadCheckpointState(checkpointPath, checkpointSig);
     logger.info('Checkpoint loaded: ${checkpointState.length} entries');
 
-    logger.info('Fetching releases from ${capitalizeProvider(options.sourceProvider)}: ${sourceRef.resource}');
+    logger.info(
+        'Fetching releases from ${SelectionService.capitalizeProvider(options.sourceProvider)}: ${sourceRef.resource}');
     final List<Map<String, dynamic>> releases = await source.listReleases(sourceRef, options.sourceToken);
-    logger.info('Releases found in ${capitalizeProvider(options.sourceProvider)}: ${releases.length}');
+    logger.info('Releases found in ${SelectionService.capitalizeProvider(options.sourceProvider)}: ${releases.length}');
 
-    List<String> selectedTags = collectSelectedTags(releases, options.fromTag, options.toTag);
-    selectedTags = applyTagsFilter(selectedTags, options.tagsFile);
+    List<String> selectedTags = SelectionService.collectSelectedTags(releases, options.fromTag, options.toTag);
+    selectedTags = SelectionService.applyTagsFilter(selectedTags, options.tagsFile);
     if (selectedTags.isEmpty) {
       throw StateError('No releases found in selected range');
     }
@@ -76,7 +78,7 @@ class MigrationEngine {
 
     final TagMigrationCounts tagCounts = await TagPhaseRunner(logger: logger).run(ctx);
     final ReleaseMigrationCounts releaseCounts = await ReleasePhaseRunner(logger: logger).run(ctx);
-    await writeSummary(
+    await SummaryWriter.writeSummary(
       logger: logger,
       options: options,
       sourceRef: sourceRef,

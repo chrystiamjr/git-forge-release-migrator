@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:gfrm_dart/src/models.dart';
+import 'package:gfrm_dart/src/models/runtime_options.dart';
 import 'package:test/test.dart';
 
 RuntimeOptions buildOptions({

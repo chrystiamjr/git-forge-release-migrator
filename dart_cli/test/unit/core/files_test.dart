@@ -13,7 +13,7 @@ void main() {
       final String nestedPath = p.join(temp.path, 'a', 'b', 'c');
       expect(Directory(nestedPath).existsSync(), isFalse);
 
-      final Directory created = ensureDir(nestedPath);
+      final Directory created = FileSystemUtils.ensureDir(nestedPath);
 
       expect(created.path, nestedPath);
       expect(created.existsSync(), isTrue);
@@ -28,20 +28,20 @@ void main() {
       });
 
       final String targetPath = p.join(temp.path, 'work', 'nested');
-      ensureDir(targetPath);
+      FileSystemUtils.ensureDir(targetPath);
       File(p.join(targetPath, 'file.txt')).writeAsStringSync('data');
       expect(Directory(targetPath).existsSync(), isTrue);
 
-      cleanupDir(p.join(temp.path, 'work'));
+      FileSystemUtils.cleanupDir(p.join(temp.path, 'work'));
 
       expect(Directory(p.join(temp.path, 'work')).existsSync(), isFalse);
-      cleanupDir(p.join(temp.path, 'work'));
+      FileSystemUtils.cleanupDir(p.join(temp.path, 'work'));
     });
 
     test('sanitizeFilename normalizes path query and special chars', () {
-      final String sanitized = sanitizeFilename('https://host/path/my file:1?.zip');
+      final String sanitized = FileSystemUtils.sanitizeFilename('https://host/path/my file:1?.zip');
       expect(sanitized, 'my_file_1');
-      expect(sanitizeFilename('??'), 'asset');
+      expect(FileSystemUtils.sanitizeFilename('??'), 'asset');
     });
 
     test('uniqueAssetFilename returns non-colliding name', () {
@@ -51,7 +51,7 @@ void main() {
       final String first = p.join(temp.path, 'release.zip');
       File(first).writeAsStringSync('x');
 
-      final String candidate = uniqueAssetFilename(temp.path, 'release.zip');
+      final String candidate = FileSystemUtils.uniqueAssetFilename(temp.path, 'release.zip');
 
       expect(candidate, matches(RegExp(r'^release-\d+\.zip$')));
       expect(File(p.join(temp.path, candidate)).existsSync(), isFalse);

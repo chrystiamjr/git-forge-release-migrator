@@ -8,7 +8,7 @@ import '../core/types/canonical_link.dart';
 import '../core/types/canonical_release.dart';
 import '../core/types/canonical_source.dart';
 import '../core/types/phase.dart';
-import '../models.dart';
+import '../models/migration_context.dart';
 import 'selection.dart';
 
 class ReleasePhaseRunner {
@@ -25,7 +25,7 @@ class ReleasePhaseRunner {
     required int durationMs,
     required bool dryRun,
   }) {
-    appendLog(
+    JsonlLogWriter.appendLog(
       logPath,
       status: status,
       tag: tag,
@@ -45,7 +45,7 @@ class ReleasePhaseRunner {
     required String status,
     required String message,
   }) {
-    appendCheckpoint(
+    CheckpointStore.appendCheckpoint(
       checkpointPath,
       signature: signature,
       key: key,
@@ -129,7 +129,7 @@ class ReleasePhaseRunner {
 
     for (final CanonicalLink link in canonical.assets.links) {
       final String name = _assetNameForLink(link);
-      final String outputName = reserveOutputName(usedNames, name);
+      final String outputName = SelectionService.reserveOutputName(usedNames, name);
       final String outputPath = '${assetsDir.path}/$outputName';
       final bool ok = await ctx.source.downloadCanonicalLink(
         DownloadLinkInput(
@@ -152,7 +152,7 @@ class ReleasePhaseRunner {
     for (final CanonicalSource source in canonical.assets.sources) {
       final String name = _assetNameForSource(source, tag);
       final String prefix = source.format.isEmpty ? 'source' : source.format;
-      final String outputName = reserveOutputName(usedNames, '$prefix-$name');
+      final String outputName = SelectionService.reserveOutputName(usedNames, '$prefix-$name');
       final String outputPath = '${assetsDir.path}/$outputName';
       final bool ok = await ctx.source.downloadCanonicalSource(
         DownloadSourceInput(
@@ -202,7 +202,7 @@ class ReleasePhaseRunner {
       '\n\n### Source Archives Fallback\n'
       'Some source archives could not be downloaded during migration.\n'
       'Fallback formats: `${dedup.join(',')}`\n'
-      '${capitalizeProvider(ctx.options.sourceProvider)} tag: [$tag]($sourceTagUrl)\n',
+      '${SelectionService.capitalizeProvider(ctx.options.sourceProvider)} tag: [$tag]($sourceTagUrl)\n',
       mode: FileMode.append,
     );
   }
@@ -299,13 +299,13 @@ class ReleasePhaseRunner {
         int expectedAssets,
         ExistingReleaseInfo existingInfo,
       })?> _loadReleaseData(MigrationContext ctx, String tag) async {
-    final Map<String, dynamic>? releasePayload = releaseByTag(ctx.releases, tag);
+    final Map<String, dynamic>? releasePayload = SelectionService.releaseByTag(ctx.releases, tag);
     if (releasePayload == null) {
       _appendLog(
         ctx.logPath,
         status: 'failed',
         tag: tag,
-        message: 'Release missing from ${capitalizeProvider(ctx.options.sourceProvider)} payload',
+        message: 'Release missing from ${SelectionService.capitalizeProvider(ctx.options.sourceProvider)} payload',
         assetCount: 0,
         durationMs: 0,
         dryRun: false,
@@ -377,12 +377,14 @@ class ReleasePhaseRunner {
       ctx.logPath,
       status: 'failed',
       tag: tag,
-      message: 'Tag missing in ${capitalizeProvider(ctx.options.targetProvider)} after tag migration step',
+      message:
+          'Tag missing in ${SelectionService.capitalizeProvider(ctx.options.targetProvider)} after tag migration step',
       assetCount: 0,
       durationMs: 0,
       dryRun: false,
     );
-    logger.warn('[$tag] failed: tag not available in ${capitalizeProvider(ctx.options.targetProvider)}');
+    logger
+        .warn('[$tag] failed: tag not available in ${SelectionService.capitalizeProvider(ctx.options.targetProvider)}');
     return false;
   }
 
@@ -421,8 +423,8 @@ class ReleasePhaseRunner {
     ExistingReleaseInfo existingInfo,
     DateTime start,
   ) async {
-    final Directory releaseDir = ensureDir('${ctx.workdir.path}/release-$tag');
-    final Directory assetsDir = ensureDir('${releaseDir.path}/assets');
+    final Directory releaseDir = FileSystemUtils.ensureDir('${ctx.workdir.path}/release-$tag');
+    final Directory assetsDir = FileSystemUtils.ensureDir('${releaseDir.path}/assets');
     final ({
       List<String> downloaded,
       List<Map<String, String>> missingLinks,
@@ -442,7 +444,7 @@ class ReleasePhaseRunner {
         dryRun: false,
       );
       logger.warn('[$tag] failed: no assets downloaded');
-      cleanupDir(releaseDir.path);
+      FileSystemUtils.cleanupDir(releaseDir.path);
       return 'failed';
     }
 
@@ -457,12 +459,13 @@ class ReleasePhaseRunner {
     );
     final int durationMs = DateTime.now().difference(start).inMilliseconds;
     if (publishStatus == 'failed') {
-      cleanupDir(releaseDir.path);
+      FileSystemUtils.cleanupDir(releaseDir.path);
       _appendLog(
         ctx.logPath,
         status: 'failed',
         tag: tag,
-        message: 'Release publish operation failed on ${capitalizeProvider(ctx.options.targetProvider)}',
+        message:
+            'Release publish operation failed on ${SelectionService.capitalizeProvider(ctx.options.targetProvider)}',
         assetCount: assetsResult.downloaded.length,
         durationMs: 0,
         dryRun: false,
@@ -493,7 +496,7 @@ class ReleasePhaseRunner {
     );
     logger.info(
         '[$tag] ${existingInfo.exists ? 'resumed/updated' : 'created'} with ${assetsResult.downloaded.length} asset(s)');
-    cleanupDir(releaseDir.path);
+    FileSystemUtils.cleanupDir(releaseDir.path);
     return finalStatus;
   }
 

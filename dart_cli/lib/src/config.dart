@@ -2,40 +2,16 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 
+import 'config/arg_parsers.dart';
+import 'config/types/cli_request.dart';
+import 'config/types/setup_command_options.dart';
+import 'config/validators.dart';
 import 'core/session_store.dart';
 import 'core/settings.dart';
-import 'core/versioning.dart';
-import 'models.dart';
+import 'models/runtime_options.dart';
 
-class CliRequest {
-  CliRequest({
-    required this.command,
-    this.options,
-    this.settings,
-    this.setup,
-    this.usage = '',
-  });
-
-  final String command;
-  final RuntimeOptions? options;
-  final SettingsCommandOptions? settings;
-  final SetupCommandOptions? setup;
-  final String usage;
-}
-
-class SetupCommandOptions {
-  const SetupCommandOptions({
-    required this.profile,
-    required this.localScope,
-    required this.assumeYes,
-    required this.force,
-  });
-
-  final String profile;
-  final bool localScope;
-  final bool assumeYes;
-  final bool force;
-}
+export 'config/types/cli_request.dart';
+export 'config/types/setup_command_options.dart';
 
 const Map<String, String> _providerMap = <String, String>{
   'github': 'github',
@@ -98,10 +74,6 @@ double _optionalDouble(ArgResults args, String key, double fallback) {
   }
 }
 
-bool _tokenModeIsValid(String mode) {
-  return const <String>{'env', 'plain'}.contains(mode);
-}
-
 String _resolveTokenFromSession({
   required String tokenPlain,
   required String tokenEnv,
@@ -128,248 +100,19 @@ String _resolveTokenWithFallback({
     return providedToken;
   }
 
-  final String fromSettings = tokenFromSettings(settingsPayload, profile, provider);
+  final String fromSettings = SettingsManager.tokenFromSettings(settingsPayload, profile, provider);
   if (fromSettings.isNotEmpty) {
     return fromSettings;
   }
 
-  return tokenFromEnvAliases(provider, sideEnvName: sideEnvName);
-}
-
-void _validateWorkerBounds({
-  required int downloadWorkers,
-  required int releaseWorkers,
-}) {
-  if (downloadWorkers < 1 || downloadWorkers > 16) {
-    throw ArgumentError('--download-workers must be between 1 and 16');
-  }
-
-  if (releaseWorkers < 1 || releaseWorkers > 8) {
-    throw ArgumentError('--release-workers must be between 1 and 8');
-  }
-}
-
-void _validateProviderValue(String label, String provider) {
-  if (!_knownProviders.contains(provider)) {
-    throw ArgumentError('Unsupported $label provider: $provider');
-  }
-}
-
-void _validateTagRange(String fromTag, String toTag) {
-  if (fromTag.isNotEmpty && toTag.isNotEmpty && !versionLe(fromTag, toTag)) {
-    throw ArgumentError('Invalid range: --from-tag ($fromTag) must be <= --to-tag ($toTag)');
-  }
-}
-
-void _validateDemoConfig({
-  required int demoReleases,
-  required double demoSleepSeconds,
-}) {
-  if (demoReleases < 1 || demoReleases > 100) {
-    throw ArgumentError('--demo-releases must be between 1 and 100');
-  }
-
-  if (demoSleepSeconds < 0) {
-    throw ArgumentError('--demo-sleep-seconds must be >= 0');
-  }
-}
-
-void _validateTokenPresence(String sourceToken, String targetToken) {
-  if (sourceToken.isEmpty) {
-    throw ArgumentError(
-      'Missing source token. Provide --source-token, settings profile token, or relevant env variable.',
-    );
-  }
-
-  if (targetToken.isEmpty) {
-    throw ArgumentError(
-      'Missing target token. Provide --target-token, settings profile token, or relevant env variable.',
-    );
-  }
-}
-
-ArgParser _baseRuntimeFlags() {
-  final ArgParser parser = ArgParser();
-  parser.addOption('workdir', defaultsTo: '');
-  parser.addOption('log-file', defaultsTo: '');
-  parser.addOption('checkpoint-file', defaultsTo: '');
-  parser.addOption('tags-file', defaultsTo: '');
-  parser.addOption('from-tag', defaultsTo: '');
-  parser.addOption('to-tag', defaultsTo: '');
-  parser.addOption('download-workers', defaultsTo: '4');
-  parser.addOption('release-workers', defaultsTo: '1');
-  parser.addFlag('skip-tags', defaultsTo: false, negatable: false);
-  parser.addFlag('dry-run', defaultsTo: false, negatable: false);
-  parser.addFlag('no-banner', defaultsTo: false, negatable: false);
-  parser.addFlag('quiet', defaultsTo: false, negatable: false);
-  parser.addFlag('json', defaultsTo: false, negatable: false);
-  parser.addFlag('progress-bar', defaultsTo: false, negatable: false);
-  parser.addFlag('help', abbr: 'h', defaultsTo: false, negatable: false);
-
-  return parser;
-}
-
-ArgParser _buildMigrateParser() {
-  final ArgParser parser = _baseRuntimeFlags();
-  parser.addOption('source-provider');
-  parser.addOption('source-url');
-  parser.addOption('source-token', defaultsTo: '');
-  parser.addOption('target-provider');
-  parser.addOption('target-url');
-  parser.addOption('target-token', defaultsTo: '');
-  parser.addFlag('save-session', defaultsTo: true, negatable: false);
-  parser.addFlag('no-save-session', defaultsTo: false, negatable: false);
-  parser.addOption('session-file', defaultsTo: '');
-  parser.addOption('session-token-mode', defaultsTo: 'env');
-  parser.addOption('session-source-token-env', defaultsTo: defaultSourceTokenEnv);
-  parser.addOption('session-target-token-env', defaultsTo: defaultTargetTokenEnv);
-  parser.addOption('settings-profile', defaultsTo: '');
-
-  return parser;
-}
-
-ArgParser _buildResumeParser() {
-  final ArgParser parser = _baseRuntimeFlags();
-  parser.addOption('session-file', defaultsTo: '');
-  parser.addFlag('save-session', defaultsTo: true, negatable: false);
-  parser.addFlag('no-save-session', defaultsTo: false, negatable: false);
-  parser.addOption('session-token-mode', defaultsTo: '');
-  parser.addOption('session-source-token-env', defaultsTo: defaultSourceTokenEnv);
-  parser.addOption('session-target-token-env', defaultsTo: defaultTargetTokenEnv);
-  parser.addOption('settings-profile', defaultsTo: '');
-
-  return parser;
-}
-
-ArgParser _buildDemoParser() {
-  final ArgParser parser = _baseRuntimeFlags();
-  parser.addOption('source-provider', defaultsTo: 'github');
-  parser.addOption('source-url', defaultsTo: 'https://github.com/demo/source');
-  parser.addOption('source-token', defaultsTo: 'demo-source-token');
-  parser.addOption('target-provider', defaultsTo: 'gitlab');
-  parser.addOption('target-url', defaultsTo: 'https://gitlab.com/demo/target');
-  parser.addOption('target-token', defaultsTo: 'demo-target-token');
-  parser.addOption('session-file', defaultsTo: '');
-  parser.addOption('session-token-mode', defaultsTo: 'env');
-  parser.addOption('session-source-token-env', defaultsTo: defaultSourceTokenEnv);
-  parser.addOption('session-target-token-env', defaultsTo: defaultTargetTokenEnv);
-  parser.addOption('demo-releases', defaultsTo: '5');
-  parser.addOption('demo-sleep-seconds', defaultsTo: '1.0');
-
-  return parser;
-}
-
-ArgParser _buildSetupParser() {
-  final ArgParser parser = ArgParser();
-  parser.addOption('profile', defaultsTo: '');
-  parser.addFlag('local', defaultsTo: false, negatable: false);
-  parser.addFlag('yes', defaultsTo: false, negatable: false);
-  parser.addFlag('force', defaultsTo: false, negatable: false);
-  parser.addFlag('help', abbr: 'h', defaultsTo: false, negatable: false);
-
-  return parser;
-}
-
-ArgParser buildRootParser() {
-  final ArgParser parser = ArgParser();
-  parser.addFlag('help', abbr: 'h', defaultsTo: false, negatable: false);
-  parser.addCommand(commandMigrate, _buildMigrateParser());
-  parser.addCommand(commandResume, _buildResumeParser());
-  parser.addCommand(commandDemo, _buildDemoParser());
-  parser.addCommand(commandSetup, _buildSetupParser());
-
-  return parser;
-}
-
-ArgParser buildSettingsParser() {
-  final ArgParser parser = ArgParser();
-  parser.addFlag('help', abbr: 'h', defaultsTo: false, negatable: false);
-
-  final ArgParser init = ArgParser();
-  init.addOption('profile', defaultsTo: '');
-  init.addFlag('local', defaultsTo: false, negatable: false);
-  init.addFlag('yes', defaultsTo: false, negatable: false);
-  init.addFlag('help', abbr: 'h', defaultsTo: false, negatable: false);
-  parser.addCommand(settingsActionInit, init);
-
-  final ArgParser setTokenEnv = ArgParser();
-  setTokenEnv.addOption('provider', defaultsTo: '');
-  setTokenEnv.addOption('env-name', defaultsTo: '');
-  setTokenEnv.addOption('profile', defaultsTo: '');
-  setTokenEnv.addFlag('local', defaultsTo: false, negatable: false);
-  setTokenEnv.addFlag('help', abbr: 'h', defaultsTo: false, negatable: false);
-  parser.addCommand(settingsActionSetTokenEnv, setTokenEnv);
-
-  final ArgParser setTokenPlain = ArgParser();
-  setTokenPlain.addOption('provider', defaultsTo: '');
-  setTokenPlain.addOption('token', defaultsTo: '');
-  setTokenPlain.addOption('profile', defaultsTo: '');
-  setTokenPlain.addFlag('local', defaultsTo: false, negatable: false);
-  setTokenPlain.addFlag('help', abbr: 'h', defaultsTo: false, negatable: false);
-  parser.addCommand(settingsActionSetTokenPlain, setTokenPlain);
-
-  final ArgParser unsetToken = ArgParser();
-  unsetToken.addOption('provider', defaultsTo: '');
-  unsetToken.addOption('profile', defaultsTo: '');
-  unsetToken.addFlag('local', defaultsTo: false, negatable: false);
-  unsetToken.addFlag('help', abbr: 'h', defaultsTo: false, negatable: false);
-  parser.addCommand(settingsActionUnsetToken, unsetToken);
-
-  final ArgParser show = ArgParser();
-  show.addOption('profile', defaultsTo: '');
-  show.addFlag('help', abbr: 'h', defaultsTo: false, negatable: false);
-  parser.addCommand(settingsActionShow, show);
-
-  return parser;
-}
-
-String buildUsage() {
-  final ArgParser parser = buildRootParser();
-
-  return 'Usage: $publicCommandName <command> [options]\n'
-      '\n'
-      'Commands:\n'
-      '  migrate   Run migration from explicit source/target parameters.\n'
-      '  resume    Resume migration from stored session file.\n'
-      '  demo      Run local demo simulation.\n'
-      '  setup     Interactive bootstrap for settings profiles.\n'
-      '  settings  Manage token/profile settings.\n'
-      '\n'
-      '${parser.usage}';
-}
-
-String buildSetupUsage() {
-  final ArgParser parser = _buildSetupParser();
-  return 'Usage: $publicCommandName setup [options]\n'
-      '\n'
-      'Options:\n'
-      '  --profile <name>  Target settings profile (default: auto-resolve).\n'
-      '  --local           Store setup at ./.gfrm/settings.yaml.\n'
-      '  --yes             Non-interactive setup with defaults.\n'
-      '  --force           Run setup even if settings already exist.\n'
-      '\n'
-      '${parser.usage}';
-}
-
-String buildSettingsUsage() {
-  final ArgParser parser = buildSettingsParser();
-  return 'Usage: $publicCommandName settings <action> [options]\n'
-      '\n'
-      'Actions:\n'
-      '  init            Bootstrap token env references for providers.\n'
-      '  set-token-env   Set provider token via env variable name.\n'
-      '  set-token-plain Set provider plain token value.\n'
-      '  unset-token     Remove provider token from profile.\n'
-      '  show            Show effective merged settings (masked).\n'
-      '\n'
-      '${parser.usage}';
+  return SettingsManager.tokenFromEnvAliases(provider, sideEnvName: sideEnvName);
 }
 
 RuntimeOptions _buildMigrateRuntime(ArgResults args) {
   final String sourceProvider = _normalizeProvider(_requiredString(args, 'source-provider'));
   final String targetProvider = _normalizeProvider(_requiredString(args, 'target-provider'));
-  _validateProviderValue('source', sourceProvider);
-  _validateProviderValue('target', targetProvider);
+  ConfigValidators.validateProviderValue('source', sourceProvider, _knownProviders);
+  ConfigValidators.validateProviderValue('target', targetProvider, _knownProviders);
 
   final String sourceUrl = _requiredString(args, 'source-url');
   final String targetUrl = _requiredString(args, 'target-url');
@@ -382,15 +125,16 @@ RuntimeOptions _buildMigrateRuntime(ArgResults args) {
   final String sessionTokenMode = _optionalString(args, 'session-token-mode').toLowerCase();
   final String sessionSourceTokenEnv = _optionalString(args, 'session-source-token-env');
   final String sessionTargetTokenEnv = _optionalString(args, 'session-target-token-env');
-  if (!_tokenModeIsValid(sessionTokenMode)) {
+  if (!ConfigValidators.tokenModeIsValid(sessionTokenMode)) {
     throw ArgumentError('--session-token-mode must be one of: env, plain');
   }
 
-  _validateWorkerBounds(downloadWorkers: downloadWorkers, releaseWorkers: releaseWorkers);
-  _validateTagRange(fromTag, toTag);
+  ConfigValidators.validateWorkerBounds(downloadWorkers: downloadWorkers, releaseWorkers: releaseWorkers);
+  ConfigValidators.validateTagRange(fromTag, toTag);
 
-  final Map<String, dynamic> settingsPayload = loadEffectiveSettings();
-  final String settingsProfile = resolveProfileName(settingsPayload, _optionalString(args, 'settings-profile'));
+  final Map<String, dynamic> settingsPayload = SettingsManager.loadEffectiveSettings();
+  final String settingsProfile =
+      SettingsManager.resolveProfileName(settingsPayload, _optionalString(args, 'settings-profile'));
   final String sourceToken = _resolveTokenWithFallback(
     providedToken: sourceTokenInput,
     provider: sourceProvider,
@@ -405,7 +149,7 @@ RuntimeOptions _buildMigrateRuntime(ArgResults args) {
     settingsPayload: settingsPayload,
     sideEnvName: sessionTargetTokenEnv,
   );
-  _validateTokenPresence(sourceToken, targetToken);
+  ConfigValidators.validateTokenPresence(sourceToken, targetToken);
 
   final bool saveSession = _optionalBool(args, 'save-session') && !_optionalBool(args, 'no-save-session');
   return RuntimeOptions(
@@ -449,12 +193,12 @@ RuntimeOptions _buildMigrateRuntime(ArgResults args) {
 RuntimeOptions _buildRuntimeFromSession(ArgResults args) {
   final String sessionFile = _optionalString(args, 'session-file');
   final String sessionPath = sessionFile.isEmpty ? '${Directory.current.path}/sessions/last-session.json' : sessionFile;
-  final Map<String, dynamic> data = loadSession(sessionPath);
+  final Map<String, dynamic> data = SessionStore.loadSession(sessionPath);
 
   final String sourceProvider = _normalizeProvider((data['source_provider'] ?? '').toString());
   final String targetProvider = _normalizeProvider((data['target_provider'] ?? '').toString());
-  _validateProviderValue('source', sourceProvider);
-  _validateProviderValue('target', targetProvider);
+  ConfigValidators.validateProviderValue('source', sourceProvider, _knownProviders);
+  ConfigValidators.validateProviderValue('target', targetProvider, _knownProviders);
 
   final String sourceUrl = (data['source_url'] ?? '').toString();
   final String targetUrl = (data['target_url'] ?? '').toString();
@@ -465,7 +209,7 @@ RuntimeOptions _buildRuntimeFromSession(ArgResults args) {
   final String sessionModeFromFile = (data['session_token_mode'] ?? 'env').toString().toLowerCase();
   final String sessionModeOverride = _optionalString(args, 'session-token-mode').toLowerCase();
   final String sessionTokenMode = sessionModeOverride.isEmpty ? sessionModeFromFile : sessionModeOverride;
-  if (!_tokenModeIsValid(sessionTokenMode)) {
+  if (!ConfigValidators.tokenModeIsValid(sessionTokenMode)) {
     throw ArgumentError('--session-token-mode must be one of: env, plain');
   }
 
@@ -474,10 +218,10 @@ RuntimeOptions _buildRuntimeFromSession(ArgResults args) {
   final String targetTokenEnv =
       ((data['target_token_env'] ?? _optionalString(args, 'session-target-token-env')).toString()).trim();
 
-  final Map<String, dynamic> settingsPayload = loadEffectiveSettings();
+  final Map<String, dynamic> settingsPayload = SettingsManager.loadEffectiveSettings();
   final String settingsProfileRequested = _optionalString(args, 'settings-profile');
   final String settingsProfileFromFile = (data['settings_profile'] ?? '').toString().trim();
-  final String settingsProfile = resolveProfileName(
+  final String settingsProfile = SettingsManager.resolveProfileName(
     settingsPayload,
     settingsProfileRequested.isEmpty ? settingsProfileFromFile : settingsProfileRequested,
   );
@@ -502,7 +246,7 @@ RuntimeOptions _buildRuntimeFromSession(ArgResults args) {
     settingsPayload: settingsPayload,
     sideEnvName: targetTokenEnv,
   );
-  _validateTokenPresence(sourceToken, targetToken);
+  ConfigValidators.validateTokenPresence(sourceToken, targetToken);
 
   final int downloadWorkersOverride = _optionalInt(args, 'download-workers', -1);
   final int releaseWorkersOverride = _optionalInt(args, 'release-workers', -1);
@@ -510,12 +254,12 @@ RuntimeOptions _buildRuntimeFromSession(ArgResults args) {
   final int releaseWorkersFromSession = int.tryParse((data['release_workers'] ?? 1).toString()) ?? 1;
   final int downloadWorkers = args.wasParsed('download-workers') ? downloadWorkersOverride : downloadWorkersFromSession;
   final int releaseWorkers = args.wasParsed('release-workers') ? releaseWorkersOverride : releaseWorkersFromSession;
-  _validateWorkerBounds(downloadWorkers: downloadWorkers, releaseWorkers: releaseWorkers);
+  ConfigValidators.validateWorkerBounds(downloadWorkers: downloadWorkers, releaseWorkers: releaseWorkers);
 
   final String fromTag =
       args.wasParsed('from-tag') ? _optionalString(args, 'from-tag') : (data['from_tag'] ?? '').toString();
   final String toTag = args.wasParsed('to-tag') ? _optionalString(args, 'to-tag') : (data['to_tag'] ?? '').toString();
-  _validateTagRange(fromTag, toTag);
+  ConfigValidators.validateTagRange(fromTag, toTag);
 
   final bool skipTags =
       args.wasParsed('skip-tags') ? _optionalBool(args, 'skip-tags') : ((data['skip_tag_migration'] ?? false) == true);
@@ -562,20 +306,20 @@ RuntimeOptions _buildRuntimeFromSession(ArgResults args) {
 RuntimeOptions _buildDemoRuntime(ArgResults args) {
   final String sourceProvider = _normalizeProvider(_optionalString(args, 'source-provider'));
   final String targetProvider = _normalizeProvider(_optionalString(args, 'target-provider'));
-  _validateProviderValue('source', sourceProvider);
-  _validateProviderValue('target', targetProvider);
+  ConfigValidators.validateProviderValue('source', sourceProvider, _knownProviders);
+  ConfigValidators.validateProviderValue('target', targetProvider, _knownProviders);
 
   final int downloadWorkers = _optionalInt(args, 'download-workers', 4);
   final int releaseWorkers = _optionalInt(args, 'release-workers', 1);
-  _validateWorkerBounds(downloadWorkers: downloadWorkers, releaseWorkers: releaseWorkers);
+  ConfigValidators.validateWorkerBounds(downloadWorkers: downloadWorkers, releaseWorkers: releaseWorkers);
 
   final int demoReleases = _optionalInt(args, 'demo-releases', 5);
   final double demoSleepSeconds = _optionalDouble(args, 'demo-sleep-seconds', 1.0);
-  _validateDemoConfig(demoReleases: demoReleases, demoSleepSeconds: demoSleepSeconds);
+  ConfigValidators.validateDemoConfig(demoReleases: demoReleases, demoSleepSeconds: demoSleepSeconds);
 
   final String fromTag = _optionalString(args, 'from-tag');
   final String toTag = _optionalString(args, 'to-tag');
-  _validateTagRange(fromTag, toTag);
+  ConfigValidators.validateTagRange(fromTag, toTag);
 
   return RuntimeOptions(
     commandName: commandDemo,
@@ -616,14 +360,14 @@ RuntimeOptions _buildDemoRuntime(ArgResults args) {
 }
 
 CliRequest _parseSettingsRequest(List<String> argv) {
-  final ArgParser parser = buildSettingsParser();
+  final ArgParser parser = CliParserCatalog.buildSettingsParser();
   if (argv.isEmpty) {
-    return CliRequest(command: 'help', usage: buildSettingsUsage());
+    return CliRequest(command: 'help', usage: CliParserCatalog.buildSettingsUsage());
   }
 
   final ArgResults root = parser.parse(argv);
   if (_optionalBool(root, 'help')) {
-    return CliRequest(command: 'help', usage: buildSettingsUsage());
+    return CliRequest(command: 'help', usage: CliParserCatalog.buildSettingsUsage());
   }
 
   final ArgResults? command = root.command;
@@ -633,7 +377,7 @@ CliRequest _parseSettingsRequest(List<String> argv) {
   }
 
   if (_optionalBool(command, 'help')) {
-    return CliRequest(command: 'help', usage: buildSettingsUsage());
+    return CliRequest(command: 'help', usage: CliParserCatalog.buildSettingsUsage());
   }
 
   final String action = command.name ?? '';
@@ -668,19 +412,19 @@ CliRequest _parseSetupRequest(ArgResults command) {
   );
 }
 
-CliRequest parseCliRequest(List<String> argv) {
+CliRequest _parseCliRequest(List<String> argv) {
   if (argv.isEmpty) {
-    return CliRequest(command: 'help', usage: buildUsage());
+    return CliRequest(command: 'help', usage: CliParserCatalog.buildUsage());
   }
 
   if (argv.first == commandSettings) {
     return _parseSettingsRequest(argv.sublist(1));
   }
 
-  final ArgParser parser = buildRootParser();
+  final ArgParser parser = CliParserCatalog.buildRootParser();
   final ArgResults root = parser.parse(argv);
   if (_optionalBool(root, 'help')) {
-    return CliRequest(command: 'help', usage: buildUsage());
+    return CliRequest(command: 'help', usage: CliParserCatalog.buildUsage());
   }
 
   final ArgResults? commandResult = root.command;
@@ -691,10 +435,10 @@ CliRequest parseCliRequest(List<String> argv) {
   final String commandName = commandResult.name ?? '';
   if (_optionalBool(commandResult, 'help')) {
     if (commandName == commandSetup) {
-      return CliRequest(command: 'help', usage: buildSetupUsage());
+      return CliRequest(command: 'help', usage: CliParserCatalog.buildSetupUsage());
     }
 
-    return CliRequest(command: 'help', usage: buildUsage());
+    return CliRequest(command: 'help', usage: CliParserCatalog.buildUsage());
   }
 
   switch (commandName) {
@@ -721,5 +465,13 @@ CliRequest parseCliRequest(List<String> argv) {
 
     default:
       throw ArgumentError('Unsupported command: $commandName');
+  }
+}
+
+final class CliRequestParser {
+  const CliRequestParser._();
+
+  static CliRequest parseCliRequest(List<String> argv) {
+    return _parseCliRequest(argv);
   }
 }

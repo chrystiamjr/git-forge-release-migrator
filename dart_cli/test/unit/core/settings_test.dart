@@ -11,9 +11,9 @@ void main() {
         'defaults': <String, dynamic>{'profile': 'work'},
       };
 
-      expect(resolveProfileName(payload, 'personal'), 'personal');
-      expect(resolveProfileName(payload, ''), 'work');
-      expect(resolveProfileName(<String, dynamic>{}, ''), 'default');
+      expect(SettingsManager.resolveProfileName(payload, 'personal'), 'personal');
+      expect(SettingsManager.resolveProfileName(payload, ''), 'work');
+      expect(SettingsManager.resolveProfileName(<String, dynamic>{}, ''), 'default');
     });
 
     test('loadEffectiveSettings deep-merges global and local', () {
@@ -22,10 +22,10 @@ void main() {
       addTearDown(() => home.deleteSync(recursive: true));
       addTearDown(() => cwd.deleteSync(recursive: true));
 
-      final String globalPath = defaultGlobalSettingsPath(homeDir: home.path, env: <String, String>{});
-      final String localPath = defaultLocalSettingsPath(cwd: cwd.path);
+      final String globalPath = SettingsManager.defaultGlobalSettingsPath(homeDir: home.path, env: <String, String>{});
+      final String localPath = SettingsManager.defaultLocalSettingsPath(cwd: cwd.path);
 
-      writeSettingsFile(
+      SettingsManager.writeSettingsFile(
         globalPath,
         <String, dynamic>{
           'defaults': <String, dynamic>{'profile': 'work'},
@@ -39,7 +39,7 @@ void main() {
         },
       );
 
-      writeSettingsFile(
+      SettingsManager.writeSettingsFile(
         localPath,
         <String, dynamic>{
           'profiles': <String, dynamic>{
@@ -52,13 +52,13 @@ void main() {
         },
       );
 
-      final Map<String, dynamic> effective = loadEffectiveSettings(
+      final Map<String, dynamic> effective = SettingsManager.loadEffectiveSettings(
         cwd: cwd.path,
         homeDir: home.path,
         env: <String, String>{},
       );
 
-      expect(resolveProfileName(effective, ''), 'work');
+      expect(SettingsManager.resolveProfileName(effective, ''), 'work');
       final Map<String, dynamic> providers =
           (effective['profiles'] as Map<String, dynamic>)['work'] as Map<String, dynamic>;
       final Map<String, dynamic> providerMap = providers['providers'] as Map<String, dynamic>;
@@ -80,13 +80,13 @@ void main() {
         },
       };
 
-      final String fromEnv = tokenFromSettings(
+      final String fromEnv = SettingsManager.tokenFromSettings(
         payload,
         'work',
         'github',
         env: <String, String>{'GH_WORK_TOKEN': 'env-token'},
       );
-      final String fromPlain = tokenFromSettings(
+      final String fromPlain = SettingsManager.tokenFromSettings(
         payload,
         'work',
         'github',
@@ -98,7 +98,7 @@ void main() {
     });
 
     test('tokenFromEnvAliases uses side env first', () {
-      final String resolved = tokenFromEnvAliases(
+      final String resolved = SettingsManager.tokenFromEnvAliases(
         'github',
         sideEnvName: 'CUSTOM_SOURCE_TOKEN',
         env: <String, String>{
@@ -112,27 +112,29 @@ void main() {
 
     test('set/unset provider token updates profile data', () {
       Map<String, dynamic> payload = <String, dynamic>{};
-      payload = setProviderTokenEnv(payload, profile: 'work', provider: 'github', envName: 'GH_WORK_TOKEN');
+      payload =
+          SettingsManager.setProviderTokenEnv(payload, profile: 'work', provider: 'github', envName: 'GH_WORK_TOKEN');
       expect(
         (((payload['profiles'] as Map<String, dynamic>)['work'] as Map<String, dynamic>)['providers']
             as Map<String, dynamic>)['github'],
         <String, dynamic>{'token_env': 'GH_WORK_TOKEN'},
       );
 
-      payload = setProviderTokenPlain(payload, profile: 'work', provider: 'github', token: 'plain-value');
+      payload =
+          SettingsManager.setProviderTokenPlain(payload, profile: 'work', provider: 'github', token: 'plain-value');
       expect(
         (((payload['profiles'] as Map<String, dynamic>)['work'] as Map<String, dynamic>)['providers']
             as Map<String, dynamic>)['github'],
         <String, dynamic>{'token_plain': 'plain-value'},
       );
 
-      payload = unsetProviderToken(payload, profile: 'work', provider: 'github');
+      payload = SettingsManager.unsetProviderToken(payload, profile: 'work', provider: 'github');
       final Map<String, dynamic> profiles = payload['profiles'] as Map<String, dynamic>;
       expect(profiles.containsKey('work'), isFalse);
     });
 
     test('maskSettingsSecrets redacts token_plain values', () {
-      final Map<String, dynamic> masked = maskSettingsSecrets(<String, dynamic>{
+      final Map<String, dynamic> masked = SettingsManager.maskSettingsSecrets(<String, dynamic>{
         'profiles': <String, dynamic>{
           'work': <String, dynamic>{
             'providers': <String, dynamic>{
@@ -163,7 +165,7 @@ void main() {
         'not_valid line\n',
       );
 
-      final Set<String> names = scanShellExportNames(paths: <String>[shellPath]);
+      final Set<String> names = SettingsManager.scanShellExportNames(paths: <String>[shellPath]);
       expect(names.contains('GH_TOKEN'), isTrue);
       expect(names.contains('GL_TOKEN'), isTrue);
       expect(names.contains('not_valid'), isFalse);

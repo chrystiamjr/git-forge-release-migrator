@@ -4,6 +4,11 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import 'types/settings_scope_data.dart';
+
+export 'types/settings_command_options.dart';
+export 'types/settings_scope_data.dart';
+
 const Set<String> supportedSettingsProviders = <String>{'github', 'gitlab', 'bitbucket'};
 
 const Map<String, List<String>> providerEnvAliases = <String, List<String>>{
@@ -18,37 +23,7 @@ const String settingsActionSetTokenPlain = 'set-token-plain';
 const String settingsActionUnsetToken = 'unset-token';
 const String settingsActionShow = 'show';
 
-class SettingsCommandOptions {
-  const SettingsCommandOptions({
-    required this.action,
-    required this.profile,
-    required this.provider,
-    required this.envName,
-    required this.token,
-    required this.localScope,
-    required this.assumeYes,
-  });
-
-  final String action;
-  final String profile;
-  final String provider;
-  final String envName;
-  final String token;
-  final bool localScope;
-  final bool assumeYes;
-}
-
-class SettingsScopeData {
-  const SettingsScopeData({
-    required this.path,
-    required this.payload,
-  });
-
-  final String path;
-  final Map<String, dynamic> payload;
-}
-
-String defaultGlobalSettingsPath({Map<String, String>? env, String? homeDir}) {
+String _defaultGlobalSettingsPath({Map<String, String>? env, String? homeDir}) {
   final Map<String, String> sourceEnv = env ?? Platform.environment;
   final String xdg = (sourceEnv['XDG_CONFIG_HOME'] ?? '').trim();
   if (xdg.isNotEmpty) {
@@ -63,7 +38,7 @@ String defaultGlobalSettingsPath({Map<String, String>? env, String? homeDir}) {
   return p.join(Directory.current.path, '.gfrm', 'settings.yaml');
 }
 
-String defaultLocalSettingsPath({String? cwd}) {
+String _defaultLocalSettingsPath({String? cwd}) {
   final String base = (cwd ?? Directory.current.path).trim();
   return p.join(base, '.gfrm', 'settings.yaml');
 }
@@ -108,7 +83,7 @@ Map<String, dynamic> _normalizeYamlPayload(dynamic payload, String pathValue) {
   throw ArgumentError('Invalid settings payload in $pathValue: expected mapping');
 }
 
-Map<String, dynamic> loadSettingsFile(String pathValue) {
+Map<String, dynamic> _loadSettingsFile(String pathValue) {
   final File file = File(pathValue);
   if (!file.existsSync()) {
     return <String, dynamic>{};
@@ -142,31 +117,31 @@ Map<String, dynamic> _deepMergeMaps(Map<String, dynamic> base, Map<String, dynam
   return merged;
 }
 
-Map<String, dynamic> loadEffectiveSettings({
+Map<String, dynamic> _loadEffectiveSettings({
   String? cwd,
   Map<String, String>? env,
   String? homeDir,
 }) {
-  final Map<String, dynamic> globalData = loadSettingsFile(defaultGlobalSettingsPath(env: env, homeDir: homeDir));
-  final Map<String, dynamic> localData = loadSettingsFile(defaultLocalSettingsPath(cwd: cwd));
+  final Map<String, dynamic> globalData = _loadSettingsFile(_defaultGlobalSettingsPath(env: env, homeDir: homeDir));
+  final Map<String, dynamic> localData = _loadSettingsFile(_defaultLocalSettingsPath(cwd: cwd));
   return _deepMergeMaps(globalData, localData);
 }
 
-SettingsScopeData readScopeSettings({
+SettingsScopeData _readScopeSettings({
   required bool local,
   String? cwd,
   Map<String, String>? env,
   String? homeDir,
 }) {
   final String pathValue =
-      local ? defaultLocalSettingsPath(cwd: cwd) : defaultGlobalSettingsPath(env: env, homeDir: homeDir);
+      local ? _defaultLocalSettingsPath(cwd: cwd) : _defaultGlobalSettingsPath(env: env, homeDir: homeDir);
   return SettingsScopeData(
     path: pathValue,
-    payload: loadSettingsFile(pathValue),
+    payload: _loadSettingsFile(pathValue),
   );
 }
 
-String resolveProfileName(Map<String, dynamic> settings, String requestedProfile) {
+String _resolveProfileName(Map<String, dynamic> settings, String requestedProfile) {
   final String explicit = requestedProfile.trim();
   if (explicit.isNotEmpty) {
     return explicit;
@@ -193,7 +168,7 @@ Map<String, dynamic> _providerBlock(Map<String, dynamic> settings, String profil
   return providerRaw is Map<String, dynamic> ? providerRaw : <String, dynamic>{};
 }
 
-String tokenFromSettings(
+String _tokenFromSettings(
   Map<String, dynamic> settings,
   String profile,
   String provider, {
@@ -213,12 +188,12 @@ String tokenFromSettings(
   return (providerData['token_plain'] ?? '').toString();
 }
 
-String tokenEnvNameFromSettings(Map<String, dynamic> settings, String profile, String provider) {
+String _tokenEnvNameFromSettings(Map<String, dynamic> settings, String profile, String provider) {
   final Map<String, dynamic> providerData = _providerBlock(settings, profile, provider);
   return (providerData['token_env'] ?? '').toString().trim();
 }
 
-List<String> envAliases(String provider, {String sideEnvName = ''}) {
+List<String> _envAliases(String provider, {String sideEnvName = ''}) {
   final List<String> names = <String>[];
   if (sideEnvName.isNotEmpty) {
     names.add(sideEnvName);
@@ -248,13 +223,13 @@ List<String> envAliases(String provider, {String sideEnvName = ''}) {
   return deduped;
 }
 
-String tokenFromEnvAliases(
+String _tokenFromEnvAliases(
   String provider, {
   String sideEnvName = '',
   Map<String, String>? env,
 }) {
   final Map<String, String> sourceEnv = env ?? Platform.environment;
-  for (final String name in envAliases(provider, sideEnvName: sideEnvName)) {
+  for (final String name in _envAliases(provider, sideEnvName: sideEnvName)) {
     final String value = (sourceEnv[name] ?? '').trim();
     if (value.isNotEmpty) {
       return value;
@@ -264,7 +239,7 @@ String tokenFromEnvAliases(
   return '';
 }
 
-List<String> defaultShellProfilePaths({String? homeDir}) {
+List<String> _defaultShellProfilePaths({String? homeDir}) {
   final String home = (homeDir ?? Platform.environment['HOME'] ?? '').trim();
   if (home.isEmpty) {
     return const <String>[];
@@ -278,8 +253,8 @@ List<String> defaultShellProfilePaths({String? homeDir}) {
   ];
 }
 
-Set<String> scanShellExportNames({List<String>? paths}) {
-  final List<String> candidates = paths ?? defaultShellProfilePaths();
+Set<String> _scanShellExportNames({List<String>? paths}) {
+  final List<String> candidates = paths ?? _defaultShellProfilePaths();
   final Set<String> names = <String>{};
 
   final RegExp exportPattern = RegExp(r'^\s*export\s+([A-Za-z_][A-Za-z0-9_]*)\s*=.*$');
@@ -321,7 +296,7 @@ Set<String> scanShellExportNames({List<String>? paths}) {
   return names;
 }
 
-String suggestEnvName(String provider, Set<String> knownNames) {
+String _suggestEnvName(String provider, Set<String> knownNames) {
   for (final String candidate in providerEnvAliases[provider] ?? const <String>[]) {
     if (knownNames.contains(candidate)) {
       return candidate;
@@ -359,7 +334,7 @@ Map<String, dynamic> _ensureProfileProvider(Map<String, dynamic> settings, Strin
   return providerData;
 }
 
-Map<String, dynamic> setProviderTokenEnv(
+Map<String, dynamic> _setProviderTokenEnv(
   Map<String, dynamic> settings, {
   required String profile,
   required String provider,
@@ -371,7 +346,7 @@ Map<String, dynamic> setProviderTokenEnv(
   return settings;
 }
 
-Map<String, dynamic> setProviderTokenPlain(
+Map<String, dynamic> _setProviderTokenPlain(
   Map<String, dynamic> settings, {
   required String profile,
   required String provider,
@@ -383,7 +358,7 @@ Map<String, dynamic> setProviderTokenPlain(
   return settings;
 }
 
-Map<String, dynamic> unsetProviderToken(
+Map<String, dynamic> _unsetProviderToken(
   Map<String, dynamic> settings, {
   required String profile,
   required String provider,
@@ -451,7 +426,7 @@ void _hardenFilePermissions(String pathValue) {
   }
 }
 
-void writeSettingsFile(String pathValue, Map<String, dynamic> payload) {
+void _writeSettingsFile(String pathValue, Map<String, dynamic> payload) {
   final File targetFile = File(pathValue);
   _ensureParentSecurity(targetFile.parent);
 
@@ -462,7 +437,7 @@ void writeSettingsFile(String pathValue, Map<String, dynamic> payload) {
   tmpFile.renameSync(targetFile.path);
 }
 
-Map<String, dynamic> maskSettingsSecrets(Map<String, dynamic> payload) {
+Map<String, dynamic> _maskSettingsSecrets(Map<String, dynamic> payload) {
   final String jsonPayload = jsonEncode(payload);
   final dynamic decoded = jsonDecode(jsonPayload);
   return _maskRecursive(decoded) as Map<String, dynamic>;
@@ -486,4 +461,112 @@ dynamic _maskRecursive(dynamic payload) {
   }
 
   return payload;
+}
+
+final class SettingsManager {
+  const SettingsManager._();
+
+  static String defaultGlobalSettingsPath({Map<String, String>? env, String? homeDir}) {
+    return _defaultGlobalSettingsPath(env: env, homeDir: homeDir);
+  }
+
+  static String defaultLocalSettingsPath({String? cwd}) {
+    return _defaultLocalSettingsPath(cwd: cwd);
+  }
+
+  static Map<String, dynamic> loadSettingsFile(String pathValue) {
+    return _loadSettingsFile(pathValue);
+  }
+
+  static Map<String, dynamic> loadEffectiveSettings({
+    String? cwd,
+    Map<String, String>? env,
+    String? homeDir,
+  }) {
+    return _loadEffectiveSettings(cwd: cwd, env: env, homeDir: homeDir);
+  }
+
+  static SettingsScopeData readScopeSettings({
+    required bool local,
+    String? cwd,
+    Map<String, String>? env,
+    String? homeDir,
+  }) {
+    return _readScopeSettings(local: local, cwd: cwd, env: env, homeDir: homeDir);
+  }
+
+  static String resolveProfileName(Map<String, dynamic> settings, String requestedProfile) {
+    return _resolveProfileName(settings, requestedProfile);
+  }
+
+  static String tokenFromSettings(
+    Map<String, dynamic> settings,
+    String profile,
+    String provider, {
+    Map<String, String>? env,
+  }) {
+    return _tokenFromSettings(settings, profile, provider, env: env);
+  }
+
+  static String tokenEnvNameFromSettings(Map<String, dynamic> settings, String profile, String provider) {
+    return _tokenEnvNameFromSettings(settings, profile, provider);
+  }
+
+  static List<String> envAliases(String provider, {String sideEnvName = ''}) {
+    return _envAliases(provider, sideEnvName: sideEnvName);
+  }
+
+  static String tokenFromEnvAliases(
+    String provider, {
+    String sideEnvName = '',
+    Map<String, String>? env,
+  }) {
+    return _tokenFromEnvAliases(provider, sideEnvName: sideEnvName, env: env);
+  }
+
+  static List<String> defaultShellProfilePaths({String? homeDir}) {
+    return _defaultShellProfilePaths(homeDir: homeDir);
+  }
+
+  static Set<String> scanShellExportNames({List<String>? paths}) {
+    return _scanShellExportNames(paths: paths);
+  }
+
+  static String suggestEnvName(String provider, Set<String> knownNames) {
+    return _suggestEnvName(provider, knownNames);
+  }
+
+  static Map<String, dynamic> setProviderTokenEnv(
+    Map<String, dynamic> settings, {
+    required String profile,
+    required String provider,
+    required String envName,
+  }) {
+    return _setProviderTokenEnv(settings, profile: profile, provider: provider, envName: envName);
+  }
+
+  static Map<String, dynamic> setProviderTokenPlain(
+    Map<String, dynamic> settings, {
+    required String profile,
+    required String provider,
+    required String token,
+  }) {
+    return _setProviderTokenPlain(settings, profile: profile, provider: provider, token: token);
+  }
+
+  static Map<String, dynamic> unsetProviderToken(
+    Map<String, dynamic> settings, {
+    required String profile,
+    required String provider,
+  }) {
+    return _unsetProviderToken(settings, profile: profile, provider: provider);
+  }
+
+  static void writeSettingsFile(String pathValue, Map<String, dynamic> payload) {
+    _writeSettingsFile(pathValue, payload);
+  }
+
+  static Map<String, dynamic> maskSettingsSecrets(Map<String, dynamic> payload) {
+    return _maskSettingsSecrets(payload);
+  }
 }

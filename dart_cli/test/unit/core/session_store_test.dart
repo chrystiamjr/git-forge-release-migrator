@@ -17,9 +17,9 @@ void main() {
         'nested': <String, dynamic>{'enabled': true},
       };
 
-      saveSession(path, payload);
+      SessionStore.saveSession(path, payload);
 
-      final Map<String, dynamic> restored = loadSession(path);
+      final Map<String, dynamic> restored = SessionStore.loadSession(path);
       expect(restored['source_provider'], 'github');
       expect(restored['target_provider'], 'gitlab');
       expect(restored['download_workers'], 4);
@@ -28,7 +28,7 @@ void main() {
 
     test('loadSession throws when file is missing', () {
       expect(
-        () => loadSession('/tmp/gfrm-session-missing-file.json'),
+        () => SessionStore.loadSession('/tmp/gfrm-session-missing-file.json'),
         throwsA(isA<FileSystemException>()),
       );
     });
@@ -40,7 +40,7 @@ void main() {
       final String path = '${temp.path}/session.json';
       File(path).writeAsStringSync('[1,2,3]');
 
-      expect(() => loadSession(path), throwsArgumentError);
+      expect(() => SessionStore.loadSession(path), throwsArgumentError);
     });
   });
 }

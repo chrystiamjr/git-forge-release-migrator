@@ -180,3 +180,15 @@ CI/release is Dart-only and runs format/analyze/test gates.
 - CI: [.github/workflows/ci.yml](.github/workflows/ci.yml)
 - Build artifacts (`gfrm` for macOS/Linux/Windows): [.github/workflows/dart-cli-build.yml](.github/workflows/dart-cli-build.yml)
 - Semantic release: [.github/workflows/release.yml](.github/workflows/release.yml)
+
+Build artifact names:
+
+- `gfrm-macos` containing binary `gfrm`
+- `gfrm-linux` containing binary `gfrm`
+- `gfrm-windows` containing binary `gfrm.exe`
+
+Platform first-run notes:
+
+- macOS: if Gatekeeper blocks an unsigned downloaded binary, run `xattr -d com.apple.quarantine ./gfrm`
+- Linux: ensure executable bit is set with `chmod +x ./gfrm`
+- Windows: unsigned binaries can trigger SmartScreen warnings until code signing is configured

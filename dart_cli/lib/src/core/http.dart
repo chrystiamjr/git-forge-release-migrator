@@ -3,7 +3,8 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 
 import './adapters/dio_adapter.dart';
-import 'exceptions.dart';
+import 'exceptions/authentication_error.dart';
+import 'exceptions/http_request_error.dart';
 
 class HttpClientHelper {
   HttpClientHelper({Dio? dio}) : _dio = dio ?? DioAdapter(followRedirects: true).instance;

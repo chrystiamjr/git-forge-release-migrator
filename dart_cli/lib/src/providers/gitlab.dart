@@ -4,7 +4,7 @@ import 'package:dio/dio.dart';
 
 import '../core/adapters/dio_adapter.dart';
 import '../core/adapters/provider_adapter.dart';
-import '../core/exceptions.dart';
+import '../core/exceptions/http_request_error.dart';
 import '../core/http.dart';
 import '../core/types/canonical_release.dart';
 import '../core/types/phase.dart';

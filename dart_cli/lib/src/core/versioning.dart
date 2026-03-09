@@ -1,33 +1,37 @@
-List<int> _normalize(String tag) {
-  String value = tag.trim();
-  if (value.startsWith('v')) {
-    value = value.substring(1);
-  }
+final class SemverUtils {
+  const SemverUtils._();
 
-  final List<String> parts = value.split('.');
-  if (parts.length != 3) {
-    throw ArgumentError('Invalid semantic tag: $tag');
-  }
-
-  return <int>[
-    int.parse(parts[0]),
-    int.parse(parts[1]),
-    int.parse(parts[2]),
-  ];
-}
-
-bool versionLe(String left, String right) {
-  final List<int> l = _normalize(left);
-  final List<int> r = _normalize(right);
-  for (int i = 0; i < 3; i += 1) {
-    if (l[i] < r[i]) {
-      return true;
+  static List<int> _normalize(String tag) {
+    String value = tag.trim();
+    if (value.startsWith('v')) {
+      value = value.substring(1);
     }
 
-    if (l[i] > r[i]) {
-      return false;
+    final List<String> parts = value.split('.');
+    if (parts.length != 3) {
+      throw ArgumentError('Invalid semantic tag: $tag');
     }
+
+    return <int>[
+      int.parse(parts[0]),
+      int.parse(parts[1]),
+      int.parse(parts[2]),
+    ];
   }
 
-  return true;
+  static bool versionLe(String left, String right) {
+    final List<int> normalizedLeft = _normalize(left);
+    final List<int> normalizedRight = _normalize(right);
+    for (int index = 0; index < 3; index += 1) {
+      if (normalizedLeft[index] < normalizedRight[index]) {
+        return true;
+      }
+
+      if (normalizedLeft[index] > normalizedRight[index]) {
+        return false;
+      }
+    }
+
+    return true;
+  }
 }

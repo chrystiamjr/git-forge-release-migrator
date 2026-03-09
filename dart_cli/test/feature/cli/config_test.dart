@@ -3,13 +3,13 @@ import 'dart:io';
 import 'package:gfrm_dart/src/config.dart';
 import 'package:gfrm_dart/src/core/session_store.dart';
 import 'package:gfrm_dart/src/core/settings.dart';
-import 'package:gfrm_dart/src/models.dart';
+import 'package:gfrm_dart/src/models/runtime_options.dart';
 import 'package:test/test.dart';
 
 void main() {
   group('config', () {
     test('parseCliRequest builds migrate runtime', () {
-      final CliRequest request = parseCliRequest(<String>[
+      final CliRequest request = CliRequestParser.parseCliRequest(<String>[
         commandMigrate,
         '--source-provider',
         'gh',
@@ -41,7 +41,7 @@ void main() {
     });
 
     test('parseCliRequest builds settings request', () {
-      final CliRequest request = parseCliRequest(<String>[
+      final CliRequest request = CliRequestParser.parseCliRequest(<String>[
         commandSettings,
         settingsActionSetTokenEnv,
         '--provider',
@@ -63,7 +63,7 @@ void main() {
     });
 
     test('parseCliRequest builds setup request', () {
-      final CliRequest request = parseCliRequest(<String>[
+      final CliRequest request = CliRequestParser.parseCliRequest(<String>[
         commandSetup,
         '--profile',
         'work',
@@ -82,7 +82,7 @@ void main() {
 
     test('parseCliRequest validates ranges', () {
       expect(
-        () => parseCliRequest(<String>[
+        () => CliRequestParser.parseCliRequest(<String>[
           commandMigrate,
           '--source-provider',
           'github',
@@ -110,7 +110,7 @@ void main() {
       addTearDown(() => temp.deleteSync(recursive: true));
 
       final String sessionPath = '${temp.path}/session.json';
-      saveSession(
+      SessionStore.saveSession(
         sessionPath,
         <String, dynamic>{
           'source_provider': 'github',
@@ -127,7 +127,7 @@ void main() {
         },
       );
 
-      final CliRequest request = parseCliRequest(<String>[
+      final CliRequest request = CliRequestParser.parseCliRequest(<String>[
         commandResume,
         '--session-file',
         sessionPath,
@@ -150,7 +150,7 @@ void main() {
       addTearDown(() => tempWorkdir.deleteSync(recursive: true));
 
       final String settingsPath = '${tempWorkdir.path}/.gfrm/settings.yaml';
-      writeSettingsFile(
+      SettingsManager.writeSettingsFile(
         settingsPath,
         <String, dynamic>{
           'version': 1,
@@ -167,7 +167,7 @@ void main() {
       );
 
       final CliRequest request = IOOverrides.runZoned<CliRequest>(
-        () => parseCliRequest(<String>[
+        () => CliRequestParser.parseCliRequest(<String>[
           commandMigrate,
           '--source-provider',
           'github',

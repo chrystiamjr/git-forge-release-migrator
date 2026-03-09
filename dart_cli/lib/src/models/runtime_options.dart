@@ -1,7 +1,6 @@
 import 'dart:io';
 
-import 'core/adapters/provider_adapter.dart';
-import 'core/time.dart';
+import '../core/time.dart';
 
 const String defaultSourceTokenEnv = 'GFRM_SOURCE_TOKEN';
 const String defaultTargetTokenEnv = 'GFRM_TARGET_TOKEN';
@@ -205,7 +204,7 @@ class RuntimeOptions {
       'skip_tag_migration': skipTagMigration,
       'download_workers': downloadWorkers,
       'release_workers': releaseWorkers,
-      'saved_at': utcTimestamp(),
+      'saved_at': TimeUtils.utcTimestamp(),
       'session_token_mode': sessionTokenMode,
       'settings_profile': settingsProfile,
     };
@@ -220,40 +219,4 @@ class RuntimeOptions {
     payload['target_token_env'] = sessionTargetEnvName();
     return payload;
   }
-}
-
-class MigrationContext {
-  MigrationContext({
-    required this.sourceRef,
-    required this.targetRef,
-    required this.source,
-    required this.target,
-    required this.options,
-    required this.logPath,
-    required this.workdir,
-    required this.checkpointPath,
-    required this.checkpointSignature,
-    required this.checkpointState,
-    required this.selectedTags,
-    required this.targetTags,
-    required this.targetReleaseTags,
-    required this.failedTags,
-    required this.releases,
-  });
-
-  final ProviderRef sourceRef;
-  final ProviderRef targetRef;
-  final ProviderAdapter source;
-  final ProviderAdapter target;
-  final RuntimeOptions options;
-  final String logPath;
-  final Directory workdir;
-  final String checkpointPath;
-  final String checkpointSignature;
-  final Map<String, String> checkpointState;
-  final List<String> selectedTags;
-  final Set<String> targetTags;
-  final Set<String> targetReleaseTags;
-  final Set<String> failedTags;
-  final List<Map<String, dynamic>> releases;
 }

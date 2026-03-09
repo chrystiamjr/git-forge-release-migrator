@@ -11,7 +11,7 @@ void main() {
       addTearDown(() => temp.deleteSync(recursive: true));
 
       final String path = '${temp.path}/logs/migration-log.jsonl';
-      appendLog(
+      JsonlLogWriter.appendLog(
         path,
         status: 'created',
         tag: 'v1.0.0',
