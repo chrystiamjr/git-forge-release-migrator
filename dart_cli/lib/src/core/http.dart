@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:dio/dio.dart';
 
@@ -32,6 +33,15 @@ class HttpClientHelper {
 
     final String lower = body.toLowerCase();
     return lower.contains('rate limit') || lower.contains('ratelimit') || lower.contains('too many requests');
+  }
+
+  int _safePreviewLength(String body) {
+    return min(body.length, 300);
+  }
+
+  int _nextBackoffMillis(Duration wait) {
+    final num next = (wait.inMilliseconds * 2).clamp(750, 5000);
+    return next.toInt();
   }
 
   Future<dynamic> requestJson(
@@ -85,7 +95,7 @@ class HttpClientHelper {
             try {
               return response.data is String ? response.data : <String, dynamic>{};
             } catch (_) {
-              throw HttpRequestError('Invalid JSON from $url: ${body.substring(0, body.length.clamp(0, 300))}');
+              throw HttpRequestError('Invalid JSON from $url: ${body.substring(0, _safePreviewLength(body))}');
             }
           }
         }
@@ -198,7 +208,7 @@ class HttpClientHelper {
 
         if (attempt < retries) {
           await Future<void>.delayed(wait);
-          wait = Duration(milliseconds: (wait.inMilliseconds * 2).clamp(750, 5000));
+          wait = Duration(milliseconds: _nextBackoffMillis(wait));
         }
       } on DioException catch (exc) {
         if (file.existsSync()) file.deleteSync();
@@ -210,8 +220,9 @@ class HttpClientHelper {
 
         if (status == HttpStatus.forbidden) {
           final Map<String, List<String>> headersMap = exc.response?.headers.map ?? const <String, List<String>>{};
-          final bool hasRateLimit =
-              headersMap.containsKey('retry-after') || (headersMap['x-ratelimit-remaining']?.firstOrNull == '0');
+          final List<String> rateLimitValues = headersMap['x-ratelimit-remaining'] ?? const <String>[];
+          final String rateLimitRemaining = rateLimitValues.isEmpty ? '' : rateLimitValues.first;
+          final bool hasRateLimit = headersMap.containsKey('retry-after') || rateLimitRemaining == '0';
 
           if (!hasRateLimit) {
             return false;
@@ -220,7 +231,7 @@ class HttpClientHelper {
 
         if (attempt < retries) {
           await Future<void>.delayed(wait);
-          wait = Duration(milliseconds: (wait.inMilliseconds * 2).clamp(750, 5000));
+          wait = Duration(milliseconds: _nextBackoffMillis(wait));
         }
       }
     }

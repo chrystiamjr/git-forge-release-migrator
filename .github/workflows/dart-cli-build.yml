@@ -54,13 +54,18 @@ jobs:
           echo "BIN_NAME=$BIN_NAME" >> "$GITHUB_ENV"
 
       - name: Import macOS signing certificate (optional)
-        if: runner.os == 'macOS' && secrets.APPLE_CERTIFICATE_P12_BASE64 != '' && secrets.APPLE_CERTIFICATE_PASSWORD != ''
+        if: runner.os == 'macOS'
         shell: bash
         env:
           APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
         run: |
+          if [ -z "$APPLE_CERTIFICATE_P12_BASE64" ] || [ -z "$APPLE_CERTIFICATE_PASSWORD" ]; then
+            echo "APPLE_CERTIFICATE_P12_BASE64/APPLE_CERTIFICATE_PASSWORD not configured; skipping certificate import."
+            exit 0
+          fi
+
           CERT_PATH="$RUNNER_TEMP/apple-signing-cert.p12"
           KEYCHAIN_PATH="$RUNNER_TEMP/gfrm-build.keychain-db"
           KEYCHAIN_PASSWORD="${APPLE_KEYCHAIN_PASSWORD:-gfrm-temporary-keychain-password}"

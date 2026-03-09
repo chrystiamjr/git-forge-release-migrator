@@ -63,10 +63,13 @@ else
   fail "Neither 'fvm' nor 'dart' is available in PATH."
 fi
 
-CLI_CMD=("${DART_RUNNER[@]}" run "$REPO_ROOT/dart_cli/bin/gfrm_dart.dart")
+CLI_CMD=("${DART_RUNNER[@]}" run bin/gfrm_dart.dart)
 
 run_cli() {
-  "${CLI_CMD[@]}" "$@"
+  (
+    cd "$REPO_ROOT/dart_cli"
+    "${CLI_CMD[@]}" "$@"
+  )
 }
 
 log_step "Repository root: $REPO_ROOT"
