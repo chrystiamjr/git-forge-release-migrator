@@ -166,23 +166,22 @@ void main() {
         },
       );
 
-      final String oldCwd = Directory.current.path;
-      Directory.current = tempWorkdir.path;
-      addTearDown(() => Directory.current = oldCwd);
-
-      final CliRequest request = parseCliRequest(<String>[
-        commandMigrate,
-        '--source-provider',
-        'github',
-        '--source-url',
-        'https://github.com/acme/src',
-        '--target-provider',
-        'gitlab',
-        '--target-url',
-        'https://gitlab.com/acme/dst',
-        '--settings-profile',
-        'work',
-      ]);
+      final CliRequest request = IOOverrides.runZoned<CliRequest>(
+        () => parseCliRequest(<String>[
+          commandMigrate,
+          '--source-provider',
+          'github',
+          '--source-url',
+          'https://github.com/acme/src',
+          '--target-provider',
+          'gitlab',
+          '--target-url',
+          'https://gitlab.com/acme/dst',
+          '--settings-profile',
+          'work',
+        ]),
+        getCurrentDirectory: () => tempWorkdir,
+      );
 
       final RuntimeOptions options = request.options!;
       expect(options.sourceToken, 'source-from-settings');

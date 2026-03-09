@@ -28,6 +28,7 @@ jobs:
         working-directory: dart_cli
         shell: bash
         run: |
+          mkdir -p build
           if [ "${{ runner.os }}" = "Windows" ]; then
             OUT="build/gfrm-windows.exe"
           elif [ "${{ runner.os }}" = "macOS" ]; then
