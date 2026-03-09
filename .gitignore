@@ -8,17 +8,6 @@ workdir/
 migration-results/
 sessions/
 
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-.pytest_cache/
-.venv/
-venv/
-build/
-dist/
-*.egg-info/
-
 # macOS
 .DS_Store
 
@@ -29,6 +18,13 @@ node_modules/
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Dart / Flutter / FVM
+**/.dart_tool/
+**/.packages
+**/build/
+**/pubspec.lock
+.fvm/
 
 # Local configuration (user-specific paths)
 .local-config.json

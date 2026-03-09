@@ -1,0 +1,45 @@
+name: Build CLI
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.fvmrc'
+      - 'bin/gfrm'
+      - 'dart_cli/**'
+      - '.github/workflows/dart-cli-build.yml'
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - uses: ./.github/actions/flutter-setup
+
+      - name: Compile binary
+        working-directory: dart_cli
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            OUT="build/gfrm-windows.exe"
+          elif [ "${{ runner.os }}" = "macOS" ]; then
+            OUT="build/gfrm-macos"
+          else
+            OUT="build/gfrm-linux"
+          fi
+          dart compile exe bin/gfrm_dart.dart -o "$OUT"
+          echo "OUT=$OUT" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gfrm-${{ runner.os }}
+          path: dart_cli/${{ env.OUT }}

@@ -1,0 +1,4 @@
+#!/bin/sh
+
+cd dart_cli || exit 1
+dart test

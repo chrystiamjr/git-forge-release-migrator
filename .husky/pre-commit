@@ -1,0 +1,5 @@
+#!/bin/sh
+
+cd dart_cli || exit 1
+dart format -l 120 --set-exit-if-changed bin lib test
+dart analyze

@@ -1,270 +1,229 @@
 # Referência da CLI (Português)
 
-## Comando Canônico
+Este documento reflete o contrato atual da CLI Dart (`gfrm`).
+
+## Comandos Canônicos
 
 ```bash
-./bin/repo-migrator.py \
+./bin/gfrm migrate [opções]
+./bin/gfrm resume [opções]
+./bin/gfrm demo [opções]
+./bin/gfrm setup [opções]
+./bin/gfrm settings <ação> [opções]
+```
+
+## Desenvolvimento Local (Yarn Primeiro)
+
+Validações recomendadas na raiz do repositório:
+
+```bash
+yarn lint:dart
+yarn test:dart
+./scripts/smoke-test.sh
+```
+
+Comandos Dart diretos continuam funcionando, mas a documentação prioriza scripts `yarn` para o fluxo diário.
+
+## Providers e Aliases
+
+Providers suportados:
+
+- `github` (alias: `gh`)
+- `gitlab` (alias: `gl`)
+- `bitbucket` (alias: `bb`, apenas Bitbucket Cloud)
+
+Pares cross-forge suportados:
+
+- `gitlab -> github`
+- `github -> gitlab`
+- `github -> bitbucket`
+- `bitbucket -> github`
+- `gitlab -> bitbucket`
+- `bitbucket -> gitlab`
+
+Não suportado:
+
+- migrações same-provider
+- Bitbucket Data Center / Server
+
+## `migrate`
+
+Inicia a migração com parâmetros explícitos de origem e destino.
+
+Sintaxe:
+
+```bash
+./bin/gfrm migrate \
   --source-provider <github|gitlab|bitbucket> \
   --source-url <url> \
   [--source-token <token>] \
   --target-provider <github|gitlab|bitbucket> \
   --target-url <url> \
   [--target-token <token>] \
-  [--settings-profile <nome>]
+  [opções]
 ```
 
-## Pares Suportados
+Obrigatórios:
 
-Pares cross-forge suportados atualmente:
+- `--source-provider`
+- `--source-url`
+- `--target-provider`
+- `--target-url`
 
-- `gitlab -> github`
-- `github -> gitlab`
-- `github -> bitbucket` (Bitbucket Cloud)
-- `bitbucket -> github` (Bitbucket Cloud)
-- `gitlab -> bitbucket` (Bitbucket Cloud)
-- `bitbucket -> gitlab` (Bitbucket Cloud)
+Fontes de token (ordem):
 
-Não suportado nesta fase:
+1. token explícito na CLI (`--source-token` / `--target-token`)
+2. token em settings (`token_env`, depois `token_plain`)
+3. aliases de ambiente (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, aliases por provider)
 
-- pares same-provider (`github->github`, `gitlab->gitlab`, `bitbucket->bitbucket`)
-- hosts Bitbucket Data Center / Server
+Principais opções:
 
-## Receitas de Comando
-
-```bash
-# GitLab -> GitHub
-./bin/repo-migrator.py --non-interactive \
-  --source-provider gitlab --source-url "https://gitlab.com/group/project" --source-token "<gitlab_token>" \
-  --target-provider github --target-url "https://github.com/org/repo" --target-token "<github_token>"
-
-# GitHub -> GitLab
-./bin/repo-migrator.py --non-interactive \
-  --source-provider github --source-url "https://github.com/org/repo" --source-token "<github_token>" \
-  --target-provider gitlab --target-url "https://gitlab.com/group/project" --target-token "<gitlab_token>"
-
-# GitHub -> Bitbucket Cloud
-./bin/repo-migrator.py --non-interactive \
-  --source-provider github --source-url "https://github.com/org/repo" --source-token "<github_token>" \
-  --target-provider bitbucket --target-url "https://bitbucket.org/workspace/repo" --target-token "<bitbucket_bearer>"
-
-# Bitbucket Cloud -> GitLab
-./bin/repo-migrator.py --non-interactive \
-  --source-provider bitbucket --source-url "https://bitbucket.org/workspace/repo" --source-token "<bitbucket_bearer>" \
-  --target-provider gitlab --target-url "https://gitlab.com/group/project" --target-token "<gitlab_token>"
-
-# Dry-run com faixa explícita de tags
-./bin/repo-migrator.py --non-interactive --dry-run \
-  --source-provider gitlab --source-url "https://gitlab.com/group/project" --source-token "<gitlab_token>" \
-  --target-provider bitbucket --target-url "https://bitbucket.org/workspace/repo" --target-token "<bitbucket_bearer>" \
-  --from-tag v1.0.0 --to-tag v2.0.0
-```
-
-## Referência Completa de Opções
-
-- `--source-provider <github|gitlab|bitbucket>`
-- `--source-url <url>`
-- `--source-token <token>`
-- `--target-provider <github|gitlab|bitbucket>`
-- `--target-url <url>`
-- `--target-token <token>`
+- `--settings-profile <nome>`
 - `--skip-tags`
 - `--from-tag <tag>`
 - `--to-tag <tag>`
-- `--workdir <dir>` (padrão: `./migration-results`)
+- `--workdir <dir>`
 - `--log-file <path>`
+- `--checkpoint-file <path>`
+- `--tags-file <path>`
+- `--download-workers <1..16>` (padrão: `4`)
+- `--release-workers <1..8>` (padrão: `1`)
 - `--dry-run`
-- `--download-workers <n>` (padrão: `4`, máximo: `16`)
-- `--release-workers <n>` (padrão: `1`, máximo: `8`)
-- `--checkpoint-file <path>` (padrão: `<results-root>/checkpoints/state.jsonl`)
-- `--tags-file <path>` (uma tag por linha)
-- `--non-interactive`
+- `--save-session` (padrão: habilitado)
+- `--no-save-session`
+- `--session-file <path>`
+- `--session-token-mode <env|plain>` (padrão: `env`)
+- `--session-source-token-env <nome>` (padrão: `GFRM_SOURCE_TOKEN`)
+- `--session-target-token-env <nome>` (padrão: `GFRM_TARGET_TOKEN`)
 - `--no-banner`
 - `--quiet`
 - `--json`
 - `--progress-bar`
-- `--help`
-- `--load-session`
-- `--save-session` (habilitado por padrão)
-- `--no-save-session`
-- `--resume-session`
-- `--session-file <path>`
-- `--session-token-mode <env|plain>` (padrão: `env`)
-- `--session-source-token-env <env_name>` (padrão: `GFRM_SOURCE_TOKEN`)
-- `--session-target-token-env <env_name>` (padrão: `GFRM_TARGET_TOKEN`)
-- `--settings-profile <nome>`
-- `--demo-mode`
-- `--demo-releases <n>`
-- `--demo-sleep-seconds <seconds>`
 
-## Subcomandos de Settings
+Regras de validação:
+
+- `--download-workers` deve estar em `1..16`
+- `--release-workers` deve estar em `1..8`
+- se `--from-tag` e `--to-tag` forem definidos, `from <= to`
+
+## `resume`
+
+Retoma uma execução a partir de sessão persistida.
+
+Sintaxe:
 
 ```bash
-./bin/repo-migrator.py settings init [--profile <nome>] [--local] [--yes]
-./bin/repo-migrator.py settings set-token-env --provider <github|gitlab|bitbucket> --env-name <ENV_NAME> [--profile <nome>] [--local]
-./bin/repo-migrator.py settings set-token-plain --provider <github|gitlab|bitbucket> [--token <valor>] [--profile <nome>] [--local]
-./bin/repo-migrator.py settings unset-token --provider <github|gitlab|bitbucket> [--profile <nome>] [--local]
-./bin/repo-migrator.py settings show [--profile <nome>]
+./bin/gfrm resume [opções]
 ```
 
-### Caminhos de Settings e Estratégia de Merge
+Principais opções:
 
-- global: `~/.config/gfrm/settings.yaml`
-- override local: `./.gfrm/settings.yaml`
+- `--session-file <path>` (padrão quando omitido: `./sessions/last-session.json`)
+- `--settings-profile <nome>`
+- `--skip-tags`
+- `--from-tag <tag>`
+- `--to-tag <tag>`
+- `--workdir <dir>`
+- `--log-file <path>`
+- `--checkpoint-file <path>`
+- `--tags-file <path>`
+- `--download-workers <1..16>`
+- `--release-workers <1..8>`
+- `--dry-run`
+- `--save-session` (padrão: habilitado)
+- `--no-save-session`
+- `--session-token-mode <env|plain>`
+- `--session-source-token-env <nome>`
+- `--session-target-token-env <nome>`
+- `--no-banner`
+- `--quiet`
+- `--json`
+- `--progress-bar`
 
-Comportamento do merge:
+Fontes de token (ordem):
 
-1. lê settings globais
-2. lê settings locais
-3. aplica merge profundo com local sobre global
+1. token do contexto de sessão (`source_token` ou `source_token_env`, idem para target)
+2. token em settings (`token_env`, depois `token_plain`)
+3. aliases de ambiente (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, aliases por provider)
 
-O local sobrescreve apenas chaves iguais e preserva o restante do global.
+Se precisar forçar token no fluxo `resume`, configure-o via settings ou variáveis de ambiente antes de executar.
 
-### Seleção e Troca de Perfil
+## `demo`
 
-Ordem do perfil efetivo:
+Executa o modo de simulação local.
 
-1. `--settings-profile`
-2. `defaults.profile` no merge global+local
+Sintaxe:
+
+```bash
+./bin/gfrm demo [opções]
+```
+
+Principais opções:
+
+- `--source-provider`, `--source-url`, `--source-token`
+- `--target-provider`, `--target-url`, `--target-token`
+- `--demo-releases <1..100>` (padrão: `5`)
+- `--demo-sleep-seconds <segundos>` (padrão: `1.0`, deve ser `>= 0`)
+- `--skip-tags`
+- `--dry-run`
+- `--workdir`, `--log-file`, `--checkpoint-file`, `--tags-file`
+- `--download-workers`, `--release-workers`
+- `--session-file`, `--session-token-mode`, `--session-source-token-env`, `--session-target-token-env`
+- `--no-banner`, `--quiet`, `--json`, `--progress-bar`
+
+## `setup`
+
+Bootstrap interativo para configuração inicial de settings.
+
+Sintaxe:
+
+```bash
+./bin/gfrm setup [opções]
+```
+
+Opções:
+
+- `--profile <nome>`
+- `--local` (escreve em `./.gfrm/settings.yaml`)
+- `--yes` (modo não interativo com defaults)
+- `--force` (executa setup mesmo com mappings já existentes)
+
+## `settings`
+
+Ações de settings:
+
+```bash
+./bin/gfrm settings init [--profile <nome>] [--local] [--yes]
+./bin/gfrm settings set-token-env --provider <github|gitlab|bitbucket> --env-name <ENV_NAME> [--profile <nome>] [--local]
+./bin/gfrm settings set-token-plain --provider <github|gitlab|bitbucket> [--token <valor>] [--profile <nome>] [--local]
+./bin/gfrm settings unset-token --provider <github|gitlab|bitbucket> [--profile <nome>] [--local]
+./bin/gfrm settings show [--profile <nome>]
+```
+
+Comportamento:
+
+- caminho global: `~/.config/gfrm/settings.yaml` (ou `XDG_CONFIG_HOME/gfrm/settings.yaml`)
+- caminho local de override: `./.gfrm/settings.yaml`
+- settings efetivo = deep-merge(global, local)
+- `settings show` mascara `token_plain`
+- `settings init` apenas lê arquivos de shell (`.zshrc`, `.zprofile`, `.bashrc`, `.bash_profile`)
+
+Resolução de perfil:
+
+1. `--settings-profile` explícito (em `migrate`/`resume`)
+2. `defaults.profile` em settings
 3. `default`
 
-Troca de perfil em runtime:
+## Invariantes de Execução
 
-```bash
-./bin/repo-migrator.py --settings-profile work ...
-./bin/repo-migrator.py --settings-profile personal ...
-```
+- ordem da migração é sempre tags-first
+- seleção de releases é semver-only (`vX.Y.Z`)
+- semântica de checkpoint/idempotência/retry é preservada
+- artefatos de execução são sempre gerados em workdir com timestamp
 
-Definição de credenciais por perfil:
+## Artefatos
 
-```bash
-./bin/repo-migrator.py settings set-token-env --provider github --env-name GH_WORK_TOKEN --profile work
-./bin/repo-migrator.py settings set-token-env --provider github --env-name GH_PERSONAL_TOKEN --profile personal
-```
-
-Se `--profile` for omitido em comandos de settings, vale a mesma regra de perfil efetivo.
-
-### Schema YAML (v1)
-
-```yaml
-version: 1
-defaults:
-  profile: work
-profiles:
-  work:
-    providers:
-      github:
-        token_env: GH_WORK_TOKEN
-      gitlab:
-        token_env: GL_WORK_TOKEN
-  personal:
-    providers:
-      github:
-        token_env: GH_PERSONAL_TOKEN
-      bitbucket:
-        token_plain: bbp_exemplo_token_plain
-```
-
-Campos de credencial por provider:
-
-- `token_env`: preferido, resolvido por nome de variável de ambiente
-- `token_plain`: token explícito em texto puro
-
-`settings show` mascara `token_plain`.
-
-`settings init` faz scan somente leitura de `~/.zshrc`, `~/.zprofile`, `~/.bashrc` e `~/.bash_profile` para sugerir nomes de variáveis. Ele não altera esses arquivos.
-`settings init` não define `token_plain`; para isso, use `settings set-token-plain`.
-
-## Ordem de Resolução de Tokens
-
-Para cada lado (`source` e `target`), a ordem é:
-
-1. token explícito via argumento (`--source-token` / `--target-token`)
-2. token da sessão carregada (`--load-session` / `--resume-session`)
-3. configuração do provider no perfil:
-   - `token_env` (resolvido por variável de ambiente)
-   - `token_plain` (opcional, texto puro explícito)
-4. aliases de ambiente:
-   - `GFRM_SOURCE_TOKEN` / `GFRM_TARGET_TOKEN`
-   - GitHub: `GITHUB_TOKEN`, `GH_TOKEN`, `GH_PERSONAL_TOKEN`
-   - GitLab: `GITLAB_TOKEN`, `GL_TOKEN`
-   - Bitbucket: `BITBUCKET_TOKEN`, `BB_TOKEN`
-5. prompt interativo (quando o modo interativo estiver ativo)
-
-## Seleção e Ordenação de Tags
-
-- O engine atualmente seleciona tags no formato `vX.Y.Z`.
-- A ordem de processamento é semver ascendente.
-- `--from-tag` e `--to-tag` são inclusivos.
-- `--tags-file` atua como filtro adicional após descoberta no provider.
-
-## Notas de Comportamento por Provider
-
-- Auth em GitHub usa override de token em runtime:
-
-```bash
-GH_TOKEN="<token>" gh ...
-```
-
-- Auth em GitLab usa header `PRIVATE-TOKEN`.
-- Auth em Bitbucket nesta fase usa:
-
-```text
-Authorization: Bearer <token>
-```
-
-- Escopo de URL Bitbucket nesta fase:
-
-```text
-https://bitbucket.org/<workspace>/<repo>
-```
-
-## Modelo de Manifesto no Bitbucket
-
-Estado de release em Bitbucket é rastreado em Downloads via:
-
-```text
-.gfrm-release-<tag>.json
-```
-
-Função do manifesto:
-
-- permitir retries idempotentes em fluxos `-> bitbucket`
-- indicar se assets estão completos ou pendentes
-- carregar metadados normalizados usados em fluxos `bitbucket -> *`
-
-Formato típico:
-
-```json
-{
-  "version": 1,
-  "tag_name": "v1.2.3",
-  "release_name": "Release v1.2.3",
-  "notes_hash": "<sha256>",
-  "uploaded_assets": [
-    {"name": "app.zip", "url": "https://...", "type": "package"}
-  ],
-  "missing_assets": [],
-  "updated_at": "2026-01-01T00:00:00Z"
-}
-```
-
-Comportamento legado (tag de origem Bitbucket sem manifesto):
-
-- migração continua
-- notas e rastreabilidade são preservadas
-- assets binários podem estar ausentes
-
-## Semântica de Idempotência e Retry
-
-- Tags são migradas antes de releases.
-- Arquivo de checkpoint guarda status terminal por chave de tag/release.
-- Releases completas no destino são ignoradas.
-- Releases incompletas no destino são retomadas.
-- `failed-tags.txt` sempre é gerado e pode ser usado para retry direcionado.
-
-## Artefatos de Saída
-
-Cada execução cria:
+Cada execução escreve em:
 
 ```text
 ./migration-results/<YYYYMMDD-HHMMSS>/
@@ -276,26 +235,13 @@ Arquivos principais:
 - `summary.json`
 - `failed-tags.txt`
 
-Quando há falhas, `summary.json` inclui um comando de retry apenas para tags com erro.
+Detalhes do `summary.json`:
 
-## Persistência de Sessão
+- `schema_version: 2`
+- `command` com subcomando executado (`migrate`, `resume`, `demo`)
+- `retry_command` gerado com `gfrm resume` quando houver falhas
 
-Padrões:
+## Exit Codes
 
-- arquivo de sessão: `./sessions/last-session.json`
-- modo de token: `env`
-
-Comandos:
-
-```bash
-./bin/repo-migrator.py --resume-session
-./bin/repo-migrator.py --load-session --session-file ./sessions/custom.json
-./bin/repo-migrator.py --no-save-session
-```
-
-Aviso: `--session-token-mode plain` grava tokens em texto puro.
-
-## Códigos de Saída
-
-- `0`: migração concluída sem falhas
-- `1`: ocorreu pelo menos uma falha
+- `0`: execução bem-sucedida
+- não-zero: falha de validação ou operacional
