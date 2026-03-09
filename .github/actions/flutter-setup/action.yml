@@ -1,5 +1,5 @@
 name: Flutter Setup
-description: Installs Flutter (version from .fvmrc), caches pub packages, runs pub get and build_runner.
+description: Installs Flutter (version from .fvmrc), caches pub packages, and runs dart pub get.
 
 runs:
   using: composite

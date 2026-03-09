@@ -125,6 +125,10 @@ abstract class ProviderAdapter {
       return false;
     }
 
+    if (targetReleaseTags.contains(tag)) {
+      return true;
+    }
+
     return releaseExists(ref, token, tag);
   }
 

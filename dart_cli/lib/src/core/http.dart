@@ -68,7 +68,7 @@ class HttpClientHelper {
           }
 
           try {
-            return _dio.transformer.transformResponse(
+            final dynamic decoded = await _dio.transformer.transformResponse(
               RequestOptions(path: url),
               ResponseBody.fromString(
                 body,
@@ -80,6 +80,7 @@ class HttpClientHelper {
                 },
               ),
             );
+            return decoded;
           } catch (_) {
             try {
               return response.data is String ? response.data : <String, dynamic>{};

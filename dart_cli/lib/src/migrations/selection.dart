@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import '../core/files.dart';
 import '../core/versioning.dart';
 
 final class SelectionService {
@@ -121,13 +122,7 @@ final class SelectionService {
   }
 
   static String reserveOutputName(Set<String> usedNames, String rawName) {
-    String clean = rawName.split('/').last;
-    clean = clean.split('?').first;
-    clean = clean.replaceAll(' ', '_').replaceAll(':', '_').replaceAll('\t', '_');
-    clean = clean.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '');
-    if (clean.isEmpty) {
-      clean = 'asset';
-    }
+    final String clean = FileSystemUtils.sanitizeFilename(rawName);
 
     String stem = clean;
     String suffix = '';

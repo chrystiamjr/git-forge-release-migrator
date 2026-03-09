@@ -1,4 +1,9 @@
 #!/bin/sh
 
 cd dart_cli || exit 1
-dart test
+
+if command -v fvm >/dev/null 2>&1; then
+  fvm dart test
+else
+  dart test
+fi
