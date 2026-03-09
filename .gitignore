@@ -13,8 +13,14 @@ sessions/
 
 # Node / semantic-release
 node_modules/
-.yarn/cache
-.yarn/unplugged
+.yarn/*
+!.yarn/patches/
+!.yarn/plugins/
+!.yarn/releases/
+!.yarn/sdks/
+!.yarn/versions/
+.yarn/cache/
+.yarn/unplugged/
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
@@ -28,4 +34,5 @@ node_modules/
 
 # Local configuration (user-specific paths)
 .local-config.json
-.claude/settings.local.json
+.claude/
+.idea/
