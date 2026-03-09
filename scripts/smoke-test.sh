@@ -116,7 +116,7 @@ mkdir -p "$SETTINGS_PROJECT"
 
 (
   cd "$SETTINGS_PROJECT"
-  run_cli setup --yes --local --profile smoke >/dev/null
+  run_cli setup --yes --local --force --profile smoke >/dev/null
   run_cli settings set-token-env --provider github --env-name GH_TOKEN --profile smoke --local >/dev/null
   run_cli settings set-token-plain --provider gitlab --token smoke-secret-token --profile smoke --local >/dev/null
   run_cli settings show --profile smoke > "$SMOKE_ROOT/settings-show.json"

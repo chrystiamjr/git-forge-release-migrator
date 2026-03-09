@@ -88,7 +88,7 @@ abstract class ProviderAdapter {
   }
 
   Future<Set<String>> listTargetReleaseTags(ProviderRef ref, String token, Set<String> fallbackTags) async {
-    return <String>{};
+    return fallbackTags.toSet();
   }
 
   Future<void> createTagForMigration(

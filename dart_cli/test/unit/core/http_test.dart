@@ -280,5 +280,34 @@ void main() {
       expect(ok, isFalse);
       expect(dio.downloadCalls, 1);
     });
+
+    test('downloadFile does not retry when retry-after header list is empty', () async {
+      final Directory temp = Directory.systemTemp.createTempSync('gfrm-http-download-empty-retry-after-');
+      addTearDown(() => temp.deleteSync(recursive: true));
+
+      final _QueueDio dio = _QueueDio(
+        downloadResults: <dynamic>[
+          _response(
+            'https://example.com/file.zip',
+            403,
+            headers: <String, List<String>>{
+              'retry-after': <String>[],
+            },
+          ),
+        ],
+      );
+      final HttpClientHelper helper = HttpClientHelper(dio: dio);
+      final String destination = '${temp.path}/file.zip';
+
+      final bool ok = await helper.downloadFile(
+        'https://example.com/file.zip',
+        destination,
+        retries: 3,
+        backoff: Duration.zero,
+      );
+
+      expect(ok, isFalse);
+      expect(dio.downloadCalls, 1);
+    });
   });
 }

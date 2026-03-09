@@ -198,7 +198,8 @@ class HttpClientHelper {
 
         if (status == HttpStatus.forbidden) {
           final List<String>? retryAfter = response.headers.map['retry-after'];
-          final bool hasRateLimit = retryAfter != null || (response.headers.value('x-ratelimit-remaining') == '0');
+          final bool hasRetryAfter = retryAfter != null && retryAfter.isNotEmpty;
+          final bool hasRateLimit = hasRetryAfter || (response.headers.value('x-ratelimit-remaining') == '0');
           if (!hasRateLimit) {
             if (file.existsSync()) file.deleteSync();
 
@@ -220,9 +221,11 @@ class HttpClientHelper {
 
         if (status == HttpStatus.forbidden) {
           final Map<String, List<String>> headersMap = exc.response?.headers.map ?? const <String, List<String>>{};
+          final List<String> retryAfterValues = headersMap['retry-after'] ?? const <String>[];
+          final bool hasRetryAfter = retryAfterValues.isNotEmpty;
           final List<String> rateLimitValues = headersMap['x-ratelimit-remaining'] ?? const <String>[];
           final String rateLimitRemaining = rateLimitValues.isEmpty ? '' : rateLimitValues.first;
-          final bool hasRateLimit = headersMap.containsKey('retry-after') || rateLimitRemaining == '0';
+          final bool hasRateLimit = hasRetryAfter || rateLimitRemaining == '0';
 
           if (!hasRateLimit) {
             return false;
