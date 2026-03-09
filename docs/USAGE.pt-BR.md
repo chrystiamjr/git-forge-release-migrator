@@ -24,6 +24,45 @@ yarn test:dart
 
 Comandos Dart diretos continuam funcionando, mas a documentação prioriza scripts `yarn` para o fluxo diário.
 
+## Executando Artefatos do CI
+
+Artefatos gerados pelo CI:
+
+- `gfrm-macos` contendo `gfrm`
+- `gfrm-linux` contendo `gfrm`
+- `gfrm-windows` contendo `gfrm.exe`
+
+macOS:
+
+```bash
+unzip gfrm-macos.zip -d ./gfrm-macos
+cd ./gfrm-macos
+chmod +x ./gfrm
+xattr -d com.apple.quarantine ./gfrm || true
+./gfrm --help
+```
+
+Linux:
+
+```bash
+unzip gfrm-linux.zip -d ./gfrm-linux
+cd ./gfrm-linux
+chmod +x ./gfrm
+./gfrm --help
+```
+
+Windows (PowerShell):
+
+```powershell
+Expand-Archive .\gfrm-windows.zip -DestinationPath .\gfrm-windows
+.\gfrm-windows\gfrm.exe --help
+```
+
+Notas:
+
+- No macOS, a notarização ainda pode ser necessária para primeira execução sem alerta do Gatekeeper.
+- No Windows, alertas do SmartScreen são esperados enquanto os binários estiverem sem assinatura.
+
 ## Providers e Aliases
 
 Providers suportados:

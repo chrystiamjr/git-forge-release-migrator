@@ -115,8 +115,13 @@ Settings behavior to preserve:
 Main code lives in `dart_cli/lib/src/`.
 
 - `cli.dart`
+- `cli/settings_setup_command_handler.dart`
 - `config.dart`
-- `models.dart`
+- `config/arg_parsers.dart`
+- `config/validators.dart`
+- `config/types/*`
+- `models/runtime_options.dart`
+- `models/migration_context.dart`
 - `migrations/engine.dart`
 - `migrations/selection.dart`
 - `migrations/tag_phase.dart`
@@ -125,6 +130,7 @@ Main code lives in `dart_cli/lib/src/`.
 - `providers/registry.dart`
 - `providers/{github,gitlab,bitbucket}.dart`
 - `core/{http,checkpoint,jsonl,files,session_store,settings,versioning,logging}.dart`
+- `core/exceptions/*`
 - `core/types/*`
 
 Provider adapters must produce canonical release data consumed by the engine.
@@ -171,9 +177,9 @@ yarn test:dart
 Equivalent direct commands (inside `dart_cli`, use as fallback/debug):
 
 ```bash
-dart format -l 120 --set-exit-if-changed bin lib test
-dart analyze
-dart test
+fvm dart format -l 120 --set-exit-if-changed bin lib test
+fvm dart analyze
+fvm dart test
 ```
 
 ## Test Strategy

@@ -22,10 +22,11 @@ fvm dart pub get
 
 ## Entrypoints
 
-- Package entrypoint: `dart_cli/bin/gfrm_dart.dart`
-- Public wrapper command at repository root: `bin/gfrm`
+- Internal Dart package entrypoint: `dart_cli/bin/gfrm_dart.dart`
+- Public command wrapper at repository root: `bin/gfrm`
+- Public command contract is `gfrm`; `gfrm_dart.dart` is an implementation detail for package/runtime workflows.
 
-Public command contract is `gfrm` with subcommands:
+Supported public subcommands:
 
 - `migrate`
 - `resume`
