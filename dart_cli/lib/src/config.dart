@@ -151,7 +151,7 @@ RuntimeOptions _buildMigrateRuntime(ArgResults args) {
   );
   ConfigValidators.validateTokenPresence(sourceToken, targetToken);
 
-  final bool saveSession = _optionalBool(args, 'save-session') && !_optionalBool(args, 'no-save-session');
+  final bool saveSession = _optionalBool(args, 'save-session');
   return RuntimeOptions(
     commandName: commandMigrate,
     sourceProvider: sourceProvider,
@@ -263,7 +263,7 @@ RuntimeOptions _buildRuntimeFromSession(ArgResults args) {
 
   final bool skipTags =
       args.wasParsed('skip-tags') ? _optionalBool(args, 'skip-tags') : ((data['skip_tag_migration'] ?? false) == true);
-  final bool saveSession = _optionalBool(args, 'save-session') && !_optionalBool(args, 'no-save-session');
+  final bool saveSession = _optionalBool(args, 'save-session');
 
   return RuntimeOptions(
     commandName: commandResume,

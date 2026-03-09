@@ -1,6 +1,8 @@
 import 'dart:io';
 
+import 'package:args/args.dart';
 import 'package:gfrm_dart/src/config.dart';
+import 'package:gfrm_dart/src/config/arg_parsers.dart';
 import 'package:gfrm_dart/src/core/session_store.dart';
 import 'package:gfrm_dart/src/core/settings.dart';
 import 'package:gfrm_dart/src/models/runtime_options.dart';
@@ -80,6 +82,11 @@ void main() {
       expect(options.force, isTrue);
     });
 
+    test('buildRootParser registers settings command', () {
+      final ArgParser parser = CliParserCatalog.buildRootParser();
+      expect(parser.commands.containsKey(commandSettings), isTrue);
+    });
+
     test('parseCliRequest validates ranges', () {
       expect(
         () => CliRequestParser.parseCliRequest(<String>[
@@ -143,6 +150,51 @@ void main() {
       expect(options.targetToken, 'target-token');
       expect(options.downloadWorkers, 7);
       expect(options.commandName, commandResume);
+    });
+
+    test('parseCliRequest honors --no-save-session for migrate and resume', () {
+      final CliRequest migrateRequest = CliRequestParser.parseCliRequest(<String>[
+        commandMigrate,
+        '--source-provider',
+        'github',
+        '--source-url',
+        'https://github.com/o/r',
+        '--source-token',
+        's',
+        '--target-provider',
+        'gitlab',
+        '--target-url',
+        'https://gitlab.com/g/p',
+        '--target-token',
+        't',
+        '--no-save-session',
+      ]);
+      expect(migrateRequest.options!.saveSession, isFalse);
+
+      final Directory temp = Directory.systemTemp.createTempSync('gfrm-dart-config-save-session-');
+      addTearDown(() => temp.deleteSync(recursive: true));
+
+      final String sessionPath = '${temp.path}/session.json';
+      SessionStore.saveSession(
+        sessionPath,
+        <String, dynamic>{
+          'source_provider': 'github',
+          'source_url': 'https://github.com/acme/src',
+          'target_provider': 'gitlab',
+          'target_url': 'https://gitlab.com/acme/dst',
+          'source_token': 'source-token',
+          'target_token': 'target-token',
+          'session_token_mode': 'plain',
+        },
+      );
+
+      final CliRequest resumeRequest = CliRequestParser.parseCliRequest(<String>[
+        commandResume,
+        '--session-file',
+        sessionPath,
+        '--no-save-session',
+      ]);
+      expect(resumeRequest.options!.saveSession, isFalse);
     });
 
     test('parseCliRequest migrate resolves token from settings profile', () {

@@ -13,6 +13,7 @@ final class CliParserCatalog {
     parser.addCommand(commandResume, _buildResumeParser());
     parser.addCommand(commandDemo, _buildDemoParser());
     parser.addCommand(commandSetup, _buildSetupParser());
+    parser.addCommand(commandSettings, buildSettingsParser());
 
     return parser;
   }
@@ -130,8 +131,7 @@ final class CliParserCatalog {
     parser.addOption('target-provider');
     parser.addOption('target-url');
     parser.addOption('target-token', defaultsTo: '');
-    parser.addFlag('save-session', defaultsTo: true, negatable: false);
-    parser.addFlag('no-save-session', defaultsTo: false, negatable: false);
+    parser.addFlag('save-session', defaultsTo: true, negatable: true);
     parser.addOption('session-file', defaultsTo: '');
     parser.addOption('session-token-mode', defaultsTo: 'env');
     parser.addOption('session-source-token-env', defaultsTo: defaultSourceTokenEnv);
@@ -144,8 +144,7 @@ final class CliParserCatalog {
   static ArgParser _buildResumeParser() {
     final ArgParser parser = _baseRuntimeFlags();
     parser.addOption('session-file', defaultsTo: '');
-    parser.addFlag('save-session', defaultsTo: true, negatable: false);
-    parser.addFlag('no-save-session', defaultsTo: false, negatable: false);
+    parser.addFlag('save-session', defaultsTo: true, negatable: true);
     parser.addOption('session-token-mode', defaultsTo: '');
     parser.addOption('session-source-token-env', defaultsTo: defaultSourceTokenEnv);
     parser.addOption('session-target-token-env', defaultsTo: defaultTargetTokenEnv);
