@@ -147,16 +147,9 @@ abstract class ProviderAdapter {
   }
 
   Future<String> publishRelease(PublishReleaseInput input) async {
-    await createOrUpdateRelease(
-      input.providerRef,
-      input.token,
-      input.tag,
-      input.releaseName,
-      input.notesFile.readAsStringSync(),
-      <Map<String, dynamic>>[],
+    throw UnimplementedError(
+      'publishRelease must be implemented by the concrete provider adapter.',
     );
-
-    return 'ok';
   }
 
   Future<bool> downloadCanonicalLink(DownloadLinkInput input) async {

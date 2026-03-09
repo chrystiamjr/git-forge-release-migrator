@@ -6,6 +6,12 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$REPO_ROOT"
 
+if ! command -v yarn >/dev/null 2>&1; then
+  echo "Error: yarn is required to install Husky hooks. Install Yarn and run this script again."
+  exit 1
+fi
+
+echo "Installing dependencies with yarn install (required for Husky setup)..."
 yarn install
 yarn prepare
 

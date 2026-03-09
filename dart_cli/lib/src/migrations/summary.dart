@@ -55,6 +55,10 @@ final class SummaryWriter {
     return parts.map(_quoteShell).join(' ');
   }
 
+  static String retryCommandShell() {
+    return Platform.isWindows ? 'windows' : 'posix-sh';
+  }
+
   static Future<void> writeSummary({
     required ConsoleLogger logger,
     required RuntimeOptions options,
@@ -103,6 +107,7 @@ final class SummaryWriter {
       },
       'failed_tags': sortedFailed,
       'retry_command': retryCommand,
+      'retry_command_shell': retryCommand.isEmpty ? '' : retryCommandShell(),
     };
 
     final File summaryFile = File('${workdir.path}/summary.json');
@@ -131,6 +136,7 @@ final class SummaryWriter {
     logger.info('  Workdir: ${workdir.path}');
 
     if (retryCommand.isNotEmpty) {
+      logger.info('  Retry command shell: ${retryCommandShell()}');
       logger.info('  Retry command: $retryCommand');
     }
   }
@@ -138,6 +144,11 @@ final class SummaryWriter {
   static String _quoteShell(String value) {
     if (RegExp(r'^[A-Za-z0-9_./:-]+$').hasMatch(value)) {
       return value;
+    }
+
+    if (Platform.isWindows) {
+      final String escaped = value.replaceAll('"', r'\"');
+      return '"$escaped"';
     }
 
     return "'${value.replaceAll("'", "'\\''")}'";

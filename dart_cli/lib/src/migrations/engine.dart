@@ -29,7 +29,12 @@ class MigrationEngine {
 
     final Directory workdir = FileSystemUtils.ensureDir(options.effectiveWorkdir());
     final String logPath = options.logFile.isNotEmpty ? options.logFile : '${workdir.path}/migration-log.jsonl';
-    File(logPath).writeAsStringSync('');
+    final File logFile = File(logPath);
+    final Directory logParent = logFile.parent;
+    if (!logParent.existsSync()) {
+      logParent.createSync(recursive: true);
+    }
+    logFile.writeAsStringSync('');
 
     final String checkpointPath = options.effectiveCheckpointFile();
     final String checkpointSig = SummaryWriter.checkpointSignature(options, sourceRef, targetRef);

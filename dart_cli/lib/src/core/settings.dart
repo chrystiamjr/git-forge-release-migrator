@@ -434,16 +434,49 @@ void _replaceFile(File tmpFile, File targetFile) {
     // Continue to overwrite-safe fallback.
   }
 
+  File? backupFile;
   if (targetFile.existsSync()) {
-    targetFile.deleteSync();
+    backupFile = File('${targetFile.path}.bak-${DateTime.now().microsecondsSinceEpoch}');
+    try {
+      targetFile.renameSync(backupFile.path);
+    } on FileSystemException {
+      backupFile = null;
+    }
   }
 
+  bool replaced = false;
   try {
     tmpFile.renameSync(targetFile.path);
+    replaced = true;
   } on FileSystemException {
-    tmpFile.copySync(targetFile.path);
-    tmpFile.deleteSync();
+    try {
+      tmpFile.copySync(targetFile.path);
+      tmpFile.deleteSync();
+      replaced = true;
+    } on FileSystemException {
+      replaced = false;
+    }
   }
+
+  if (replaced) {
+    if (backupFile != null && backupFile.existsSync()) {
+      backupFile.deleteSync();
+    }
+    return;
+  }
+
+  if (backupFile != null && backupFile.existsSync() && !targetFile.existsSync()) {
+    try {
+      backupFile.renameSync(targetFile.path);
+      return;
+    } on FileSystemException {
+      backupFile.copySync(targetFile.path);
+      backupFile.deleteSync();
+      return;
+    }
+  }
+
+  throw FileSystemException('Failed to replace file', targetFile.path);
 }
 
 void _writeSettingsFile(String pathValue, Map<String, dynamic> payload) {

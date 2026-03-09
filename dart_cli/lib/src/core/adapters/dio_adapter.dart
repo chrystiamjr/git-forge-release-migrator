@@ -3,7 +3,7 @@ import 'package:dio/dio.dart';
 class DioAdapter {
   final Dio instance;
 
-  bool? followRedirects;
+  final bool? followRedirects;
 
   DioAdapter({this.followRedirects})
       : instance = Dio(BaseOptions(

@@ -91,8 +91,13 @@ void main() {
       final String command = SummaryWriter.buildRetryCommand(options, failedTags);
 
       expect(command, startsWith('gfrm resume --tags-file '));
-      expect(command, contains("'/tmp/failed tags.txt'"));
-      expect(command, contains("--session-file '/tmp/my session.json'"));
+      if (Platform.isWindows) {
+        expect(command, contains('"/tmp/failed tags.txt"'));
+        expect(command, contains('--session-file "/tmp/my session.json"'));
+      } else {
+        expect(command, contains("'/tmp/failed tags.txt'"));
+        expect(command, contains("--session-file '/tmp/my session.json'"));
+      }
       expect(command, contains('--no-banner'));
       expect(command, contains('--quiet'));
       expect(command, contains('--json'));
@@ -156,6 +161,7 @@ void main() {
       expect((summary['failed_tags'] as List<dynamic>).cast<String>(), <String>['v1.0.0', 'v2.0.0']);
       expect((summary['paths'] as Map<String, dynamic>)['failed_tags'], failedTagsFile.path);
       expect((summary['retry_command'] ?? '').toString(), isNotEmpty);
+      expect(summary['retry_command_shell'], Platform.isWindows ? 'windows' : 'posix-sh');
     });
   });
 }
