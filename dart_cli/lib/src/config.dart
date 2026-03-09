@@ -359,21 +359,14 @@ RuntimeOptions _buildDemoRuntime(ArgResults args) {
   );
 }
 
-CliRequest _parseSettingsRequest(List<String> argv) {
-  final ArgParser parser = CliParserCatalog.buildSettingsParser();
-  if (argv.isEmpty) {
-    return CliRequest(command: 'help', usage: CliParserCatalog.buildSettingsUsage());
-  }
-
-  final ArgResults root = parser.parse(argv);
+CliRequest _parseSettingsCommand(ArgResults root) {
   if (_optionalBool(root, 'help')) {
     return CliRequest(command: 'help', usage: CliParserCatalog.buildSettingsUsage());
   }
 
   final ArgResults? command = root.command;
   if (command == null) {
-    throw ArgumentError(
-        'Missing settings action. Use one of: init, set-token-env, set-token-plain, unset-token, show.');
+    return CliRequest(command: 'help', usage: CliParserCatalog.buildSettingsUsage());
   }
 
   if (_optionalBool(command, 'help')) {
@@ -417,10 +410,6 @@ CliRequest _parseCliRequest(List<String> argv) {
     return CliRequest(command: 'help', usage: CliParserCatalog.buildUsage());
   }
 
-  if (argv.first == commandSettings) {
-    return _parseSettingsRequest(argv.sublist(1));
-  }
-
   final ArgParser parser = CliParserCatalog.buildRootParser();
   final ArgResults root = parser.parse(argv);
   if (_optionalBool(root, 'help')) {
@@ -436,6 +425,10 @@ CliRequest _parseCliRequest(List<String> argv) {
   if (_optionalBool(commandResult, 'help')) {
     if (commandName == commandSetup) {
       return CliRequest(command: 'help', usage: CliParserCatalog.buildSetupUsage());
+    }
+
+    if (commandName == commandSettings) {
+      return CliRequest(command: 'help', usage: CliParserCatalog.buildSettingsUsage());
     }
 
     return CliRequest(command: 'help', usage: CliParserCatalog.buildUsage());
@@ -462,6 +455,9 @@ CliRequest _parseCliRequest(List<String> argv) {
 
     case commandSetup:
       return _parseSetupRequest(commandResult);
+
+    case commandSettings:
+      return _parseSettingsCommand(commandResult);
 
     default:
       throw ArgumentError('Unsupported command: $commandName');

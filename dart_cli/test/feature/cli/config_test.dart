@@ -64,6 +64,18 @@ void main() {
       expect(options.localScope, isTrue);
     });
 
+    test('parseCliRequest settings without action shows settings usage', () {
+      final CliRequest request = CliRequestParser.parseCliRequest(<String>[commandSettings]);
+      expect(request.command, 'help');
+      expect(request.usage, contains('Usage: $publicCommandName settings <action> [options]'));
+    });
+
+    test('parseCliRequest settings --help shows settings usage', () {
+      final CliRequest request = CliRequestParser.parseCliRequest(<String>[commandSettings, '--help']);
+      expect(request.command, 'help');
+      expect(request.usage, contains('Usage: $publicCommandName settings <action> [options]'));
+    });
+
     test('parseCliRequest builds setup request', () {
       final CliRequest request = CliRequestParser.parseCliRequest(<String>[
         commandSetup,

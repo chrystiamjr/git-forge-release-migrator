@@ -170,5 +170,24 @@ void main() {
       expect(names.contains('GL_TOKEN'), isTrue);
       expect(names.contains('not_valid'), isFalse);
     });
+
+    test('writeSettingsFile overwrites existing settings file atomically', () {
+      final Directory temp = Directory.systemTemp.createTempSync('gfrm-dart-settings-write-');
+      addTearDown(() => temp.deleteSync(recursive: true));
+
+      final String settingsPath = p.join(temp.path, '.gfrm', 'settings.yaml');
+      SettingsManager.writeSettingsFile(settingsPath, <String, dynamic>{
+        'version': 1,
+        'defaults': <String, dynamic>{'profile': 'work'},
+      });
+      SettingsManager.writeSettingsFile(settingsPath, <String, dynamic>{
+        'version': 1,
+        'defaults': <String, dynamic>{'profile': 'personal'},
+      });
+
+      final Map<String, dynamic> loaded = SettingsManager.loadSettingsFile(settingsPath);
+      final Map<String, dynamic> defaults = loaded['defaults'] as Map<String, dynamic>;
+      expect(defaults['profile'], 'personal');
+    });
   });
 }

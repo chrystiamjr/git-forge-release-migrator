@@ -426,6 +426,26 @@ void _hardenFilePermissions(String pathValue) {
   }
 }
 
+void _replaceFile(File tmpFile, File targetFile) {
+  try {
+    tmpFile.renameSync(targetFile.path);
+    return;
+  } on FileSystemException {
+    // Continue to overwrite-safe fallback.
+  }
+
+  if (targetFile.existsSync()) {
+    targetFile.deleteSync();
+  }
+
+  try {
+    tmpFile.renameSync(targetFile.path);
+  } on FileSystemException {
+    tmpFile.copySync(targetFile.path);
+    tmpFile.deleteSync();
+  }
+}
+
 void _writeSettingsFile(String pathValue, Map<String, dynamic> payload) {
   final File targetFile = File(pathValue);
   _ensureParentSecurity(targetFile.parent);
@@ -434,7 +454,8 @@ void _writeSettingsFile(String pathValue, Map<String, dynamic> payload) {
   final File tmpFile = File(tmpPath);
   tmpFile.writeAsStringSync('${const JsonEncoder.withIndent('  ').convert(payload)}\n');
   _hardenFilePermissions(tmpPath);
-  tmpFile.renameSync(targetFile.path);
+  _replaceFile(tmpFile, targetFile);
+  _hardenFilePermissions(targetFile.path);
 }
 
 Map<String, dynamic> _maskSettingsSecrets(Map<String, dynamic> payload) {

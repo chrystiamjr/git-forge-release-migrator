@@ -64,7 +64,12 @@ class TagPhaseRunner {
     final int percent = total <= 0 ? 0 : (index * 100 ~/ total);
     if (ctx.options.progressBar && total > 0) {
       const int width = 20;
-      final int filled = width * index ~/ total;
+      final int rawFilled = width * index ~/ total;
+      final int filled = rawFilled < 0
+          ? 0
+          : rawFilled > width
+              ? width
+              : rawFilled;
       final String bar = ''.padRight(filled, '#') + ''.padRight(width - filled, '-');
       logger.info('[$index/$total - ${percent.toString().padLeft(3)}%] [$bar] $message');
       return;
