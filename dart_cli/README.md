@@ -41,6 +41,7 @@ Preferred local workflow (from repository root):
 ```bash
 yarn install
 yarn prepare
+yarn get:dart
 yarn lint:dart
 yarn test:dart
 ```

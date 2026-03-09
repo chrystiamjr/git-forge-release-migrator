@@ -6,13 +6,24 @@ final class SelectionService {
   const SelectionService._();
 
   static final RegExp semverTagPattern = RegExp(r'^v(\d+)\.(\d+)\.(\d+)$');
+  static const Map<String, String> _canonicalProviders = <String, String>{
+    'github': 'GitHub',
+    'gitlab': 'GitLab',
+    'bitbucket': 'Bitbucket',
+  };
 
   static String capitalizeProvider(String provider) {
-    if (provider.isEmpty) {
-      return provider;
+    final String trimmed = provider.trim();
+    if (trimmed.isEmpty) {
+      return trimmed;
     }
 
-    return provider[0].toUpperCase() + provider.substring(1);
+    final String? canonical = _canonicalProviders[trimmed.toLowerCase()];
+    if (canonical != null) {
+      return canonical;
+    }
+
+    return trimmed[0].toUpperCase() + trimmed.substring(1);
   }
 
   static int semverCompare(String left, String right) {

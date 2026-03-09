@@ -53,7 +53,7 @@ void main() {
 
       final String candidate = FileSystemUtils.uniqueAssetFilename(temp.path, 'release.zip');
 
-      expect(candidate, matches(RegExp(r'^release-\d+\.zip$')));
+      expect(candidate, 'release-2.zip');
       expect(File(p.join(temp.path, candidate)).existsSync(), isFalse);
     });
   });

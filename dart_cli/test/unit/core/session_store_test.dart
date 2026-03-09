@@ -33,6 +33,30 @@ void main() {
       );
     });
 
+    test('saveSession overwrites an existing session file', () {
+      final Directory temp = Directory.systemTemp.createTempSync('gfrm-dart-session-overwrite-');
+      addTearDown(() => temp.deleteSync(recursive: true));
+
+      final String path = '${temp.path}/sessions/last-session.json';
+
+      SessionStore.saveSession(path, <String, dynamic>{
+        'source_provider': 'github',
+        'target_provider': 'gitlab',
+        'download_workers': 2,
+      });
+
+      SessionStore.saveSession(path, <String, dynamic>{
+        'source_provider': 'bitbucket',
+        'target_provider': 'github',
+        'download_workers': 6,
+      });
+
+      final Map<String, dynamic> restored = SessionStore.loadSession(path);
+      expect(restored['source_provider'], 'bitbucket');
+      expect(restored['target_provider'], 'github');
+      expect(restored['download_workers'], 6);
+    });
+
     test('loadSession throws for non-map payload', () {
       final Directory temp = Directory.systemTemp.createTempSync('gfrm-dart-session-invalid-');
       addTearDown(() => temp.deleteSync(recursive: true));

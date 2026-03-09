@@ -11,6 +11,29 @@ class HttpClientHelper {
 
   final Dio _dio;
 
+  bool _isRateLimitedForbidden({
+    required Headers? headers,
+    required String body,
+  }) {
+    final String retryAfter = (headers?.value('retry-after') ?? '').trim();
+    if (retryAfter.isNotEmpty) {
+      return true;
+    }
+
+    final String xRateLimitRemaining = (headers?.value('x-ratelimit-remaining') ?? '').trim();
+    if (xRateLimitRemaining == '0') {
+      return true;
+    }
+
+    final String rateLimitRemaining = (headers?.value('ratelimit-remaining') ?? '').trim();
+    if (rateLimitRemaining == '0') {
+      return true;
+    }
+
+    final String lower = body.toLowerCase();
+    return lower.contains('rate limit') || lower.contains('ratelimit') || lower.contains('too many requests');
+  }
+
   Future<dynamic> requestJson(
     String url, {
     int retries = 3,
@@ -72,8 +95,8 @@ class HttpClientHelper {
           throw AuthenticationError('Authentication failed (401) for $url: $lastError');
         }
 
-        final String lower = lastError.toLowerCase();
-        if (statusCode == HttpStatus.forbidden && !lower.contains('rate') && !lower.contains('ratelimit')) {
+        if (statusCode == HttpStatus.forbidden &&
+            !_isRateLimitedForbidden(headers: response.headers, body: lastError)) {
           throw AuthenticationError('Authorization denied (403) for $url: $lastError');
         }
 
@@ -90,7 +113,11 @@ class HttpClientHelper {
           throw AuthenticationError('Authentication failed (401) for $url: $lastError');
         }
 
-        if (status == HttpStatus.forbidden) {
+        if (status == HttpStatus.forbidden &&
+            !_isRateLimitedForbidden(
+              headers: exc.response?.headers,
+              body: (exc.response?.data ?? lastError).toString(),
+            )) {
           throw AuthenticationError('Authorization denied (403) for $url: $lastError');
         }
 

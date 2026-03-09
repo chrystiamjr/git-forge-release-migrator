@@ -6,8 +6,11 @@ import 'package:test/test.dart';
 
 void main() {
   group('selection', () {
-    test('capitalizeProvider uppercases first letter only', () {
-      expect(SelectionService.capitalizeProvider('github'), 'Github');
+    test('capitalizeProvider uses canonical provider names and fallback', () {
+      expect(SelectionService.capitalizeProvider('github'), 'GitHub');
+      expect(SelectionService.capitalizeProvider('gitlab'), 'GitLab');
+      expect(SelectionService.capitalizeProvider('bitbucket'), 'Bitbucket');
+      expect(SelectionService.capitalizeProvider('custom-provider'), 'Custom-provider');
       expect(SelectionService.capitalizeProvider(''), '');
     });
 

@@ -146,6 +146,10 @@ void _logRuntimeHeader(
   }
 }
 
+String _maskedTokenStatus(String tokenValue) {
+  return tokenValue.trim().isEmpty ? '<empty>' : '***';
+}
+
 List<String> _demoTags(RuntimeOptions options) {
   if (options.tagsFile.isNotEmpty) {
     final File file = File(options.tagsFile);
@@ -184,7 +188,8 @@ Future<int> _runDemo(
   logger.info('DEMO MODE enabled (no network calls, no provider API interactions)');
   logger.info('  Source: ${options.sourceProvider} (${options.sourceUrl})');
   logger.info('  Target: ${options.targetProvider} (${options.targetUrl})');
-  logger.info("  Tokens: source='${options.sourceToken}' target='${options.targetToken}'");
+  logger.info(
+      "  Tokens: source='${_maskedTokenStatus(options.sourceToken)}' target='${_maskedTokenStatus(options.targetToken)}'");
   logger.info('  Simulated releases: ${tags.length}');
   logger.info('  Sleep per release: ${options.demoSleepSeconds.toStringAsFixed(2)}s');
   logger.info('  Results root: ${resultsRoot.path}');

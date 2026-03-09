@@ -44,8 +44,8 @@ final class FileSystemUtils {
     int index = 2;
     String candidate = '$stem$suffix';
     while (File(p.join(targetDir, candidate)).existsSync()) {
-      index += 1;
       candidate = '$stem-$index$suffix';
+      index += 1;
     }
 
     return candidate;
