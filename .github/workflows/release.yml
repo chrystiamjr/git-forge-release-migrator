@@ -66,8 +66,6 @@ jobs:
         run: yarn install --immutable
 
       - name: Bootstrap pre-1.0 tag when no semver tag exists
-        env:
-          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
@@ -86,18 +84,35 @@ jobs:
             exit 0
           fi
 
-          FIRST_COMMIT="$(git rev-list --max-parents=0 HEAD | tail -n 1)"
+          # Some PATs cannot create tags that point to commits changing workflow files.
+          # Pick the earliest ancestor commit that does not touch .github/workflows.
+          BOOTSTRAP_COMMIT="$(git rev-list --reverse HEAD | while read -r sha; do
+            if ! git diff-tree --root --no-commit-id --name-only -r "${sha}" | grep -q '^\.github/workflows/'; then
+              echo "${sha}"
+              break
+            fi
+          done)"
 
-          if gh api -X POST "repos/${GITHUB_REPOSITORY}/git/refs" \
-            -f ref="refs/tags/${BOOTSTRAP_TAG}" \
-            -f sha="${FIRST_COMMIT}" >/dev/null 2>&1; then
-            echo "Bootstrap tag created via API: ${BOOTSTRAP_TAG}"
+          if [ -z "${BOOTSTRAP_COMMIT}" ]; then
+            echo "Could not determine a bootstrap commit without workflow file changes."
+            exit 1
+          fi
+
+          echo "Bootstrap commit selected: ${BOOTSTRAP_COMMIT}"
+          git tag -a "${BOOTSTRAP_TAG}" "${BOOTSTRAP_COMMIT}" -m "chore(release): bootstrap pre-1.0 tag"
+
+          if PUSH_OUTPUT="$(git push origin "refs/tags/${BOOTSTRAP_TAG}" 2>&1)"; then
+            echo "${PUSH_OUTPUT}"
+            echo "Bootstrap tag pushed: ${BOOTSTRAP_TAG}"
             exit 0
           fi
 
-          # Another concurrent run may have created the tag between our checks and creation.
-          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${BOOTSTRAP_TAG}" >/dev/null 2>&1; then
-            echo "Bootstrap tag already exists after concurrent creation; continuing."
+          echo "${PUSH_OUTPUT}"
+
+          # Another concurrent run may have created the tag between our checks and push.
+          git fetch --tags origin
+          if git ls-remote --exit-code --tags origin "refs/tags/${BOOTSTRAP_TAG}" >/dev/null 2>&1; then
+            echo "Bootstrap tag already exists after concurrent push; continuing."
             exit 0
           fi
 
