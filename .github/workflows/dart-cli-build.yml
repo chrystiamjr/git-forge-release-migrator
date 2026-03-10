@@ -3,6 +3,8 @@ name: Build CLI
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     paths:
       - '.fvmrc'
       - 'bin/gfrm'
