@@ -88,7 +88,7 @@ jobs:
           # Pick the earliest ancestor commit that does not touch .github/workflows.
           BOOTSTRAP_COMMIT="$(
             while read -r sha; do
-              if ! git diff-tree --root --no-commit-id --name-only -r "${sha}" | grep -q '^\.github/workflows/'; then
+              if ! git diff-tree -m --root --no-commit-id --name-only -r "${sha}" | grep -q '^\.github/workflows/'; then
                 echo "${sha}"
                 break
               fi
