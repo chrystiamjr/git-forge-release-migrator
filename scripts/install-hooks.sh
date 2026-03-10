@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if ! command -v pre-commit >/dev/null 2>&1; then
-  echo "pre-commit is not installed."
-  echo "Install with: pip install pre-commit"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+cd "$REPO_ROOT"
+
+if ! command -v yarn >/dev/null 2>&1; then
+  echo "Error: yarn is required to install Husky hooks. Install Yarn and run this script again."
   exit 1
 fi
 
-pre-commit install --hook-type pre-commit --hook-type commit-msg --hook-type pre-push
+echo "Installing dependencies with yarn install (required for Husky setup)..."
+yarn install
+yarn prepare
 
-echo "Installed hooks: pre-commit, commit-msg, pre-push"
+echo "Installed Husky hooks: pre-commit, pre-push"

@@ -1,134 +1,77 @@
 # AGENTS.md
 
-This document is a high-signal context file for AI coding agents working in this repository.
+High-signal context for coding agents working in this repository.
 
-## Project Purpose
+## Project
 
-`git-forge-release-migrator` (`gfrm`) is a Python CLI that migrates:
+- Name: `git-forge-release-migrator`
+- Public CLI command: `gfrm`
+- Runtime: Dart-only
+- Domain: migration of tags/releases/assets across Git forges with strong idempotency and retry behavior
 
-- tags
-- releases
-- release notes
-- release assets
-
-between Git forges, with strong retry/idempotency behavior.
-
-## Current Business Scope
+## Scope
 
 Supported cross-forge pairs:
 
 - `gitlab -> github`
 - `github -> gitlab`
-- `github -> bitbucket`
-- `bitbucket -> github`
-- `gitlab -> bitbucket`
-- `bitbucket -> gitlab`
+- `github -> bitbucket` (Bitbucket Cloud)
+- `bitbucket -> github` (Bitbucket Cloud)
+- `gitlab -> bitbucket` (Bitbucket Cloud)
+- `bitbucket -> gitlab` (Bitbucket Cloud)
 
-Not supported in this phase:
+Out of scope:
 
-- same-provider migrations (`github->github`, `gitlab->gitlab`, `bitbucket->bitbucket`)
-- Bitbucket Data Center / Server hosts
+- same-provider migrations
+- Bitbucket Data Center / Server
 
-Bitbucket scope in this project is **Bitbucket Cloud only** (`bitbucket.org`).
+## Current CLI Contract (v2)
 
-## Key Product Decisions
+Root command and subcommands:
 
-1. **Tags-first migration order**
-   - Tags are migrated before releases.
-   - Release processing expects destination tags to exist (unless `--skip-tags` is used).
+- `gfrm migrate`
+- `gfrm resume`
+- `gfrm demo`
+- `gfrm setup`
+- `gfrm settings`
 
-2. **Semver-only release selection**
-   - Release tags selected by the engine currently match `vX.Y.Z`.
-   - Non-semver tags are ignored for release migration selection.
+Settings actions:
 
-3. **Idempotent reruns are a core requirement**
-   - Terminal checkpoint states prevent repeated work.
-   - Existing complete releases are skipped.
-   - Existing incomplete releases are retried/resumed.
+- `init`
+- `set-token-env`
+- `set-token-plain`
+- `unset-token`
+- `show`
 
-4. **Bitbucket release model is synthetic**
-   - Bitbucket does not use a first-class release entity in the same way as GitHub/GitLab.
-   - This project models Bitbucket release state as:
-     - tag
-     - tag message (release notes)
-     - files in Downloads
-     - per-tag manifest file (`.gfrm-release-<tag>.json`)
+Important runtime behaviors:
 
-5. **Legacy Bitbucket compatibility rule**
-   - If a Bitbucket source tag has no manifest, migration still proceeds.
-   - Notes and traceability are preserved.
-   - Missing binary assets alone do not fail migration in this specific legacy case.
+- `--settings-profile` supported by `migrate` and `resume`
+- token precedence must remain stable
+- retry command in `summary.json` must use `gfrm resume`
+- exit code `0` on success, non-zero on validation/operational failure
 
-## Architecture Map
+## Critical Business Invariants
 
-Main package: `src/git_forge_release_migrator/`
+1. Tags-first order:
+- tags are migrated before releases
+- release flow expects destination tags to exist unless `--skip-tags`
 
-- `cli.py`
-  - entrypoint orchestration
-  - resolves runtime options
-  - allocates run workdir
-  - saves session
-  - invokes migration engine
-- `config.py`
-  - CLI args parsing (`RawCLIOptions`)
-  - normalization/validation
-  - interactive prompting for missing inputs
-  - runtime option construction (`RuntimeOptions`)
-- `models.py`
-  - `RuntimeOptions`
-  - `MigrationContext`
-- `providers/`
-  - `base.py`: provider interface + `ProviderRef`
-  - `registry.py`: provider instances + pair enablement matrix
-  - `github.py`, `gitlab.py`, `bitbucket.py`: provider-specific API logic and canonical mapping
-- `migrations/engine.py`
-  - core migration orchestration and per-pair flows
-  - tag migration, release migration, retries, checkpoint/log updates, summary generation
-- `core/`
-  - `http.py`: curl-based HTTP helpers + retry/auth error behavior
-  - `shell.py`: shell execution helpers
-  - `checkpoint.py`: checkpoint append/load + terminal status predicates
-  - `jsonl.py`: structured log writer
-  - `files.py`: file/dir helper functions
-  - `session_store.py`: session persistence with safe file permissions
-  - `versioning.py`: semver comparison helper
+2. Semver-only release selection:
+- selection currently targets `vX.Y.Z`
+- non-semver tags are not selected for release migration
 
-## Provider Contract (Important)
+3. Idempotency and resume:
+- terminal checkpoint states must prevent repeated work
+- completed items are skipped
+- incomplete items are retried
 
-All providers implement/participate in a normalized release shape consumed by the engine:
+4. Bitbucket synthetic release model:
+- represented by tag + notes + downloads + `.gfrm-release-<tag>.json`
 
-```json
-{
-  "tag_name": "v1.2.3",
-  "name": "Release v1.2.3",
-  "description_markdown": "...",
-  "commit_sha": "...",
-  "assets": {
-    "links": [{"name":"...","url":"...","direct_url":"...","type":"..."}],
-    "sources": [{"name":"...","url":"...","format":"..."}]
-  }
-}
-```
+5. Legacy Bitbucket behavior:
+- missing manifest on source Bitbucket tag must not hard-fail by itself
 
-Notes:
-
-- The engine depends on this canonical shape for cross-provider behavior.
-- Keep field semantics stable when modifying adapters.
-
-## Engine Invariants
-
-In `migrations/engine.py`, preserve these invariants:
-
-- checkpoint signature includes migration order + source/target resources + tag range
-- terminal checkpoint statuses:
-  - release: `created`, `updated`, `skipped_existing`
-  - tag: `tag_created`, `tag_skipped_existing`
-- summary always writes:
-  - `summary.json`
-  - `failed-tags.txt`
-- failures in tags or releases should fail the run with non-zero outcome
-
-## Artifacts Contract
+## Artifact Contract
 
 Each run writes under:
 
@@ -136,52 +79,152 @@ Each run writes under:
 migration-results/<timestamp>/
 ```
 
-Expected artifacts:
+Required artifacts:
 
-- `migration-log.jsonl` (per-step structured records)
-- `summary.json` (aggregated counts + paths + retry command)
-- `failed-tags.txt` (sorted list of failed tags)
+- `migration-log.jsonl`
+- `summary.json`
+- `failed-tags.txt`
 
-## Auth Model
+`summary.json` expectations:
 
-- GitHub: `GH_TOKEN` runtime env override for `gh` commands.
-- GitLab: `PRIVATE-TOKEN` header.
-- Bitbucket Cloud: `Authorization: Bearer <token>`.
+- schema is v2 (`schema_version: 2`)
+- includes executed command metadata
+- includes retry command when failures exist
 
-Do not add token values to logs.
+## Auth and Security
 
-## Testing Strategy
+Provider auth model:
 
-Primary test suite: `python3 -m unittest discover -s tests -p 'test_*.py'`
+- GitHub: `Authorization: Bearer <token>`
+- GitLab: `PRIVATE-TOKEN` header
+- Bitbucket Cloud: `Authorization: Bearer <token>`
 
-Key coverage buckets:
+Never log raw tokens.
 
-- config parsing/validation
-- provider URL parsing + canonical mapping
-- pair matrix behavior
-- engine integration behavior (retry, checkpoint, dry-run, failed-tags)
-- Bitbucket cross-forge logic and manifest semantics
+Settings behavior to preserve:
 
-When changing migration behavior:
+- effective settings = deep merge of global + local
+- profile resolution order:
+  1. explicit `--settings-profile`
+  2. `defaults.profile`
+  3. `default`
+- token precedence (`migrate`/`resume`) must remain deterministic and documented
 
-- add/adjust integration tests in `tests/test_engine_integration.py`
-- add/adjust adapter tests in `tests/test_providers.py`
-- add/adjust pair matrix tests in `tests/test_registry.py`
+## Architecture Map (Dart)
 
-## Safe Change Playbook for AI Agents
+Main code lives in `dart_cli/lib/src/`.
 
-1. Read pair matrix and target flow in `providers/registry.py` and `migrations/engine.py` first.
-2. Preserve current behavior for unaffected pairs.
-3. Keep docs in sync when changing supported pairs, auth model, or output contracts:
-   - `README.md`
-   - `README.pt-BR.md`
-   - `docs/USAGE.md`
-   - `docs/USAGE.pt-BR.md`
-4. Run full test suite after changes.
-5. Prefer additive/refactor-safe edits over broad rewrites in engine logic.
+- `cli.dart`
+- `cli/settings_setup_command_handler.dart`
+- `config.dart`
+- `config/arg_parsers.dart`
+- `config/validators.dart`
+- `config/types/*`
+- `models/runtime_options.dart`
+- `models/migration_context.dart`
+- `migrations/engine.dart`
+- `migrations/selection.dart`
+- `migrations/tag_phase.dart`
+- `migrations/release_phase.dart`
+- `migrations/summary.dart`
+- `providers/registry.dart`
+- `providers/{github,gitlab,bitbucket}.dart`
+- `core/{http,checkpoint,jsonl,files,session_store,settings,versioning,logging}.dart`
+- `core/exceptions/*`
+- `core/types/*`
+
+Provider adapters must produce canonical release data consumed by the engine.
+
+## Engineering Rules for This Repo
+
+Apply these rules to new and modified code:
+
+1. Typing and declarations:
+- avoid `var`
+- prefer explicit typing
+- prefer `final` when values do not change
+
+2. File and class organization:
+- avoid multiple classes in one file
+- one class/type per file is preferred, especially under `core/types/`
+
+3. Readability:
+- keep spacing and block structure clear
+- avoid dense `if` chains and tightly packed control flow
+- prefer small helpers with single responsibility
+
+4. Complexity ceilings:
+- no method above 120 lines
+- no orchestration file above 500 lines
+
+5. Engine flow:
+- avoid main-flow dispatch by runtime type checks (`if (source is ...)` / `if (target is ...)`)
+- keep provider-specific rules in adapters
+
+## Formatting and Tooling
+
+- line width: `120`
+- project SDK pinned by `.fvmrc` (`3.41.0`)
+- use Husky hooks for local quality gates
+
+Primary local commands (from repo root):
+
+```bash
+yarn lint:dart
+yarn test:dart
+```
+
+Equivalent direct commands (inside `dart_cli`, use as fallback/debug):
+
+```bash
+fvm dart format -l 120 --set-exit-if-changed bin lib test
+fvm dart analyze
+fvm dart test
+```
+
+## Test Strategy
+
+Test layout:
+
+- `dart_cli/test/unit/**`
+- `dart_cli/test/feature/**`
+- `dart_cli/test/integration/**`
+
+When changing behavior:
+
+- add/update unit tests for granular logic
+- add/update feature tests for CLI and flow-level behavior
+- add/update integration tests for end-to-end invariants
+
+Minimum coverage priorities:
+
+- CLI parsing and validation
+- settings profile/token resolution
+- provider URL parsing and canonical mapping
+- checkpoint terminal-state semantics
+- retry generation and summary consistency
+- idempotency + failed-tags behavior
+
+## Documentation Sync Rules
+
+If command contract, auth model, support matrix, or output artifacts change, update all:
+
+- `README.md`
+- `README.pt-BR.md`
+- `docs/USAGE.md`
+- `docs/USAGE.pt-BR.md`
+- `dart_cli/README.md`
+
+## Safe Change Playbook
+
+1. Read impacted flow first (`config`, `engine`, provider adapter, tests).
+2. Preserve behavior for unaffected provider pairs.
+3. Prefer additive/refactor-safe edits over broad rewrites.
+4. Run lint/analyze/tests before finalizing.
+5. Keep docs and tests aligned with implementation.
 
 ## Non-Goals (Current Phase)
 
 - same-provider migrations
 - Bitbucket Data Center compatibility
-- broad tag formats beyond current semver selection logic
+- expanding release selection beyond current semver-only behavior

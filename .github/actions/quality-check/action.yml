@@ -1,0 +1,20 @@
+name: Quality Check
+description: Run quality checks
+
+runs:
+  using: composite
+  steps:
+    - name: Format check
+      shell: bash
+      working-directory: dart_cli
+      run: dart format -l 120 --set-exit-if-changed bin lib test
+
+    - name: Static analysis
+      shell: bash
+      working-directory: dart_cli
+      run: dart analyze
+
+    - name: Run tests
+      shell: bash
+      working-directory: dart_cli
+      run: dart test

@@ -1,346 +1,192 @@
 # Git Forge Release Migrator (gfrm)
 
-[![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
-[![Licença](https://img.shields.io/badge/license-MIT-green)](#)
-[![Release](https://img.shields.io/badge/release-semantic--release-informational)](./release.config.cjs)
+[![License](https://img.shields.io/badge/license-MIT-green)](#)
+[![Release](https://img.shields.io/badge/release-semantic--release-informational)](./scripts/release.config.cjs)
+[![Dart SDK](https://img.shields.io/badge/Dart%20SDK-3.41.0-0175C2?logo=dart&logoColor=white)](https://dart.dev/)
 
-CLI em Python para migrar **tags + releases + notas de release + artefatos** entre plataformas Git.
+`gfrm` é uma CLI em Dart para migrar **tags + releases + notas de release + artefatos** entre plataformas Git.
 
-Projetado para reexecução segura: itens concluídos são ignorados, itens incompletos são retomados e cada execução gera saída estruturada para auditoria e retry.
+O runtime principal agora é **100% Dart**. O runtime e os testes em Python foram removidos do fluxo padrão.
 
 ## Documentação
 
-- Referência completa da CLI: [docs/USAGE.pt-BR.md](docs/USAGE.pt-BR.md)
-- Referência da CLI em inglês: [docs/USAGE.md](docs/USAGE.md)
+- Referência completa da CLI (EN): [docs/USAGE.md](docs/USAGE.md)
+- Referência completa da CLI (PT-BR): [docs/USAGE.pt-BR.md](docs/USAGE.pt-BR.md)
 - README em inglês: [README.md](README.md)
-- Guia para agentes de IA: [AGENTS.md](AGENTS.md)
-
-## Conteúdo
-
-- [Matriz de Suporte](#matriz-de-suporte)
-- [Modelo dos Providers](#modelo-dos-providers)
-- [Contrato de Manifesto no Bitbucket](#contrato-de-manifesto-no-bitbucket)
-- [Requisitos](#requisitos)
-- [Início Rápido](#início-rápido)
-- [Receitas de Comando](#receitas-de-comando)
-- [Perfis de Settings](#perfis-de-settings)
-- [Regras de Seleção de Tags](#regras-de-seleção-de-tags)
-- [Saída, Retry e Sessões](#saída-retry-e-sessões)
-- [Modelo de Segurança](#modelo-de-segurança)
-- [Troubleshooting](#troubleshooting)
-- [Setup para Desenvolvimento](#setup-para-desenvolvimento)
-- [Processo de Release (deste projeto)](#processo-de-release-deste-projeto)
+- Guia do pacote/runtime Dart: [dart_cli/README.md](dart_cli/README.md)
+- Contexto para agentes/contribuidores: [AGENTS.md](AGENTS.md)
 
 ## Matriz de Suporte
 
-| Origem | Destino | Status |
-|---|---|---|
-| `gitlab` | `github` | Disponível |
-| `github` | `gitlab` | Disponível |
-| `github` | `bitbucket` | Disponível (Bitbucket Cloud) |
-| `bitbucket` | `github` | Disponível (Bitbucket Cloud) |
-| `gitlab` | `bitbucket` | Disponível (Bitbucket Cloud) |
-| `bitbucket` | `gitlab` | Disponível (Bitbucket Cloud) |
+Pares cross-forge suportados:
 
-Observações:
+- `gitlab -> github`
+- `github -> gitlab`
+- `github -> bitbucket` (Bitbucket Cloud)
+- `bitbucket -> github` (Bitbucket Cloud)
+- `gitlab -> bitbucket` (Bitbucket Cloud)
+- `bitbucket -> gitlab` (Bitbucket Cloud)
 
-- Migrações para o mesmo provider seguem fora de escopo nesta fase (`github->github`, `gitlab->gitlab`, `bitbucket->bitbucket`).
-- O suporte a Bitbucket nesta fase é **somente Bitbucket Cloud** (`bitbucket.org`).
+Não suportado nesta fase:
 
-## Modelo dos Providers
-
-- `gitlab`: release GitLab + links + sources.
-- `github`: release GitHub + assets + source archives automáticos.
-- `bitbucket` neste projeto: **tag + mensagem da tag + arquivos em Downloads**.
-
-Ou seja, no Bitbucket a noção de "release" é sintetizada com base em tag e artefatos de download.
-
-## Contrato de Manifesto no Bitbucket
-
-Para destinos Bitbucket, cada tag migrada grava um manifesto em Downloads:
-
-- nome do arquivo: `.gfrm-release-<tag>.json`
-- finalidade: idempotência e decisão de retry/skip
-- campos mínimos:
-  - `version`
-  - `tag_name`
-  - `release_name`
-  - `notes_hash`
-  - `uploaded_assets`
-  - `missing_assets`
-  - `updated_at`
-
-Comportamento em tags legadas do Bitbucket sem manifesto:
-
-- a migração continua (notas + link de rastreabilidade)
-- assets podem ficar vazios
-- a ausência do manifesto por si só não falha a migração
+- migração same-provider (`github->github`, `gitlab->gitlab`, `bitbucket->bitbucket`)
+- Bitbucket Data Center / Server
 
 ## Requisitos
 
-| Dependência | Versão | Observação |
-|---|---|---|
-| Python | `>=3.9` | Necessário para executar a CLI |
-| `curl` | qualquer | Usado para chamadas de API e transferência de artefatos |
-| `gh` (GitHub CLI) | qualquer | Necessário apenas quando o fluxo envolve GitHub |
-
-Instalar o `gh`: https://cli.github.com
+- SDK fixado em `3.41.0` via `.fvmrc`
+- `fvm` disponível para gestão de SDK
+- Tokens válidos para source/target providers
 
 ## Início Rápido
 
-1. Instalação:
-
 ```bash
-pip install -e .
+# 1) Instalar tooling local e hooks
+yarn install
+yarn prepare
+
+# 2) Ativar SDK do projeto via FVM
+fvm use 3.41.0
+
+# 3) Instalar dependências Dart (yarn-first)
+yarn get:dart
+
+# 4) Rodar validações locais (fluxo recomendado com yarn)
+yarn lint:dart
+yarn test:dart
+
+# 5) Exibir ajuda da CLI
+./bin/gfrm --help
 ```
 
-2. Executar modo interativo:
+Se o `dart` do shell não estiver vinculado ao FVM globalmente, execute direto com:
 
 ```bash
-./bin/repo-migrator.py
+fvm dart run dart_cli/bin/gfrm_dart.dart --help
 ```
 
-3. Executar modo não interativo:
+## Visão Geral de Comandos
+
+- `gfrm migrate`: inicia migração com parâmetros explícitos de source/target
+- `gfrm resume`: retoma uma migração com sessão salva
+- `gfrm demo`: fluxo de simulação local
+- `gfrm setup`: bootstrap interativo para perfil de settings
+- `gfrm settings`: gerenciamento de tokens/perfis
+
+## Exemplos de Migração
+
+Executar migração com tokens explícitos:
 
 ```bash
-./bin/repo-migrator.py \
+./bin/gfrm migrate \
   --source-provider gitlab \
   --source-url "https://gitlab.com/group/project" \
   --source-token "<gitlab_token>" \
   --target-provider github \
   --target-url "https://github.com/org/repo" \
   --target-token "<github_token>" \
-  --from-tag v3.2.1 \
-  --to-tag v3.40.0
+  --from-tag v1.0.0 \
+  --to-tag v2.0.0
 ```
 
-## Receitas de Comando
+Retomar por sessão (arquivo padrão é `./sessions/last-session.json` quando omitido):
 
 ```bash
-# Interativo (recomendado na primeira execução)
-./bin/repo-migrator.py
+./bin/gfrm resume --session-file ./sessions/last-session.json
+```
 
-# Bootstrap de settings (recomendado)
-./bin/repo-migrator.py settings init
+Inicializar settings quando o projeto ainda não tem configuração:
 
-# Retomar última sessão
-./bin/repo-migrator.py --resume-session
-
-# Somente dry-run (GitLab -> GitHub)
-./bin/repo-migrator.py --dry-run \
-  --source-provider gitlab --source-url "https://gitlab.com/group/project" --source-token "<gitlab_token>" \
-  --target-provider github --target-url "https://github.com/org/repo" --target-token "<github_token>"
-
-# GitHub -> Bitbucket Cloud
-./bin/repo-migrator.py --non-interactive \
-  --source-provider github --source-url "https://github.com/org/repo" --source-token "<github_token>" \
-  --target-provider bitbucket --target-url "https://bitbucket.org/workspace/repo" --target-token "<bitbucket_bearer>"
-
-# Bitbucket Cloud -> GitLab
-./bin/repo-migrator.py --non-interactive \
-  --source-provider bitbucket --source-url "https://bitbucket.org/workspace/repo" --source-token "<bitbucket_bearer>" \
-  --target-provider gitlab --target-url "https://gitlab.com/group/project" --target-token "<gitlab_token>"
-
-# Reexecutar somente tags com falha da execução anterior
-./bin/repo-migrator.py --resume-session --tags-file ./migration-results/<run>/failed-tags.txt
+```bash
+./bin/gfrm setup
 ```
 
 ## Perfis de Settings
 
-O sistema de `settings` evita pedir token em toda execução.
+Comandos de settings:
 
-### Estrutura de Arquivos e Merge
+```bash
+./bin/gfrm settings init [--profile <nome>] [--local] [--yes]
+./bin/gfrm settings set-token-env --provider <github|gitlab|bitbucket> --env-name <ENV_NAME> [--profile <nome>] [--local]
+./bin/gfrm settings set-token-plain --provider <github|gitlab|bitbucket> [--token <valor>] [--profile <nome>] [--local]
+./bin/gfrm settings unset-token --provider <github|gitlab|bitbucket> [--profile <nome>] [--local]
+./bin/gfrm settings show [--profile <nome>]
+```
 
-Os settings são carregados de dois arquivos:
+Arquivos de settings:
 
-- global: `~/.config/gfrm/settings.yaml`
+- global: `~/.config/gfrm/settings.yaml` (ou `XDG_CONFIG_HOME/gfrm/settings.yaml`)
 - override local: `./.gfrm/settings.yaml`
 
-Estratégia de carga:
+Ordem de resolução de perfil:
 
-1. lê arquivo global (se existir)
-2. lê arquivo local (se existir)
-3. aplica merge profundo com local sobre global
-
-Ou seja: o local sobrescreve apenas chaves iguais, mantendo o restante do global.
-
-### Regras de Seleção de Perfil
-
-A escolha do perfil efetivo segue:
-
-1. `--settings-profile <nome>` no comando de execução
-2. `defaults.profile` no merge final
+1. `--settings-profile`
+2. `defaults.profile` em settings
 3. `default`
 
-Como trocar perfil em runtime:
+Ordem de resolução de token (`migrate` e `resume`):
 
-```bash
-./bin/repo-migrator.py --settings-profile work ...
-./bin/repo-migrator.py --settings-profile personal ...
-```
+1. token explícito na CLI (`--source-token`/`--target-token`)
+2. contexto de token da sessão (resume)
+3. token do provider em settings (`token_env`, depois `token_plain`)
+4. aliases de ambiente (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, aliases por provider)
 
-Como mudar o perfil padrão:
+## Artefatos e Retry
 
-- editar `defaults.profile` no YAML
-- ou sempre informar `--settings-profile`
-
-### Formato YAML (v1)
-
-```yaml
-version: 1
-defaults:
-  profile: work
-profiles:
-  work:
-    providers:
-      github:
-        token_env: GH_WORK_TOKEN
-      gitlab:
-        token_env: GL_WORK_TOKEN
-  personal:
-    providers:
-      github:
-        token_env: GH_PERSONAL_TOKEN
-      bitbucket:
-        token_plain: bbp_exemplo_token_plain
-```
-
-Campos de provider:
-
-- `token_env`: preferido e mais seguro, referencia nome de variável de ambiente
-- `token_plain`: opcional e explícito, token em texto puro
-
-Se ambos existirem, `token_env` é tentado primeiro.
-
-### Comandos de Settings
-
-```bash
-./bin/repo-migrator.py settings init [--profile <nome>] [--local] [--yes]
-./bin/repo-migrator.py settings set-token-env --provider <github|gitlab|bitbucket> --env-name <ENV_NAME> [--profile <nome>] [--local]
-./bin/repo-migrator.py settings set-token-plain --provider <github|gitlab|bitbucket> [--token <valor>] [--profile <nome>] [--local]
-./bin/repo-migrator.py settings unset-token --provider <github|gitlab|bitbucket> [--profile <nome>] [--local]
-./bin/repo-migrator.py settings show [--profile <nome>]
-```
-
-Observações:
-
-- `--local` grava em `./.gfrm/settings.yaml`; sem `--local`, grava no global.
-- sem `--profile`, o comando usa a mesma lógica de perfil efetivo.
-- `settings show` exibe merge efetivo e mascara `token_plain`.
-- `settings init` faz apenas leitura de `~/.zshrc`, `~/.zprofile`, `~/.bashrc` e `~/.bash_profile` para sugerir nomes de variáveis.
-- `settings init` não define `token_plain`; para isso use `settings set-token-plain`.
-
-### Fluxo Recomendado com Perfis
-
-1. Inicializar settings locais do projeto:
-```bash
-./bin/repo-migrator.py settings init --local
-```
-2. Criar/ajustar perfil dedicado:
-```bash
-./bin/repo-migrator.py settings set-token-env --provider github --env-name GH_WORK_TOKEN --profile work --local
-./bin/repo-migrator.py settings set-token-env --provider gitlab --env-name GL_WORK_TOKEN --profile work --local
-```
-3. Executar migração usando esse perfil:
-```bash
-./bin/repo-migrator.py --settings-profile work --source-provider github --target-provider gitlab ...
-```
-
-### Ordem de Resolução de Token em Runtime
-
-Para cada lado (`source` e `target`), a ordem é:
-
-1. argumentos CLI: `--source-token` / `--target-token`
-2. valores carregados da sessão (`--load-session` / `--resume-session`)
-3. settings do provider no perfil efetivo:
-   - `token_env` (via `os.getenv`)
-   - `token_plain`
-4. fallback de ambiente:
-   - `GFRM_SOURCE_TOKEN` / `GFRM_TARGET_TOKEN`
-   - GitHub: `GITHUB_TOKEN`, `GH_TOKEN`, `GH_PERSONAL_TOKEN`
-   - GitLab: `GITLAB_TOKEN`, `GL_TOKEN`
-   - Bitbucket: `BITBUCKET_TOKEN`, `BB_TOKEN`
-5. prompt interativo (apenas modo interativo)
-
-## Regras de Seleção de Tags
-
-- O engine atualmente seleciona tags no formato semântico `vX.Y.Z`.
-- `--from-tag` e `--to-tag` são inclusivos.
-- `--tags-file` funciona como filtro adicional sobre as releases descobertas no provider.
-
-## Saída, Retry e Sessões
-
-Cada execução grava em:
+Cada execução escreve em:
 
 ```text
 ./migration-results/<YYYYMMDD-HHMMSS>/
 ```
 
-Arquivos gerados:
+Artefatos:
 
 - `migration-log.jsonl`
-- `summary.json`
+- `summary.json` (schema v2, inclui `schema_version` e comando executado)
 - `failed-tags.txt`
 
-Padrões de sessão:
+Quando existem falhas, `summary.json` inclui `retry_command` usando `gfrm resume`.
 
-- arquivo de sessão: `./sessions/last-session.json`
-- modo de token: `env` (recomendado; não grava token em texto puro)
-
-## Modelo de Segurança
-
-- Migração de tags ocorre antes da migração de releases.
-- Release completa já existente é ignorada.
-- Release incompleta existente é retomada/atualizada.
-- Checkpoints evitam reprocessamento de estados terminais.
-- Tokens nunca são impressos em log.
-
-Para operações com GitHub, comandos são executados com override de token em runtime:
+## Fluxo de Desenvolvimento
 
 ```bash
-GH_TOKEN="<target_token>" gh ...
+# gates locais de qualidade (recomendado)
+yarn lint:dart
+yarn test:dart
+
+# smoke opcional
+./scripts/smoke-test.sh
 ```
 
-Para operações com Bitbucket nesta fase, o auth esperado é:
+Comandos Dart diretos continuam disponíveis, mas o fluxo diário recomendado é via scripts `yarn`.
 
-```text
-Authorization: Bearer <token>
-```
+Hooks Husky:
 
-## Troubleshooting
+- `pre-commit`: `dart format -l 120 --set-exit-if-changed` + `dart analyze`
+- `pre-push`: `dart test`
 
-- `gh: Bad credentials (HTTP 401)` com `--dry-run`:
-  - O dry-run ainda valida estado de release no destino, então o token de destino precisa ser válido.
-- `Only Bitbucket Cloud URLs are supported in this phase`:
-  - Use `https://bitbucket.org/<workspace>/<repo>`.
-- `pip install -e .[dev]` falha no `zsh`:
-  - Use aspas: `pip install -e '.[dev]'`.
+Organização dos testes:
 
-## Setup para Desenvolvimento
+- `dart_cli/test/unit/**`
+- `dart_cli/test/feature/**`
+- `dart_cli/test/integration/**`
 
-```bash
-pip install -e '.[dev]'
-./scripts/install-hooks.sh
-```
+## Release
 
-Hooks configurados:
+CI/release é Dart-only com gates de format/analyze/test.
 
-- `pre-commit`: lint + verificação de formatação
-- `commit-msg`: validação de mensagem com Commitizen
-- `pre-push`: suíte completa de testes
+- CI: [.github/workflows/ci.yml](.github/workflows/ci.yml)
+- Artefatos (`gfrm` para macOS/Linux/Windows): [.github/workflows/dart-cli-build.yml](.github/workflows/dart-cli-build.yml)
+- Semantic release: [.github/workflows/release.yml](.github/workflows/release.yml)
 
-Rodar testes manualmente:
+Nomes dos artefatos de build:
 
-```bash
-python3 -m unittest discover -s tests -p 'test_*.py'
-```
+- `gfrm-macos` contendo binário `gfrm`
+- `gfrm-linux` contendo binário `gfrm`
+- `gfrm-windows` contendo binário `gfrm.exe`
 
-## Processo de Release (deste projeto)
+Observações de primeira execução por plataforma:
 
-Este repositório usa `semantic-release` + GitHub Actions na branch `main`.
-
-- Conventional Commits definem o bump de versão.
-- Nova tag `vX.Y.Z` é criada automaticamente.
-- GitHub Release e changelog são gerados.
-
-Veja: [CHANGELOG.md](CHANGELOG.md), [release.config.cjs](release.config.cjs), [.github/workflows/release.yml](.github/workflows/release.yml)
+- macOS: se o Gatekeeper bloquear um binário baixado sem assinatura, execute `xattr -d com.apple.quarantine ./gfrm`
+- Linux: garanta permissão de execução com `chmod +x ./gfrm`
+- Windows: binários sem assinatura podem acionar alerta do SmartScreen até configurar code signing
