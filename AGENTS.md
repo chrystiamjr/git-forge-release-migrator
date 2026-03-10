@@ -291,6 +291,132 @@ If command contract, auth model, support matrix, or output artifacts change, upd
 - `docs/pt_br/USAGE.md`
 - `dart_cli/README.md`
 
+## Commit Message Conventions
+
+All commits must follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
+
+### Format
+
+```
+<type>(<scope>): <short imperative summary>
+
+- Bullet describing what changed and why (not how)
+- One bullet per logical concern; group related changes under one bullet
+- Keep bullets focused: what was broken/missing, what was done, why it matters
+```
+
+### Types
+
+| Type | When to use |
+|------|-------------|
+| `feat` | New capability or behavior visible to users or downstream code |
+| `fix` | Corrects a bug or wrong behavior |
+| `test` | Adds or updates tests only (no production code change) |
+| `refactor` | Internal restructuring with no behavior change |
+| `docs` | Documentation, comments, or guide-only changes |
+| `chore` | Tooling, config, CI, dependency bumps, or housekeeping |
+| `perf` | Performance improvement with no behavior change |
+
+### Scopes
+
+| Scope | Covers |
+|-------|--------|
+| `dart` | Dart production source (`dart_cli/lib/`) |
+| `ci` | GitHub Actions workflows, quality gates, release pipeline |
+| `docs` | Markdown documentation, README, AGENTS, CHANGELOG |
+| `deps` | Dependency updates (`pubspec.yaml`, lock files, Dependabot) |
+| `release` | Semantic-release config, changelog generation, versioning |
+
+### Rules
+
+1. Use imperative mood in the summary line: "add retry logic", not "added" or "adds".
+2. Summary line must be 72 characters or fewer.
+3. Each bullet must describe **what** changed and **why**, not the implementation detail.
+4. Group tightly related changes into one bullet; avoid one bullet per file.
+5. Do not add a co-author trailer unless explicitly requested.
+6. Keep the subject line free of punctuation at the end.
+
+### Examples
+
+```
+feat(dart): improve HTTP resilience and diagnostic logging
+
+- Apply exponential backoff to requestJson() using existing helper
+- Add 1-retry with 500ms delay to requestStatus() before returning 0
+- Surface diagnostic warnings for corrupt checkpoint and malformed settings
+```
+
+```
+test(dart): add unit and integration tests for migration pipeline
+
+- Add 12 unit tests for TagPhaseRunner covering dry-run, auth errors, and checkpoints
+- Add 11 unit tests for ReleasePhaseRunner covering publish, skip, and concurrent workers
+- Add 5 integration tests for MigrationEngine covering full and failure flows
+```
+
+```
+fix(dart): rethrow AuthenticationError from tag phase without wrapping
+
+- MigrationPhaseError was incorrectly catching AuthenticationError
+- Auth failures must propagate immediately so callers can surface them to the user
+```
+
+---
+
+## Pull Request Template
+
+Use this structure for every PR opened against `main`. All sections except "Additional Notes" are required.
+
+```markdown
+## Summary
+
+<!-- One to three sentences: what this PR does and why it exists. -->
+
+## Context
+
+<!-- What was the state before this PR?
+     Why is this change needed now?
+     Link related issues, tickets, or previous PRs if relevant. -->
+
+## What Changed
+
+<!-- Bullet list of the logical changes grouped by concern.
+     Focus on behavior and structure, not file names.
+     Each bullet should be readable without opening the diff. -->
+
+- **<Area or component>:** <description of change and rationale>
+
+## Why It Matters
+
+<!-- What problem does this solve?
+     What risk does it remove?
+     What capability does it add?
+     Keep it concrete — avoid vague statements like "improves quality". -->
+
+## Expected Results
+
+<!-- What should reviewers verify?
+     Include test commands, expected output, or behavioral checkpoints. -->
+
+```bash
+# Run tests
+yarn test:dart
+
+# Example output
+All tests passed.
+```
+
+## Additional Notes
+
+<!-- Optional. Use for:
+     - Known limitations or follow-up work
+     - Risky areas reviewers should pay extra attention to
+     - Migration or deployment notes
+     - Anything that doesn't fit above -->
+```
+
+---
+
 ## Known Pitfalls
 
 - Do not call provider APIs directly from `engine.dart` — use provider adapters.
