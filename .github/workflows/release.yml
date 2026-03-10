@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 concurrency:
   group: release-${{ github.ref }}
@@ -368,7 +367,14 @@ jobs:
           pattern: release-asset-*
           merge-multiple: true
 
-      - name: Upload archives to GitHub release
+      - name: Generate SHA256 checksums
+        run: |
+          cd release-assets
+          for f in *.zip; do
+            sha256sum "$f" > "${f}.sha256"
+          done
+
+      - name: Upload archives and checksums to GitHub release
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           RELEASE_TAG: ${{ needs.semantic-release.outputs.new_release_git_tag }}

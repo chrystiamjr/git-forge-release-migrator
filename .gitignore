@@ -36,3 +36,6 @@ node_modules/
 .local-config.json
 .claude/
 .idea/
+
+# Python tooling relics
+.ruff_cache/

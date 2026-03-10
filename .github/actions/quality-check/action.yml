@@ -14,7 +14,19 @@ runs:
       working-directory: dart_cli
       run: dart analyze
 
-    - name: Run tests
+    - name: Run tests with coverage
       shell: bash
       working-directory: dart_cli
-      run: dart test
+      run: dart test --coverage=coverage/
+
+    - name: Generate LCOV report
+      shell: bash
+      working-directory: dart_cli
+      run: dart run coverage:format_coverage --lcov --in=coverage/ --out=coverage/lcov.info --report-on=lib
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: dart_cli/coverage/lcov.info
+        if-no-files-found: warn
