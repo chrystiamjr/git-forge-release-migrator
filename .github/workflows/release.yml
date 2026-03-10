@@ -127,7 +127,6 @@ jobs:
         uses: cycjimmy/semantic-release-action@v4
         with:
           semantic_version: 24
-          extends: ./scripts/release.config.cjs
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
