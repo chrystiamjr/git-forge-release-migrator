@@ -92,7 +92,7 @@ jobs:
                 echo "${sha}"
                 break
               fi
-            done < <(git rev-list --reverse HEAD)
+            done < <(git rev-list --topo-order --reverse HEAD)
           )"
 
           if [ -z "${BOOTSTRAP_COMMIT}" ]; then
