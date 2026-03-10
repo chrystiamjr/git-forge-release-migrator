@@ -5,12 +5,30 @@ on:
 
 jobs:
   build:
-    name: Build (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    name: Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
+        include:
+          - runner: ubuntu-latest
+            platform: linux
+            bin_name: gfrm
+            is_macos: false
+          - runner: windows-latest
+            platform: windows
+            bin_name: gfrm.exe
+            is_macos: false
+          - runner: macos-15-intel
+            platform: macos-intel
+            bin_name: gfrm
+            is_macos: true
+            expected_arch: x86_64
+          - runner: macos-15
+            platform: macos-silicon
+            bin_name: gfrm
+            is_macos: true
+            expected_arch: arm64
 
     steps:
       - name: Checkout
@@ -23,32 +41,33 @@ jobs:
         shell: bash
         run: |
           mkdir -p build
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            PLATFORM="windows"
-            BIN_NAME="gfrm.exe"
-          elif [ "${{ runner.os }}" = "macOS" ]; then
-            PLATFORM="macos"
-            BIN_NAME="gfrm"
-          else
-            PLATFORM="linux"
-            BIN_NAME="gfrm"
-          fi
-          
-          OUT="build/${PLATFORM}/${BIN_NAME}"
+
+          OUT="build/${{ matrix.platform }}/${{ matrix.bin_name }}"
           mkdir -p "$(dirname "$OUT")"
-          
+
           dart compile exe bin/gfrm_dart.dart -o "$OUT"
-          
+
           if [ "${{ runner.os }}" != "Windows" ]; then
             chmod +x "$OUT"
           fi
-          
+
           echo "OUT=$OUT" >> "$GITHUB_ENV"
-          echo "PLATFORM=$PLATFORM" >> "$GITHUB_ENV"
-          echo "BIN_NAME=$BIN_NAME" >> "$GITHUB_ENV"
+          echo "PLATFORM=${{ matrix.platform }}" >> "$GITHUB_ENV"
+
+      - name: Validate macOS binary architecture
+        if: matrix.is_macos
+        working-directory: dart_cli
+        shell: bash
+        run: |
+          FILE_OUTPUT="$(file "${OUT}")"
+          echo "${FILE_OUTPUT}"
+          if ! echo "${FILE_OUTPUT}" | grep -q "${{ matrix.expected_arch }}"; then
+            echo "::error::Expected architecture ${{ matrix.expected_arch }} for ${{ matrix.platform }}, got: ${FILE_OUTPUT}"
+            exit 1
+          fi
 
       - name: Import macOS signing certificate (optional)
-        if: runner.os == 'macOS'
+        if: matrix.is_macos
         shell: bash
         env:
           APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
@@ -83,7 +102,7 @@ jobs:
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
 
       - name: Codesign macOS binary (optional)
-        if: runner.os == 'macOS'
+        if: matrix.is_macos
         working-directory: dart_cli
         shell: bash
         env:
@@ -105,7 +124,7 @@ jobs:
           path: dart_cli/${{ env.OUT }}
 
       - name: Cleanup temporary macOS keychain
-        if: runner.os == 'macOS' && env.KEYCHAIN_PATH != ''
+        if: matrix.is_macos && env.KEYCHAIN_PATH != ''
         shell: bash
         run: |
           security delete-keychain "${KEYCHAIN_PATH}" || true

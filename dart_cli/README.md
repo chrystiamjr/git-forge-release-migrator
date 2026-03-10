@@ -77,3 +77,7 @@ fvm dart compile exe bin/gfrm_dart.dart -o build/gfrm
 CI produces cross-platform binaries (`gfrm`) in:
 
 - `.github/workflows/dart-cli-build.yml`
+- macOS Intel artifact name: `gfrm-macos-intel` (binary `gfrm`)
+- macOS Apple Silicon artifact name: `gfrm-macos-silicon` (binary `gfrm`)
+- Linux artifact name: `gfrm-linux` (binary `gfrm`)
+- Windows artifact name: `gfrm-windows` (binary `gfrm.exe`)

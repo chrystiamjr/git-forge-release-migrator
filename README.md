@@ -181,12 +181,19 @@ CI/release is Dart-only and runs format/analyze/test gates.
 
 Build artifact names:
 
-- `gfrm-macos` containing binary `gfrm`
+- `gfrm-macos-intel` containing binary `gfrm` (Intel Macs)
+- `gfrm-macos-silicon` containing binary `gfrm` (Apple Silicon Macs)
 - `gfrm-linux` containing binary `gfrm`
 - `gfrm-windows` containing binary `gfrm.exe`
 
 Platform first-run notes:
 
-- macOS: if Gatekeeper blocks an unsigned downloaded binary, run `xattr -d com.apple.quarantine ./gfrm`
+- macOS: choose `intel` or `silicon` artifact based on machine type; releases are designed for signed/notarized delivery
+- macOS troubleshooting fallback: if Gatekeeper still blocks execution, run `xattr -d com.apple.quarantine ./gfrm`
 - Linux: ensure executable bit is set with `chmod +x ./gfrm`
 - Windows: unsigned binaries can trigger SmartScreen warnings until code signing is configured
+
+macOS release security mode:
+
+- `MACOS_RELEASE_SECURITY_MODE=permissive` (default): release continues when Apple signing/notarization secrets are missing
+- `MACOS_RELEASE_SECURITY_MODE=strict`: macOS release jobs fail when signing/notarization credentials are missing or notarization fails
