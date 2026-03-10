@@ -91,6 +91,38 @@ Required artifacts:
 - includes executed command metadata
 - includes retry command when failures exist
 
+## macOS Release Distribution
+
+Release artifact names for macOS:
+
+- `gfrm-macos-intel.zip`
+- `gfrm-macos-silicon.zip`
+
+macOS security mode (release workflow variable):
+
+- `MACOS_RELEASE_SECURITY_MODE=permissive` (default): proceed with warnings when Apple signing/notarization credentials are missing
+- `MACOS_RELEASE_SECURITY_MODE=strict`: fail macOS jobs when signing/notarization credentials are missing or notarization fails
+
+Notarization credential support and precedence:
+
+1. App Store Connect API key:
+   - `APPLE_NOTARY_KEY_ID`
+   - `APPLE_NOTARY_ISSUER_ID`
+   - `APPLE_NOTARY_API_KEY_P8_BASE64`
+2. Apple ID fallback:
+   - `APPLE_NOTARY_APPLE_ID`
+   - `APPLE_NOTARY_TEAM_ID`
+   - `APPLE_NOTARY_APP_PASSWORD`
+
+Required macOS architecture validation in CI:
+
+- `gfrm-macos-intel` must produce `x86_64`
+- `gfrm-macos-silicon` must produce `arm64`
+
+Operational note:
+
+- End users can run the compiled `gfrm` binary on a clean Mac without installing Dart/FVM/NVM/Yarn, as long as they download the correct architecture artifact and Gatekeeper requirements are satisfied (signed/notarized preferred; troubleshooting fallback may still be required).
+
 ## Auth and Security
 
 Provider auth model:
