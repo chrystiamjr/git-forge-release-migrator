@@ -66,6 +66,14 @@ jobs:
         run: |
           set -euo pipefail
 
+          BOOTSTRAP_TAG="v0.0.0"
+          git fetch --tags origin
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${BOOTSTRAP_TAG}" >/dev/null 2>&1; then
+            echo "Bootstrap tag already exists on remote: ${BOOTSTRAP_TAG}"
+            exit 0
+          fi
+
           LAST_SEMVER_TAG="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=version:refname | tail -n 1)"
           if [ -n "${LAST_SEMVER_TAG}" ]; then
             echo "Semver tag already exists: ${LAST_SEMVER_TAG}"
@@ -73,12 +81,25 @@ jobs:
           fi
 
           FIRST_COMMIT="$(git rev-list --max-parents=0 HEAD | tail -n 1)"
-          BOOTSTRAP_TAG="v0.0.0"
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           git tag -a "${BOOTSTRAP_TAG}" "${FIRST_COMMIT}" -m "chore(release): bootstrap pre-1.0 tag"
-          git push origin "${BOOTSTRAP_TAG}"
+          if git push origin "refs/tags/${BOOTSTRAP_TAG}"; then
+            echo "Bootstrap tag pushed: ${BOOTSTRAP_TAG}"
+            exit 0
+          fi
+
+          # Another concurrent run may have created the tag between our checks and push.
+          git fetch --tags origin
+          if git ls-remote --exit-code --tags origin "refs/tags/${BOOTSTRAP_TAG}" >/dev/null 2>&1; then
+            echo "Bootstrap tag already created by another run; continuing."
+            exit 0
+          fi
+
+          echo "Failed to create bootstrap tag ${BOOTSTRAP_TAG}"
+          exit 1
 
       - name: Run semantic-release
         id: semantic
