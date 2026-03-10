@@ -181,10 +181,10 @@ CI/release is Dart-only and runs format/analyze/test gates.
 
 Build artifact names:
 
-- `gfrm-macos-intel` containing binary `gfrm` (Intel Macs)
-- `gfrm-macos-silicon` containing binary `gfrm` (Apple Silicon Macs)
-- `gfrm-linux` containing binary `gfrm`
-- `gfrm-windows` containing binary `gfrm.exe`
+- `gfrm-macos-intel.zip` containing binary `gfrm` (Intel Macs)
+- `gfrm-macos-silicon.zip` containing binary `gfrm` (Apple Silicon Macs)
+- `gfrm-linux.zip` containing binary `gfrm`
+- `gfrm-windows.zip` containing binary `gfrm.exe`
 
 Platform first-run notes:
 

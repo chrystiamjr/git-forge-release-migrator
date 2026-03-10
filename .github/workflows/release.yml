@@ -240,7 +240,6 @@ jobs:
             echo "APPLE_SIGN_IDENTITY_RESOLVED=$RESOLVED_IDENTITY" >> "$GITHUB_ENV"
           fi
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
-          echo "MACOS_CERT_IMPORTED=1" >> "$GITHUB_ENV"
 
       - name: Codesign macOS binary (optional)
         if: matrix.is_macos

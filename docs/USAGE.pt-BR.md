@@ -28,10 +28,10 @@ Comandos Dart diretos continuam funcionando, mas a documentação prioriza scrip
 
 Artefatos gerados pelo CI:
 
-- `gfrm-macos-intel` contendo `gfrm` (Macs Intel)
-- `gfrm-macos-silicon` contendo `gfrm` (Macs Apple Silicon)
-- `gfrm-linux` contendo `gfrm`
-- `gfrm-windows` contendo `gfrm.exe`
+- `gfrm-macos-intel.zip` contendo `gfrm` (Macs Intel)
+- `gfrm-macos-silicon.zip` contendo `gfrm` (Macs Apple Silicon)
+- `gfrm-linux.zip` contendo `gfrm`
+- `gfrm-windows.zip` contendo `gfrm.exe`
 
 macOS (Intel):
 
