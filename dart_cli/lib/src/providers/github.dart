@@ -335,8 +335,8 @@ class GitHubAdapter extends ProviderAdapter {
   Future<bool> downloadWithToken(String token, String url, String destination) {
     return _http.downloadFile(
       url,
-      retries: 3,
       destination,
+      retries: 3,
       backoff: const Duration(milliseconds: 750),
       headers: <String, String>{
         'Authorization': 'Bearer $token',
