@@ -86,12 +86,14 @@ jobs:
 
           # Some PATs cannot create tags that point to commits changing workflow files.
           # Pick the earliest ancestor commit that does not touch .github/workflows.
-          BOOTSTRAP_COMMIT="$(git rev-list --reverse HEAD | while read -r sha; do
-            if ! git diff-tree --root --no-commit-id --name-only -r "${sha}" | grep -q '^\.github/workflows/'; then
-              echo "${sha}"
-              break
-            fi
-          done)"
+          BOOTSTRAP_COMMIT="$(
+            while read -r sha; do
+              if ! git diff-tree --root --no-commit-id --name-only -r "${sha}" | grep -q '^\.github/workflows/'; then
+                echo "${sha}"
+                break
+              fi
+            done < <(git rev-list --reverse HEAD)
+          )"
 
           if [ -z "${BOOTSTRAP_COMMIT}" ]; then
             echo "Could not determine a bootstrap commit without workflow file changes."
@@ -99,11 +101,11 @@ jobs:
           fi
 
           echo "Bootstrap commit selected: ${BOOTSTRAP_COMMIT}"
-          git tag "${BOOTSTRAP_TAG}" "${BOOTSTRAP_COMMIT}"
 
-          if PUSH_OUTPUT="$(git push origin "refs/tags/${BOOTSTRAP_TAG}" 2>&1)"; then
+          if PUSH_OUTPUT="$(git push origin "${BOOTSTRAP_COMMIT}:refs/tags/${BOOTSTRAP_TAG}" 2>&1)"; then
             echo "${PUSH_OUTPUT}"
             echo "Bootstrap tag pushed: ${BOOTSTRAP_TAG}"
+            git fetch origin "+refs/tags/${BOOTSTRAP_TAG}:refs/tags/${BOOTSTRAP_TAG}"
             exit 0
           fi
 
@@ -113,6 +115,7 @@ jobs:
           git fetch --tags origin
           if git ls-remote --exit-code --tags origin "refs/tags/${BOOTSTRAP_TAG}" >/dev/null 2>&1; then
             echo "Bootstrap tag already exists after concurrent push; continuing."
+            git fetch origin "+refs/tags/${BOOTSTRAP_TAG}:refs/tags/${BOOTSTRAP_TAG}"
             exit 0
           fi
 
