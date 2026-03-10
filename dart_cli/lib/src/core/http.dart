@@ -4,13 +4,19 @@ import 'dart:math';
 import 'package:dio/dio.dart';
 
 import './adapters/dio_adapter.dart';
+import './types/http_config.dart';
 import 'exceptions/authentication_error.dart';
 import 'exceptions/http_request_error.dart';
 
 class HttpClientHelper {
-  HttpClientHelper({Dio? dio}) : _dio = dio ?? DioAdapter(followRedirects: true).instance;
+  HttpClientHelper({Dio? dio, HttpConfig? config})
+      : _config = config ?? const HttpConfig(),
+        _dio = dio ?? DioAdapter(followRedirects: true, config: config).instance;
 
   final Dio _dio;
+  final HttpConfig _config;
+
+  HttpConfig get config => _config;
 
   bool _isRateLimitedForbidden({
     required Headers? headers,
@@ -85,6 +91,7 @@ class HttpClientHelper {
     Duration retryDelay = const Duration(seconds: 2),
   }) async {
     String lastError = 'HTTP JSON request failed for $url';
+    Duration wait = retryDelay;
 
     for (int attempt = 1; attempt <= retries; attempt += 1) {
       try {
@@ -144,7 +151,8 @@ class HttpClientHelper {
         }
 
         if (attempt < retries) {
-          await Future<void>.delayed(retryDelay);
+          await Future<void>.delayed(wait);
+          wait = Duration(milliseconds: _nextBackoffMillis(wait));
         }
       } on AuthenticationError {
         rethrow;
@@ -165,7 +173,8 @@ class HttpClientHelper {
         }
 
         if (attempt < retries) {
-          await Future<void>.delayed(retryDelay);
+          await Future<void>.delayed(wait);
+          wait = Duration(milliseconds: _nextBackoffMillis(wait));
         }
       }
     }
@@ -174,20 +183,25 @@ class HttpClientHelper {
   }
 
   Future<int> requestStatus(String url, {Map<String, String>? headers}) async {
-    try {
-      final Response<dynamic> response = await _dio.request<dynamic>(
-        url,
-        options: Options(
-          method: 'GET',
-          headers: headers,
-          validateStatus: (_) => true,
-          responseType: ResponseType.stream,
-        ),
-      );
-      return response.statusCode ?? 0;
-    } catch (_) {
-      return 0;
+    for (int attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        final Response<dynamic> response = await _dio.request<dynamic>(
+          url,
+          options: Options(
+            method: 'GET',
+            headers: headers,
+            validateStatus: (_) => true,
+            responseType: ResponseType.stream,
+          ),
+        );
+        return response.statusCode ?? 0;
+      } catch (_) {
+        if (attempt < 2) {
+          await Future<void>.delayed(const Duration(milliseconds: 500));
+        }
+      }
     }
+    return 0;
   }
 
   Future<bool> downloadFile(

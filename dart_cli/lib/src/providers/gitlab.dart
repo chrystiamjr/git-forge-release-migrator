@@ -5,19 +5,23 @@ import 'package:dio/dio.dart';
 import '../core/adapters/dio_adapter.dart';
 import '../core/adapters/provider_adapter.dart';
 import '../core/concurrency.dart';
+import '../core/exceptions/authentication_error.dart';
 import '../core/exceptions/http_request_error.dart';
 import '../core/http.dart';
 import '../core/types/canonical_release.dart';
+import '../core/types/http_config.dart';
 import '../core/types/phase.dart';
 import 'provider_common.dart';
 
 class GitLabAdapter extends ProviderAdapter {
-  GitLabAdapter({HttpClientHelper? http, Dio? dio})
-      : _http = http ?? HttpClientHelper(),
-        _dio = dio ?? DioAdapter().instance;
+  GitLabAdapter({HttpClientHelper? http, Dio? dio, HttpConfig? config})
+      : _config = config ?? const HttpConfig(),
+        _http = http ?? HttpClientHelper(config: config),
+        _dio = dio ?? DioAdapter(config: config).instance;
 
   final HttpClientHelper _http;
   final Dio _dio;
+  final HttpConfig _config;
   static const int _assetUploadWorkers = 4;
 
   @override
@@ -100,8 +104,8 @@ class GitLabAdapter extends ProviderAdapter {
       final dynamic payload = await _http.requestJson(
         url,
         headers: _headers(token),
-        retries: 3,
-        retryDelay: const Duration(seconds: 2),
+        retries: _config.maxRetries,
+        retryDelay: _config.retryDelay,
       );
 
       if (payload is! List || payload.isEmpty) {
@@ -134,8 +138,8 @@ class GitLabAdapter extends ProviderAdapter {
       final dynamic payload = await _http.requestJson(
         url,
         headers: _headers(token),
-        retries: 3,
-        retryDelay: const Duration(seconds: 2),
+        retries: _config.maxRetries,
+        retryDelay: _config.retryDelay,
       );
 
       if (payload is! List || payload.isEmpty) {
@@ -171,8 +175,8 @@ class GitLabAdapter extends ProviderAdapter {
     final dynamic payload = await _http.requestJson(
       url,
       headers: _headers(token),
-      retries: 3,
-      retryDelay: const Duration(seconds: 2),
+      retries: _config.maxRetries,
+      retryDelay: _config.retryDelay,
     );
 
     if (payload is! Map) {
@@ -220,8 +224,8 @@ class GitLabAdapter extends ProviderAdapter {
       final dynamic payload = await _http.requestJson(
         url,
         headers: _headers(token),
-        retries: 3,
-        retryDelay: const Duration(seconds: 2),
+        retries: _config.maxRetries,
+        retryDelay: _config.retryDelay,
       );
 
       if (payload is Map) {
@@ -229,6 +233,8 @@ class GitLabAdapter extends ProviderAdapter {
       }
 
       return null;
+    } on AuthenticationError {
+      rethrow;
     } catch (_) {
       return null;
     }
@@ -262,8 +268,8 @@ class GitLabAdapter extends ProviderAdapter {
       method: method,
       headers: _headers(token),
       jsonData: payload,
-      retries: 3,
-      retryDelay: const Duration(seconds: 2),
+      retries: _config.maxRetries,
+      retryDelay: _config.retryDelay,
     );
   }
 
@@ -282,6 +288,10 @@ class GitLabAdapter extends ProviderAdapter {
     );
 
     final int status = response.statusCode ?? 0;
+    if (status == HttpStatus.unauthorized || status == HttpStatus.forbidden) {
+      throw AuthenticationError('GitLab upload failed: authentication error (HTTP $status)');
+    }
+
     if (status < HttpStatus.ok || status >= HttpStatus.multipleChoices) {
       throw HttpRequestError('GitLab upload failed (HTTP $status)');
     }
@@ -354,8 +364,8 @@ class GitLabAdapter extends ProviderAdapter {
       url,
       destination,
       headers: _headers(token),
-      retries: 3,
-      backoff: const Duration(milliseconds: 750),
+      retries: _config.maxRetries,
+      backoff: _config.retryDelay,
     );
   }
 
@@ -364,8 +374,8 @@ class GitLabAdapter extends ProviderAdapter {
       url,
       destination,
       headers: null,
-      retries: 3,
-      backoff: const Duration(milliseconds: 750),
+      retries: _config.maxRetries,
+      backoff: _config.retryDelay,
     );
   }
 
@@ -465,6 +475,8 @@ class GitLabAdapter extends ProviderAdapter {
         try {
           final String uploadedUrl = await uploadFile(input.providerRef, input.token, filePath);
           return (name: name, url: uploadedUrl);
+        } on AuthenticationError {
+          rethrow;
         } catch (_) {
           return null;
         }

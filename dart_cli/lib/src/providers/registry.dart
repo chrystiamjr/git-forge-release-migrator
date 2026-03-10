@@ -1,4 +1,5 @@
 import '../core/adapters/provider_adapter.dart';
+import '../core/types/http_config.dart';
 import 'bitbucket.dart';
 import 'github.dart';
 import 'gitlab.dart';
@@ -8,11 +9,11 @@ class ProviderRegistry {
 
   final Map<String, ProviderAdapter> adapters;
 
-  factory ProviderRegistry.defaults() {
+  factory ProviderRegistry.defaults({HttpConfig? config}) {
     return ProviderRegistry(<String, ProviderAdapter>{
-      'github': GitHubAdapter(),
-      'gitlab': GitLabAdapter(),
-      'bitbucket': BitbucketAdapter(),
+      'github': GitHubAdapter(config: config),
+      'gitlab': GitLabAdapter(config: config),
+      'bitbucket': BitbucketAdapter(config: config),
     });
   }
 

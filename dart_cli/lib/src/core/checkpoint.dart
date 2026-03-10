@@ -26,7 +26,8 @@ final class CheckpointStore {
       Map<String, dynamic> item;
       try {
         item = jsonDecode(text) as Map<String, dynamic>;
-      } catch (_) {
+      } catch (e) {
+        stderr.writeln('[gfrm] warning: corrupt checkpoint entry in $path (skipping): $e');
         continue;
       }
 

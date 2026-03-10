@@ -1,16 +1,17 @@
 import 'package:dio/dio.dart';
 
+import '../types/http_config.dart';
+
 class DioAdapter {
-  final Dio instance;
-
-  final bool? followRedirects;
-
-  DioAdapter({this.followRedirects})
+  DioAdapter({this.followRedirects, HttpConfig? config})
       : instance = Dio(BaseOptions(
-          connectTimeout: const Duration(seconds: 10),
-          receiveTimeout: const Duration(seconds: 90),
+          connectTimeout: Duration(milliseconds: config?.connectTimeoutMs ?? 10000),
+          receiveTimeout: Duration(milliseconds: config?.receiveTimeoutMs ?? 90000),
           sendTimeout: const Duration(seconds: 90),
           followRedirects: followRedirects,
           validateStatus: (_) => true,
         ));
+
+  final Dio instance;
+  final bool? followRedirects;
 }

@@ -5,8 +5,10 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 import 'file_ops.dart';
+import 'types/http_config.dart';
 import 'types/settings_scope_data.dart';
 
+export 'types/http_config.dart';
 export 'types/settings_command_options.dart';
 export 'types/settings_scope_data.dart';
 
@@ -98,7 +100,8 @@ Map<String, dynamic> _loadSettingsFile(String pathValue) {
   try {
     final dynamic payload = loadYaml(text);
     return _normalizeYamlPayload(payload, pathValue);
-  } catch (_) {
+  } catch (e) {
+    stderr.writeln('[gfrm] warning: $pathValue is not valid YAML ($e); retrying as JSON.');
     final dynamic payload = jsonDecode(text);
     return _normalizeYamlPayload(payload, pathValue);
   }
@@ -438,6 +441,29 @@ dynamic _maskRecursive(dynamic payload) {
   return payload;
 }
 
+HttpConfig _httpConfigFromSettings(Map<String, dynamic> settings, String profile) {
+  final dynamic profilesRaw = settings['profiles'];
+  final Map<String, dynamic> profiles = profilesRaw is Map<String, dynamic> ? profilesRaw : <String, dynamic>{};
+  final dynamic profileRaw = profiles[profile];
+  final Map<String, dynamic> profileData = profileRaw is Map<String, dynamic> ? profileRaw : <String, dynamic>{};
+  final dynamic httpRaw = profileData['http'];
+  final Map<String, dynamic> http = httpRaw is Map<String, dynamic> ? httpRaw : <String, dynamic>{};
+
+  int intOrDefault(String key, int defaultValue) {
+    final dynamic raw = http[key];
+    if (raw == null) return defaultValue;
+    if (raw is int) return raw;
+    return int.tryParse(raw.toString()) ?? defaultValue;
+  }
+
+  return HttpConfig(
+    connectTimeoutMs: intOrDefault('connect_timeout_ms', 10000),
+    receiveTimeoutMs: intOrDefault('receive_timeout_ms', 90000),
+    maxRetries: intOrDefault('max_retries', 3),
+    retryDelayMs: intOrDefault('retry_delay_ms', 750),
+  );
+}
+
 final class SettingsManager {
   const SettingsManager._();
 
@@ -543,5 +569,9 @@ final class SettingsManager {
 
   static Map<String, dynamic> maskSettingsSecrets(Map<String, dynamic> payload) {
     return _maskSettingsSecrets(payload);
+  }
+
+  static HttpConfig httpConfigFromSettings(Map<String, dynamic> settings, String profile) {
+    return _httpConfigFromSettings(settings, profile);
   }
 }
