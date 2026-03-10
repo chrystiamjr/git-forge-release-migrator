@@ -12,11 +12,15 @@ final class SemverUtils {
       throw ArgumentError('Invalid semantic tag: $tag');
     }
 
-    return <int>[
-      int.parse(parts[0]),
-      int.parse(parts[1]),
-      int.parse(parts[2]),
-    ];
+    try {
+      return <int>[
+        int.parse(parts[0]),
+        int.parse(parts[1]),
+        int.parse(parts[2]),
+      ];
+    } on FormatException {
+      throw ArgumentError('Invalid semantic tag: $tag');
+    }
   }
 
   static bool versionLe(String left, String right) {

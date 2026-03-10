@@ -44,6 +44,38 @@ class HttpClientHelper {
     return next.toInt();
   }
 
+  int? _parseRetryAfterSeconds(List<String> values) {
+    if (values.isEmpty) {
+      return null;
+    }
+
+    final String raw = values.first.trim();
+    if (raw.isEmpty) {
+      return null;
+    }
+
+    final int? asInt = int.tryParse(raw);
+    if (asInt != null) {
+      return asInt;
+    }
+
+    final double? asDouble = double.tryParse(raw);
+    if (asDouble != null) {
+      return asDouble.ceil();
+    }
+
+    return null;
+  }
+
+  Duration _waitWithRetryAfter(Duration wait, int? retryAfterSeconds) {
+    if (retryAfterSeconds == null || retryAfterSeconds <= 0) {
+      return wait;
+    }
+
+    final int retryAfterMillis = retryAfterSeconds * 1000;
+    return Duration(milliseconds: max(wait.inMilliseconds, retryAfterMillis));
+  }
+
   Future<dynamic> requestJson(
     String url, {
     int retries = 3,
@@ -170,6 +202,7 @@ class HttpClientHelper {
 
     Duration wait = backoff;
     for (int attempt = 1; attempt <= retries; attempt += 1) {
+      Duration nextWait = wait;
       try {
         if (file.existsSync()) file.deleteSync();
 
@@ -197,19 +230,22 @@ class HttpClientHelper {
         }
 
         if (status == HttpStatus.forbidden) {
-          final List<String>? retryAfter = response.headers.map['retry-after'];
-          final bool hasRetryAfter = retryAfter != null && retryAfter.isNotEmpty;
+          final List<String> retryAfterValues = response.headers.map['retry-after'] ?? const <String>[];
+          final bool hasRetryAfter = retryAfterValues.isNotEmpty;
           final bool hasRateLimit = hasRetryAfter || (response.headers.value('x-ratelimit-remaining') == '0');
           if (!hasRateLimit) {
             if (file.existsSync()) file.deleteSync();
 
             return false;
           }
+
+          final int? retryAfterSeconds = _parseRetryAfterSeconds(retryAfterValues);
+          nextWait = _waitWithRetryAfter(wait, retryAfterSeconds);
         }
 
         if (attempt < retries) {
-          await Future<void>.delayed(wait);
-          wait = Duration(milliseconds: _nextBackoffMillis(wait));
+          await Future<void>.delayed(nextWait);
+          wait = Duration(milliseconds: _nextBackoffMillis(nextWait));
         }
       } on DioException catch (exc) {
         if (file.existsSync()) file.deleteSync();
@@ -230,11 +266,14 @@ class HttpClientHelper {
           if (!hasRateLimit) {
             return false;
           }
+
+          final int? retryAfterSeconds = _parseRetryAfterSeconds(retryAfterValues);
+          nextWait = _waitWithRetryAfter(wait, retryAfterSeconds);
         }
 
         if (attempt < retries) {
-          await Future<void>.delayed(wait);
-          wait = Duration(milliseconds: _nextBackoffMillis(wait));
+          await Future<void>.delayed(nextWait);
+          wait = Duration(milliseconds: _nextBackoffMillis(nextWait));
         }
       }
     }

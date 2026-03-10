@@ -258,6 +258,39 @@ void main() {
       expect(dio.downloadCalls, 2);
     });
 
+    test('downloadFile honors retry-after seconds before next retry', () async {
+      final Directory temp = Directory.systemTemp.createTempSync('gfrm-http-download-retry-after-');
+      addTearDown(() => temp.deleteSync(recursive: true));
+
+      final _QueueDio dio = _QueueDio(
+        downloadResults: <dynamic>[
+          _response(
+            'https://example.com/file.zip',
+            403,
+            headers: <String, List<String>>{
+              'retry-after': <String>['1'],
+            },
+          ),
+          _response('https://example.com/file.zip', 200),
+        ],
+      );
+      final HttpClientHelper helper = HttpClientHelper(dio: dio);
+      final String destination = '${temp.path}/file.zip';
+      final Stopwatch stopwatch = Stopwatch()..start();
+
+      final bool ok = await helper.downloadFile(
+        'https://example.com/file.zip',
+        destination,
+        retries: 2,
+        backoff: Duration.zero,
+      );
+      stopwatch.stop();
+
+      expect(ok, isTrue);
+      expect(dio.downloadCalls, 2);
+      expect(stopwatch.elapsedMilliseconds, greaterThanOrEqualTo(900));
+    });
+
     test('downloadFile returns false on non-rate-limit 403 without retry loop', () async {
       final Directory temp = Directory.systemTemp.createTempSync('gfrm-http-download-fail-');
       addTearDown(() => temp.deleteSync(recursive: true));

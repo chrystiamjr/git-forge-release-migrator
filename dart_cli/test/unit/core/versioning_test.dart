@@ -11,6 +11,7 @@ void main() {
 
     test('throws for invalid tags', () {
       expect(() => SemverUtils.versionLe('1.2', '1.2.3'), throwsArgumentError);
+      expect(() => SemverUtils.versionLe('v1.2.x', 'v1.2.3'), throwsArgumentError);
     });
   });
 }
