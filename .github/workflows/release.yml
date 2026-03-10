@@ -6,6 +6,10 @@ on:
       - main
   workflow_dispatch:
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
   issues: write
@@ -62,6 +66,8 @@ jobs:
         run: yarn install --immutable
 
       - name: Bootstrap pre-1.0 tag when no semver tag exists
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
@@ -82,19 +88,16 @@ jobs:
 
           FIRST_COMMIT="$(git rev-list --max-parents=0 HEAD | tail -n 1)"
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git tag -a "${BOOTSTRAP_TAG}" "${FIRST_COMMIT}" -m "chore(release): bootstrap pre-1.0 tag"
-          if git push origin "refs/tags/${BOOTSTRAP_TAG}"; then
-            echo "Bootstrap tag pushed: ${BOOTSTRAP_TAG}"
+          if gh api -X POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f ref="refs/tags/${BOOTSTRAP_TAG}" \
+            -f sha="${FIRST_COMMIT}" >/dev/null 2>&1; then
+            echo "Bootstrap tag created via API: ${BOOTSTRAP_TAG}"
             exit 0
           fi
 
-          # Another concurrent run may have created the tag between our checks and push.
-          git fetch --tags origin
-          if git ls-remote --exit-code --tags origin "refs/tags/${BOOTSTRAP_TAG}" >/dev/null 2>&1; then
-            echo "Bootstrap tag already created by another run; continuing."
+          # Another concurrent run may have created the tag between our checks and creation.
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${BOOTSTRAP_TAG}" >/dev/null 2>&1; then
+            echo "Bootstrap tag already exists after concurrent creation; continuing."
             exit 0
           fi
 
