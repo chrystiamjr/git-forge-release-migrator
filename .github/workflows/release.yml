@@ -200,7 +200,7 @@ jobs:
           path: dart_cli/${{ env.ARCHIVE_NAME }}
 
       - name: Cleanup temporary macOS keychain
-        if: runner.os == 'macOS' && env.KEYCHAIN_PATH != ''
+        if: runner.os == 'macOS' && env.KEYCHAIN_PATH
         shell: bash
         run: |
           security delete-keychain "${KEYCHAIN_PATH}" || true

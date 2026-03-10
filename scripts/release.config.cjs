@@ -1,4 +1,6 @@
 const preMajorReleaseRules = [
+  // Pre-1.0 policy: keep breaking changes as minor while bootstrapping releases.
+  // Remove this rule when the project reaches v1.0.0 so major bumps work normally.
   { breaking: true, release: "minor" },
   { revert: true, release: "patch" },
   { type: "feat", release: "minor" },
