@@ -1,7 +1,7 @@
 # Git Forge Release Migrator (gfrm)
 
 [![License](https://img.shields.io/badge/license-MIT-green)](#)
-[![Release](https://img.shields.io/badge/release-semantic--release-informational)](./scripts/release.config.cjs)
+[![Release](https://img.shields.io/badge/release-semantic--release-informational)](./release.config.cjs)
 [![Dart SDK](https://img.shields.io/badge/Dart%20SDK-3.41.0-0175C2?logo=dart&logoColor=white)](https://dart.dev/)
 
 `gfrm` é uma CLI em Dart para migrar **tags + releases + notas de release + artefatos** entre plataformas Git.
