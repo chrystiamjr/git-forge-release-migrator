@@ -99,7 +99,7 @@ jobs:
           fi
 
           echo "Bootstrap commit selected: ${BOOTSTRAP_COMMIT}"
-          git tag -a "${BOOTSTRAP_TAG}" "${BOOTSTRAP_COMMIT}" -m "chore(release): bootstrap pre-1.0 tag"
+          git tag "${BOOTSTRAP_TAG}" "${BOOTSTRAP_COMMIT}"
 
           if PUSH_OUTPUT="$(git push origin "refs/tags/${BOOTSTRAP_TAG}" 2>&1)"; then
             echo "${PUSH_OUTPUT}"
