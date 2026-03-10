@@ -34,6 +34,17 @@ Artefatos gerados pelo CI:
 - `gfrm-macos-silicon.zip` contendo `gfrm` (Macs Apple Silicon)
 - `gfrm-linux.zip` contendo `gfrm`
 - `gfrm-windows.zip` contendo `gfrm.exe`
+- `checksums-sha256.txt` — checksums SHA256 para todos os artefatos zip
+
+Para verificar a integridade antes de executar:
+
+```bash
+# macOS / Linux
+sha256sum --check checksums-sha256.txt
+
+# macOS (shasum)
+shasum -a 256 --check checksums-sha256.txt
+```
 
 macOS (Intel):
 
@@ -338,6 +349,19 @@ Resolução de perfil:
 - a seleção de releases é somente semver (`vX.Y.Z`)
 - semântica de checkpoint/idempotência e retry são preservadas
 - artefatos de execução são sempre gerados em um workdir com timestamp
+
+## Avisos Diagnósticos
+
+O `gfrm` escreve avisos no `stderr` em duas situações sem interromper a migração:
+
+- **Entrada de checkpoint corrompida** — se uma linha `.jsonl` do checkpoint não puder ser processada, um aviso é exibido e a entrada é ignorada. As entradas restantes ainda são carregadas.
+- **Arquivo de settings malformado** — se um arquivo `settings.yaml` falhar no parsing YAML, o `gfrm` tenta novamente como JSON e emite um aviso. Se ambos falharem, os valores padrão são utilizados.
+
+Formato do aviso:
+
+```
+[gfrm] warning: <descrição>
+```
 
 ## Artefatos
 

@@ -71,8 +71,19 @@ Release assets:
 - `gfrm-macos-silicon.zip`
 - `gfrm-linux.zip`
 - `gfrm-windows.zip`
+- `checksums-sha256.txt` — SHA256 checksums for all zip artifacts
 
 `gfrm` compiled binaries run on clean machines without Dart/FVM/Node/Yarn.
+
+To verify integrity before running:
+
+```bash
+# macOS / Linux
+sha256sum --check checksums-sha256.txt
+
+# macOS (shasum)
+shasum -a 256 --check checksums-sha256.txt
+```
 
 macOS (Intel):
 
@@ -206,6 +217,19 @@ Artifacts:
 - `failed-tags.txt`
 
 When failures exist, `summary.json` includes `retry_command` using `gfrm resume`.
+
+## Diagnostic Warnings
+
+`gfrm` writes warnings to `stderr` in two situations without interrupting the migration:
+
+- **Corrupt checkpoint entry** — if a `.jsonl` checkpoint line cannot be parsed, a warning is printed and that entry is skipped. Remaining entries are still loaded.
+- **Malformed settings file** — if a `settings.yaml` file fails YAML parsing, `gfrm` retries as JSON and warns. If both fail, defaults are used.
+
+In both cases the warning format is:
+
+```
+[gfrm] warning: <description>
+```
 
 ## Exit Codes
 

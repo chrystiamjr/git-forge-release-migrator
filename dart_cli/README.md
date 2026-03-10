@@ -105,6 +105,20 @@ fvm dart test test/integration
 fvm dart test test/unit/some_test.dart
 ```
 
+Generating a coverage report (LCOV):
+
+```bash
+cd dart_cli
+fvm dart test --coverage=coverage/
+fvm dart run coverage:format_coverage \
+  --lcov \
+  --in=coverage/ \
+  --out=coverage/lcov.info \
+  --report-on=lib
+```
+
+The resulting `coverage/lcov.info` can be consumed by any LCOV-compatible viewer (e.g., `genhtml`, VS Code Coverage Gutters, or CI coverage services).
+
 `./scripts/smoke-test.sh` runs a local end-to-end smoke test against the compiled binary (no external forge credentials required).
 
 Husky hooks:
@@ -165,6 +179,7 @@ Release archive names:
 - `gfrm-macos-silicon.zip`
 - `gfrm-linux.zip`
 - `gfrm-windows.zip`
+- `checksums-sha256.txt` — SHA256 checksums for all zip artifacts
 
 macOS release security mode (`.github/workflows/release.yml`):
 
