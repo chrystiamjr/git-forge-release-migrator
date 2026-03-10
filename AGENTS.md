@@ -2,6 +2,14 @@
 
 High-signal context for coding agents working in this repository.
 
+## Quick Start
+
+1. Read `AGENTS.md` (this file) and `dart_cli/README.md` before touching code.
+2. Run `yarn lint:dart && yarn test:dart` from the repo root before submitting any change.
+3. All production code lives in `dart_cli/lib/src/`. Architecture map is below.
+4. Check "Documentation Sync Rules" if you change any user-facing behavior.
+5. Check "Known Pitfalls" and "Agent Constraints" before making structural decisions.
+
 ## Project
 
 - Name: `git-forge-release-migrator`
@@ -54,7 +62,8 @@ Important runtime behaviors:
 
 1. Tags-first order:
 - tags are migrated before releases
-- release flow expects destination tags to exist unless `--skip-tags`
+- release flow expects destination tags to exist unless `--skip-tags` is passed
+- `--skip-tags` is only valid when destination tags already exist by other means; do not use it as a general shortcut
 
 2. Semver-only release selection:
 - selection currently targets `vX.Y.Z`
@@ -167,6 +176,17 @@ Main code lives in `dart_cli/lib/src/`.
 
 Provider adapters must produce canonical release data consumed by the engine.
 
+## Safe Change Playbook
+
+1. Read impacted flow first (`config`, `engine`, provider adapter, tests).
+2. Identify all callsites and downstream consumers before changing a signature or type.
+3. Preserve behavior for unaffected provider pairs.
+4. Prefer additive/refactor-safe edits over broad rewrites.
+5. Extract logic into small, single-responsibility helpers rather than expanding existing methods.
+6. Run lint/analyze/tests before finalizing.
+7. Keep docs and tests aligned with implementation.
+8. Update `AGENTS.md` if the change affects CLI contract, invariants, or architecture.
+
 ## Engineering Rules for This Repo
 
 Apply these rules to new and modified code:
@@ -192,6 +212,24 @@ Apply these rules to new and modified code:
 5. Engine flow:
 - avoid main-flow dispatch by runtime type checks (`if (source is ...)` / `if (target is ...)`)
 - keep provider-specific rules in adapters
+
+6. Design principles:
+- follow Single Responsibility: each class/function does one thing
+- follow Open/Closed: extend behavior via new classes or abstractions, not by modifying existing ones
+- follow Liskov Substitution: subtypes must be substitutable for their base types
+- follow Interface Segregation: prefer narrow interfaces over fat ones
+- follow Dependency Inversion: depend on abstractions, not concrete implementations
+- apply DRY: extract shared logic as soon as it appears in 2+ real callsites; do not extract speculatively
+- follow Clean Architecture layer boundaries: core has no dependency on providers or CLI; providers depend only on core abstractions
+
+7. Anti-patterns to avoid:
+- no god classes (classes with unrelated responsibilities)
+- no deep nesting (max 3 levels of indentation)
+- no magic strings or numbers — use named constants
+- no premature abstraction — extract only when 2+ real callsites exist
+- no circular dependencies between layers (core ← migrations ← providers ← cli)
+- no multi-class files (one class/type per file)
+- no large files beyond complexity ceilings defined above
 
 ## Formatting and Tooling
 
@@ -237,23 +275,38 @@ Minimum coverage priorities:
 - retry generation and summary consistency
 - idempotency + failed-tags behavior
 
+Run a specific test file (inside `dart_cli`):
+
+```bash
+fvm dart test test/unit/path/to/test.dart
+```
+
 ## Documentation Sync Rules
 
 If command contract, auth model, support matrix, or output artifacts change, update all:
 
 - `README.md`
-- `README.pt-BR.md`
-- `docs/USAGE.md`
-- `docs/USAGE.pt-BR.md`
+- `docs/pt_br/README.md`
+- `docs/en_us/USAGE.md`
+- `docs/pt_br/USAGE.md`
 - `dart_cli/README.md`
 
-## Safe Change Playbook
+## Known Pitfalls
 
-1. Read impacted flow first (`config`, `engine`, provider adapter, tests).
-2. Preserve behavior for unaffected provider pairs.
-3. Prefer additive/refactor-safe edits over broad rewrites.
-4. Run lint/analyze/tests before finalizing.
-5. Keep docs and tests aligned with implementation.
+- Do not call provider APIs directly from `engine.dart` — use provider adapters.
+- Do not add runtime type dispatch (`if (source is X)` / `if (target is X)`) in engine flow — keep it in adapters.
+- Bitbucket downloads and `.gfrm-release-<tag>.json` are part of the same atomic synthetic release — always treat them together.
+- `summary.json` schema version must stay at `2` unless an explicit versioning decision is made.
+- Missing Bitbucket manifest on a source tag must not cause a hard failure — this is a legacy compatibility rule.
+- Never log raw tokens anywhere in the codebase.
+
+## Agent Constraints
+
+- Do not introduce new top-level CLI commands without updating the CLI Contract section in this file.
+- Do not change token precedence order without updating both code and all documentation files listed in "Documentation Sync Rules".
+- Do not bypass or weaken the `--skip-tags` safety check in release phase logic.
+- Do not expand release selection beyond semver (`vX.Y.Z`) — this is an explicit non-goal for the current phase.
+- Do not add Bitbucket Data Center / Server support — out of scope.
 
 ## Non-Goals (Current Phase)
 
