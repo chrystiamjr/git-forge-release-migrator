@@ -4,10 +4,12 @@ import 'package:dio/dio.dart';
 
 import '../core/adapters/dio_adapter.dart';
 import '../core/adapters/provider_adapter.dart';
+import '../core/concurrency.dart';
 import '../core/exceptions/http_request_error.dart';
 import '../core/http.dart';
 import '../core/types/canonical_release.dart';
 import '../core/types/phase.dart';
+import 'provider_common.dart';
 
 class GitLabAdapter extends ProviderAdapter {
   GitLabAdapter({HttpClientHelper? http, Dio? dio})
@@ -16,6 +18,7 @@ class GitLabAdapter extends ProviderAdapter {
 
   final HttpClientHelper _http;
   final Dio _dio;
+  static const int _assetUploadWorkers = 4;
 
   @override
   String get name => 'gitlab';
@@ -28,15 +31,6 @@ class GitLabAdapter extends ProviderAdapter {
       return encoded;
     }
     return Uri.encodeComponent(ref.resource);
-  }
-
-  String _normalizeRepositoryUrl(String url) {
-    String clean = url.trim();
-    if (clean.endsWith('.git')) {
-      clean = clean.substring(0, clean.length - 4);
-    }
-
-    return clean.split('?').first.split('#').first;
   }
 
   ({String host, String path, String baseUrl}) _extractHostPath(String normalizedUrl, String originalUrl) {
@@ -63,7 +57,7 @@ class GitLabAdapter extends ProviderAdapter {
       throw ArgumentError('Invalid GitLab URL: empty value');
     }
 
-    final String normalizedUrl = _normalizeRepositoryUrl(url);
+    final String normalizedUrl = ProviderCommon.normalizeRepositoryUrl(url);
     final ({String host, String path, String baseUrl}) hostPath = _extractHostPath(normalizedUrl, url);
     final String projectPath = hostPath.path.replaceFirst(RegExp(r'^/+'), '').split('/-/').first;
     if (projectPath.isEmpty) {
@@ -376,22 +370,10 @@ class GitLabAdapter extends ProviderAdapter {
   }
 
   List<Map<String, dynamic>> _canonicalLinksFromPayload(Map<String, dynamic> payload) {
-    final dynamic assetsPayload = payload['assets'];
-    final Map<String, dynamic> assets =
-        assetsPayload is Map ? Map<String, dynamic>.from(assetsPayload) : <String, dynamic>{};
-
-    final dynamic linksPayload = assets['links'];
-    if (linksPayload is! List) {
-      return <Map<String, dynamic>>[];
-    }
-
+    final Map<String, dynamic> assets = ProviderCommon.mapFrom(payload['assets']);
+    final List<Map<String, dynamic>> linksPayload = ProviderCommon.mapListFrom(assets['links']);
     final List<Map<String, dynamic>> links = <Map<String, dynamic>>[];
-    for (final dynamic link in linksPayload) {
-      if (link is! Map) {
-        continue;
-      }
-
-      final Map<String, dynamic> item = Map<String, dynamic>.from(link);
+    for (final Map<String, dynamic> item in linksPayload) {
       links.add(<String, dynamic>{
         'name': (item['name'] ?? '').toString(),
         'url': (item['url'] ?? '').toString(),
@@ -404,21 +386,10 @@ class GitLabAdapter extends ProviderAdapter {
   }
 
   List<Map<String, dynamic>> _canonicalSourcesFromPayload(Map<String, dynamic> payload) {
-    final dynamic assetsPayload = payload['assets'];
-    final Map<String, dynamic> assets =
-        assetsPayload is Map ? Map<String, dynamic>.from(assetsPayload) : <String, dynamic>{};
-    final dynamic sourcesPayload = assets['sources'];
-    if (sourcesPayload is! List) {
-      return <Map<String, dynamic>>[];
-    }
-
+    final Map<String, dynamic> assets = ProviderCommon.mapFrom(payload['assets']);
+    final List<Map<String, dynamic>> sourcesPayload = ProviderCommon.mapListFrom(assets['sources']);
     final List<Map<String, dynamic>> sources = <Map<String, dynamic>>[];
-    for (final dynamic source in sourcesPayload) {
-      if (source is! Map) {
-        continue;
-      }
-
-      final Map<String, dynamic> item = Map<String, dynamic>.from(source);
+    for (final Map<String, dynamic> item in sourcesPayload) {
       final String sourceUrl = (item['url'] ?? '').toString();
       final String sourceName = sourceUrl.isEmpty ? '' : sourceUrl.split('?').first.split('/').last;
       sources.add(<String, dynamic>{
@@ -485,23 +456,36 @@ class GitLabAdapter extends ProviderAdapter {
 
   @override
   Future<String> publishRelease(PublishReleaseInput input) async {
+    final List<({String name, String url})?> uploadResults =
+        await Concurrency.mapWithLimit<String, ({String name, String url})?>(
+      items: input.downloadedFiles,
+      limit: _assetUploadWorkers,
+      task: (String filePath, int _) async {
+        final String name = ProviderCommon.basename(filePath);
+        try {
+          final String uploadedUrl = await uploadFile(input.providerRef, input.token, filePath);
+          return (name: name, url: uploadedUrl);
+        } catch (_) {
+          return null;
+        }
+      },
+    );
+
     final List<Map<String, dynamic>> links = <Map<String, dynamic>>[];
-    for (final String filePath in input.downloadedFiles) {
-      final String name = filePath.split('/').last;
-      try {
-        final String uploadedUrl = await uploadFile(input.providerRef, input.token, filePath);
-        links.add(<String, dynamic>{'name': name, 'url': uploadedUrl, 'link_type': 'other'});
-      } catch (_) {
-        // Ignore failed upload and continue. Missing links are documented in notes.
+    for (final ({String name, String url})? item in uploadResults) {
+      if (item == null) {
+        continue;
       }
+      links.add(<String, dynamic>{'name': item.name, 'url': item.url, 'link_type': 'other'});
     }
 
+    final String notes = await input.notesFile.readAsString();
     await createOrUpdateRelease(
       input.providerRef,
       input.token,
       input.tag,
       input.releaseName,
-      input.notesFile.readAsStringSync(),
+      notes,
       links,
     );
     return 'ok';

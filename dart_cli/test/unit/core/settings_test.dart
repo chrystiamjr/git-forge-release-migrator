@@ -134,7 +134,7 @@ void main() {
     });
 
     test('maskSettingsSecrets redacts token_plain values', () {
-      final Map<String, dynamic> masked = SettingsManager.maskSettingsSecrets(<String, dynamic>{
+      final Map<String, dynamic> original = <String, dynamic>{
         'profiles': <String, dynamic>{
           'work': <String, dynamic>{
             'providers': <String, dynamic>{
@@ -145,12 +145,16 @@ void main() {
             },
           },
         },
-      });
+      };
+      final Map<String, dynamic> masked = SettingsManager.maskSettingsSecrets(original);
 
       final Map<String, dynamic> provider = ((((masked['profiles'] as Map<String, dynamic>)['work']
           as Map<String, dynamic>)['providers'] as Map<String, dynamic>)['github'] as Map<String, dynamic>);
+      final Map<String, dynamic> originalProvider = ((((original['profiles'] as Map<String, dynamic>)['work']
+          as Map<String, dynamic>)['providers'] as Map<String, dynamic>)['github'] as Map<String, dynamic>);
       expect(provider['token_plain'], '***');
       expect(provider['token_env'], 'GH_TOKEN');
+      expect(originalProvider['token_plain'], 'secret-value');
     });
 
     test('scanShellExportNames parses export and assignment lines', () {

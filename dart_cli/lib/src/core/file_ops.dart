@@ -64,6 +64,7 @@ final class FileOps {
       if (backupFile != null && backupFile.existsSync()) {
         backupFile.deleteSync();
       }
+
       return;
     }
 

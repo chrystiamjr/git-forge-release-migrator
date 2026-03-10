@@ -1,20 +1,21 @@
 import 'dart:io';
 
 import '../core/checkpoint.dart';
+import '../core/concurrency.dart';
 import '../core/files.dart';
 import '../core/jsonl.dart';
 import '../core/logging.dart';
-import '../core/types/canonical_link.dart';
 import '../core/types/canonical_release.dart';
-import '../core/types/canonical_source.dart';
 import '../core/types/phase.dart';
 import '../models/migration_context.dart';
+import 'release_asset_service.dart';
 import 'selection.dart';
 
 class ReleasePhaseRunner {
-  ReleasePhaseRunner({required this.logger});
+  ReleasePhaseRunner({required this.logger}) : _assetService = ReleaseAssetService(logger: logger);
 
   final ConsoleLogger logger;
+  final ReleaseAssetService _assetService;
 
   void _appendLog(
     String logPath, {
@@ -66,179 +67,6 @@ class ReleasePhaseRunner {
     final int filled = width * index ~/ total;
     final String bar = '${'#' * filled}${'-' * (width - filled)}';
     return '[$index/$total - ${percent.toString().padLeft(3)}%] [$bar] $message';
-  }
-
-  File _prepareNotesFile(MigrationContext ctx, String tag, CanonicalRelease canonical) {
-    final File notesFile = File('${ctx.workdir.path}/release-$tag-notes.md');
-    notesFile.writeAsStringSync(canonical.descriptionMarkdown);
-    if (ctx.source.requiresLegacySourceNotes(canonical)) {
-      final String tagUrl = ctx.source.buildTagUrl(ctx.sourceRef, tag);
-      notesFile.writeAsStringSync(
-        '\n\n### Legacy Bitbucket Source Tag\n'
-        'This Bitbucket tag has no `.gfrm-release-<tag>.json` manifest (legacy source).\n'
-        'Migration proceeded with available notes and traceability link.\n'
-        'Source tag: [$tag]($tagUrl)\n',
-        mode: FileMode.append,
-      );
-    }
-    return notesFile;
-  }
-
-  String _assetNameForLink(CanonicalLink link) {
-    if (link.name.isNotEmpty) {
-      return link.name;
-    }
-
-    final String candidate = link.directUrl.isNotEmpty ? link.directUrl : link.url;
-    if (candidate.isEmpty) {
-      return 'asset';
-    }
-
-    return candidate.split('?').first.split('/').last;
-  }
-
-  String _assetNameForSource(CanonicalSource source, String tag) {
-    if (source.name.isNotEmpty) {
-      return source.name;
-    }
-
-    if (source.url.isNotEmpty) {
-      return source.url.split('?').first.split('/').last;
-    }
-
-    return '$tag.${source.format.isEmpty ? 'source' : source.format}';
-  }
-
-  Future<
-      ({
-        List<String> downloaded,
-        List<Map<String, String>> missingLinks,
-        List<Map<String, String>> missingSources,
-        List<String> sourceFallbackFormats,
-      })> _downloadAssets(
-    MigrationContext ctx,
-    String tag,
-    CanonicalRelease canonical,
-    Directory assetsDir,
-  ) async {
-    final List<String> downloaded = <String>[];
-    final List<Map<String, String>> missingLinks = <Map<String, String>>[];
-    final List<Map<String, String>> missingSources = <Map<String, String>>[];
-    final List<String> sourceFallbackFormats = <String>[];
-    final Set<String> usedNames = <String>{};
-
-    for (final CanonicalLink link in canonical.assets.links) {
-      final String name = _assetNameForLink(link);
-      final String outputName = SelectionService.reserveOutputName(usedNames, name);
-      final String outputPath = '${assetsDir.path}/$outputName';
-      final bool ok = await ctx.source.downloadCanonicalLink(
-        DownloadLinkInput(
-          providerRef: ctx.sourceRef,
-          token: ctx.options.sourceToken,
-          tag: tag,
-          link: link,
-          outputPath: outputPath,
-        ),
-      );
-      if (ok) {
-        downloaded.add(outputPath);
-      } else {
-        logger.warn('[$tag] failed to download asset.link $name');
-        final String url = link.url.isNotEmpty ? link.url : link.directUrl;
-        missingLinks.add(<String, String>{'name': name, 'url': url});
-      }
-    }
-
-    for (final CanonicalSource source in canonical.assets.sources) {
-      final String name = _assetNameForSource(source, tag);
-      final String prefix = source.format.isEmpty ? 'source' : source.format;
-      final String outputName = SelectionService.reserveOutputName(usedNames, '$prefix-$name');
-      final String outputPath = '${assetsDir.path}/$outputName';
-      final bool ok = await ctx.source.downloadCanonicalSource(
-        DownloadSourceInput(
-          providerRef: ctx.sourceRef,
-          token: ctx.options.sourceToken,
-          tag: tag,
-          source: source,
-          outputPath: outputPath,
-        ),
-      );
-      if (ok) {
-        downloaded.add(outputPath);
-        continue;
-      }
-
-      if (ctx.source.supportsSourceFallbackTagNotes()) {
-        sourceFallbackFormats.add(source.format);
-        logger.warn('[$tag] source asset $name unavailable, using tag link fallback');
-        continue;
-      }
-
-      missingSources.add(<String, String>{'name': name, 'url': source.url});
-      logger.warn('[$tag] source asset $name unavailable and no tag fallback');
-    }
-
-    return (
-      downloaded: downloaded,
-      missingLinks: missingLinks,
-      missingSources: missingSources,
-      sourceFallbackFormats: sourceFallbackFormats,
-    );
-  }
-
-  void _appendSourceFallbackNotes(
-    MigrationContext ctx,
-    String tag,
-    File notesFile,
-    List<String> sourceFallbackFormats,
-  ) {
-    if (sourceFallbackFormats.isEmpty) {
-      return;
-    }
-
-    final List<String> dedup = sourceFallbackFormats.toSet().toList(growable: true)..sort();
-    final String sourceTagUrl = ctx.source.buildTagUrl(ctx.sourceRef, tag);
-    notesFile.writeAsStringSync(
-      '\n\n### Source Archives Fallback\n'
-      'Some source archives could not be downloaded during migration.\n'
-      'Fallback formats: `${dedup.join(',')}`\n'
-      '${SelectionService.capitalizeProvider(ctx.options.sourceProvider)} tag: [$tag]($sourceTagUrl)\n',
-      mode: FileMode.append,
-    );
-  }
-
-  void _appendMissingAssetsNotes(
-    File notesFile,
-    List<Map<String, String>> missingLinks,
-    List<Map<String, String>> missingSources,
-  ) {
-    if (missingLinks.isEmpty && missingSources.isEmpty) {
-      return;
-    }
-
-    final StringBuffer buffer = StringBuffer();
-    buffer.writeln('\n\n### Missing Assets During Migration');
-    buffer.writeln('Some assets could not be downloaded and were not uploaded to this release.');
-
-    if (missingLinks.isNotEmpty) {
-      buffer.writeln('\n- Missing link assets:');
-      for (final Map<String, String> item in missingLinks) {
-        final String name = item['name'] ?? 'asset';
-        final String url = item['url'] ?? '';
-        buffer.writeln(url.isEmpty ? '  - $name' : '  - $name: $url');
-      }
-    }
-
-    if (missingSources.isNotEmpty) {
-      buffer.writeln('\n- Missing source assets:');
-      for (final Map<String, String> item in missingSources) {
-        final String name = item['name'] ?? 'source';
-        final String url = item['url'] ?? '';
-        buffer.writeln(url.isEmpty ? '  - $name' : '  - $name: $url');
-      }
-    }
-
-    notesFile.writeAsStringSync(buffer.toString(), mode: FileMode.append);
   }
 
   Future<String> _publishRelease(
@@ -315,7 +143,7 @@ class ReleasePhaseRunner {
     }
 
     final CanonicalRelease canonical = ctx.source.toCanonicalRelease(releasePayload);
-    final File notesFile = _prepareNotesFile(ctx, tag, canonical);
+    final File notesFile = await _assetService.prepareNotesFile(ctx, tag, canonical);
     final int expectedLinkAssets = canonical.assets.links.length;
     final int expectedAssets = expectedLinkAssets + canonical.assets.sources.length;
     final ExistingReleaseInfo existingInfo = await ctx.target.existingReleaseInfo(
@@ -430,9 +258,9 @@ class ReleasePhaseRunner {
       List<Map<String, String>> missingLinks,
       List<Map<String, String>> missingSources,
       List<String> sourceFallbackFormats,
-    }) assetsResult = await _downloadAssets(ctx, tag, canonical, assetsDir);
-    _appendSourceFallbackNotes(ctx, tag, notesFile, assetsResult.sourceFallbackFormats);
-    _appendMissingAssetsNotes(notesFile, assetsResult.missingLinks, assetsResult.missingSources);
+    }) assetsResult = await _assetService.downloadAssets(ctx, tag, canonical, assetsDir);
+    await _assetService.appendSourceFallbackNotes(ctx, tag, notesFile, assetsResult.sourceFallbackFormats);
+    await _assetService.appendMissingAssetsNotes(notesFile, assetsResult.missingLinks, assetsResult.missingSources);
     if (expectedAssets > 0 && assetsResult.downloaded.isEmpty) {
       final int durationMs = DateTime.now().difference(start).inMilliseconds;
       _appendLog(
@@ -579,9 +407,16 @@ class ReleasePhaseRunner {
 
   Future<ReleaseMigrationCounts> run(MigrationContext ctx) async {
     final ReleaseMigrationCounts counts = ReleaseMigrationCounts();
-    for (int index = 0; index < ctx.selectedTags.length; index += 1) {
-      final String tag = ctx.selectedTags[index];
-      final String status = await _processTag(ctx, index + 1, tag);
+    final List<String> tags = ctx.selectedTags;
+    final List<String> statuses = await Concurrency.mapWithLimit<String, String>(
+      items: tags,
+      limit: ctx.options.releaseWorkers,
+      task: (String tag, int index) => _processTag(ctx, index + 1, tag),
+    );
+
+    for (int index = 0; index < tags.length; index += 1) {
+      final String tag = tags[index];
+      final String status = statuses[index];
       if (status == 'created') {
         counts.created += 1;
       } else if (status == 'updated') {

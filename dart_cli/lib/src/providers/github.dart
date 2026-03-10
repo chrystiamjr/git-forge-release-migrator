@@ -6,10 +6,12 @@ import 'package:dio/dio.dart';
 import '../core/adapters/dio_adapter.dart';
 import '../core/adapters/provider_adapter.dart';
 import '../core/checkpoint.dart';
+import '../core/concurrency.dart';
 import '../core/exceptions/http_request_error.dart';
 import '../core/http.dart';
 import '../core/types/canonical_release.dart';
 import '../core/types/phase.dart';
+import 'provider_common.dart';
 
 class GitHubAdapter extends ProviderAdapter {
   GitHubAdapter({HttpClientHelper? http, Dio? dio})
@@ -23,6 +25,7 @@ class GitHubAdapter extends ProviderAdapter {
   String get name => 'github';
 
   static const String _apiBase = 'https://api.github.com';
+  static const int _assetUploadWorkers = 4;
 
   Map<String, String> _headers(String token) => <String, String>{
         'Authorization': 'Bearer $token',
@@ -41,15 +44,6 @@ class GitHubAdapter extends ProviderAdapter {
       retries: 3,
       retryDelay: const Duration(seconds: 2),
     );
-  }
-
-  String _normalizeRepositoryUrl(String url) {
-    String clean = url.trim();
-    if (clean.endsWith('.git')) {
-      clean = clean.substring(0, clean.length - 4);
-    }
-
-    return clean.split('?').first.split('#').first;
   }
 
   ({String host, String path, String baseUrl}) _extractHostPath(String normalizedUrl, String originalUrl) {
@@ -94,7 +88,7 @@ class GitHubAdapter extends ProviderAdapter {
       throw ArgumentError('Invalid GitHub URL: empty value');
     }
 
-    final String normalizedUrl = _normalizeRepositoryUrl(url);
+    final String normalizedUrl = ProviderCommon.normalizeRepositoryUrl(url);
     final ({String host, String path, String baseUrl}) hostPath = _extractHostPath(normalizedUrl, url);
     final ({String owner, String repo, String resource, String repoRef}) repository =
         _extractRepositoryParts(hostPath.path, hostPath.host, url);
@@ -239,7 +233,7 @@ class GitHubAdapter extends ProviderAdapter {
     String title,
     String notesFile,
   ) async {
-    final String body = File(notesFile).existsSync() ? File(notesFile).readAsStringSync() : '';
+    final String body = await _readNotesFile(notesFile);
     await _apiJson(
       token,
       'repos/${ref.resource}/releases',
@@ -271,7 +265,7 @@ class GitHubAdapter extends ProviderAdapter {
       throw HttpRequestError('GitHub release id missing for tag $tag');
     }
 
-    final String body = File(notesFile).existsSync() ? File(notesFile).readAsStringSync() : '';
+    final String body = await _readNotesFile(notesFile);
     await _apiJson(
       token,
       'repos/${ref.resource}/releases/$releaseId',
@@ -300,36 +294,40 @@ class GitHubAdapter extends ProviderAdapter {
 
     final String uploadBase = uploadTemplate.split('{').first;
 
-    for (final String assetPath in assets) {
-      final File file = File(assetPath);
-      if (!file.existsSync()) {
-        continue;
-      }
+    await Concurrency.mapWithLimit<String, void>(
+      items: assets,
+      limit: _assetUploadWorkers,
+      task: (String assetPath, int _) async {
+        final File file = File(assetPath);
+        if (!file.existsSync()) {
+          return;
+        }
 
-      final String name = file.uri.pathSegments.isNotEmpty ? file.uri.pathSegments.last : 'asset';
-      final Uri uri = Uri.parse(uploadBase).replace(queryParameters: <String, dynamic>{'name': name});
-      final Uint8List bytes = await file.readAsBytes();
+        final String name = ProviderCommon.basename(assetPath).isEmpty ? 'asset' : ProviderCommon.basename(assetPath);
+        final Uri uri = Uri.parse(uploadBase).replace(queryParameters: <String, dynamic>{'name': name});
+        final Uint8List bytes = await file.readAsBytes();
 
-      final Response<dynamic> response = await _dio.post<dynamic>(
-        uri.toString(),
-        data: bytes,
-        options: Options(
-          headers: <String, dynamic>{
-            'Authorization': 'Bearer $token',
-            'Accept': 'application/vnd.github+json',
-            'Content-Type': 'application/octet-stream',
-          },
-          validateStatus: (_) => true,
-          sendTimeout: const Duration(seconds: 120),
-          receiveTimeout: const Duration(seconds: 120),
-        ),
-      );
+        final Response<dynamic> response = await _dio.post<dynamic>(
+          uri.toString(),
+          data: bytes,
+          options: Options(
+            headers: <String, dynamic>{
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/vnd.github+json',
+              'Content-Type': 'application/octet-stream',
+            },
+            validateStatus: (_) => true,
+            sendTimeout: const Duration(seconds: 120),
+            receiveTimeout: const Duration(seconds: 120),
+          ),
+        );
 
-      final int status = response.statusCode ?? 0;
-      if (status < HttpStatus.ok || status >= HttpStatus.multipleChoices) {
-        throw HttpRequestError('GitHub upload failed for $name (HTTP $status)');
-      }
-    }
+        final int status = response.statusCode ?? 0;
+        if (status < HttpStatus.ok || status >= HttpStatus.multipleChoices) {
+          throw HttpRequestError('GitHub upload failed for $name (HTTP $status)');
+        }
+      },
+    );
   }
 
   Future<bool> downloadWithToken(String token, String url, String destination) {
@@ -356,15 +354,7 @@ class GitHubAdapter extends ProviderAdapter {
   }
 
   List<Map<String, dynamic>> _extractRawAssetMaps(Map<String, dynamic> payload) {
-    final dynamic assets = payload['assets'];
-    if (assets is! List) {
-      return <Map<String, dynamic>>[];
-    }
-
-    return assets
-        .whereType<Map<String, dynamic>>()
-        .map((Map<String, dynamic> item) => Map<String, dynamic>.from(item))
-        .toList(growable: false);
+    return ProviderCommon.mapListFrom(payload['assets']);
   }
 
   List<Map<String, dynamic>> _canonicalLinksFromPayload(Map<String, dynamic> payload) {
@@ -510,6 +500,15 @@ class GitHubAdapter extends ProviderAdapter {
     await releaseUpload(input.providerRef, input.token, input.tag, input.downloadedFiles);
     await releaseEdit(input.providerRef, input.token, input.tag, input.releaseName, input.notesFile.path);
     return 'ok';
+  }
+
+  Future<String> _readNotesFile(String notesFile) async {
+    final File file = File(notesFile);
+    if (!file.existsSync()) {
+      return '';
+    }
+
+    return file.readAsString();
   }
 
   @override

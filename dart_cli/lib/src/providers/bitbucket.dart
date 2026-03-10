@@ -7,11 +7,13 @@ import 'package:dio/dio.dart';
 import '../core/adapters/dio_adapter.dart';
 import '../core/adapters/provider_adapter.dart';
 import '../core/checkpoint.dart';
+import '../core/concurrency.dart';
 import '../core/exceptions/http_request_error.dart';
 import '../core/http.dart';
 import '../core/time.dart';
 import '../core/types/canonical_release.dart';
 import '../core/types/phase.dart';
+import 'provider_common.dart';
 
 class BitbucketAdapter extends ProviderAdapter {
   BitbucketAdapter({HttpClientHelper? http, Dio? dio})
@@ -20,6 +22,8 @@ class BitbucketAdapter extends ProviderAdapter {
 
   final HttpClientHelper _http;
   final Dio _dio;
+  static const int _assetUploadWorkers = 4;
+  static const int _manifestFetchWorkers = 6;
 
   static const String _apiBase = 'https://api.bitbucket.org/2.0';
 
@@ -92,15 +96,6 @@ class BitbucketAdapter extends ProviderAdapter {
 
   String downloadUrl(Map<String, dynamic> item) => _downloadUrlFromItem(item);
 
-  String _normalizeRepositoryUrl(String url) {
-    String clean = url.trim();
-    if (clean.endsWith('.git')) {
-      clean = clean.substring(0, clean.length - 4);
-    }
-
-    return clean.split('?').first.split('#').first;
-  }
-
   ({String host, String workspace, String repo, String baseUrl}) _extractSshParts(String normalizedUrl) {
     final RegExpMatch? ssh = RegExp(r'^git@([^:]+):([^/]+)/([^/]+)$').firstMatch(normalizedUrl);
     if (ssh == null) {
@@ -140,7 +135,7 @@ class BitbucketAdapter extends ProviderAdapter {
       throw ArgumentError('Invalid Bitbucket URL: empty value');
     }
 
-    final String normalizedUrl = _normalizeRepositoryUrl(url);
+    final String normalizedUrl = ProviderCommon.normalizeRepositoryUrl(url);
     final ({String host, String workspace, String repo, String baseUrl}) sshParts = _extractSshParts(normalizedUrl);
     final ({String host, String workspace, String repo, String baseUrl}) parts =
         sshParts.host.isNotEmpty ? sshParts : _extractHttpsParts(normalizedUrl, url);
@@ -337,7 +332,7 @@ class BitbucketAdapter extends ProviderAdapter {
     final Directory tempDir = await Directory.systemTemp.createTemp('gfrm-bb-manifest-');
     try {
       final String path = '${tempDir.path}/$manifestName';
-      File(path).writeAsStringSync('${const JsonEncoder.withIndent('  ').convert(manifest)}\n');
+      await File(path).writeAsString('${const JsonEncoder.withIndent('  ').convert(manifest)}\n');
       await replaceDownload(ref, token, path, uploadName: manifestName);
     } finally {
       if (tempDir.existsSync()) {
@@ -392,81 +387,27 @@ class BitbucketAdapter extends ProviderAdapter {
 
     final List<Map<String, dynamic>> releases = <Map<String, dynamic>>[];
 
-    for (final Map<String, dynamic> tagPayload in tagsPayload) {
-      final String tag = (tagPayload['name'] ?? '').toString().trim();
-      if (tag.isEmpty) {
-        continue;
-      }
-
-      final String manifestName = _manifestFilename(tag);
-      Map<String, dynamic>? manifest;
-      final Map<String, dynamic>? manifestItem = downloadsByName[manifestName];
-      if (manifestItem != null) {
-        final String manifestUrl = _downloadUrlFromItem(manifestItem);
-        if (manifestUrl.isNotEmpty) {
-          try {
-            final dynamic payload = await _http.requestJson(
-              manifestUrl,
-              headers: _headers(token),
-              retries: 3,
-              retryDelay: const Duration(seconds: 1),
-            );
-
-            if (payload is Map) {
-              manifest = Map<String, dynamic>.from(payload);
-            }
-          } catch (_) {
-            manifest = null;
-          }
+    final List<Map<String, dynamic>?> releaseRows =
+        await Concurrency.mapWithLimit<Map<String, dynamic>, Map<String, dynamic>?>(
+      items: tagsPayload,
+      limit: _manifestFetchWorkers,
+      task: (Map<String, dynamic> tagPayload, int _) async {
+        final String tag = (tagPayload['name'] ?? '').toString().trim();
+        if (tag.isEmpty) {
+          return null;
         }
+
+        final String manifestName = _manifestFilename(tag);
+        final Map<String, dynamic>? manifestItem = downloadsByName[manifestName];
+        final Map<String, dynamic>? manifest = await _loadManifestPayload(manifestItem, token);
+        return _toReleaseRow(tagPayload, tag, manifest);
+      },
+    );
+
+    for (final Map<String, dynamic>? row in releaseRows) {
+      if (row != null) {
+        releases.add(row);
       }
-
-      final dynamic targetRaw = tagPayload['target'];
-      final Map<String, dynamic> target = targetRaw is Map ? Map<String, dynamic>.from(targetRaw) : <String, dynamic>{};
-      final String commitHash = (target['hash'] ?? '').toString();
-      final String notes = (tagPayload['message'] ?? '').toString();
-
-      String releaseName = tag;
-      final List<Map<String, dynamic>> links = <Map<String, dynamic>>[];
-      if (manifest != null) {
-        releaseName = (manifest['release_name'] ?? tag).toString();
-        final dynamic uploadedAssets = manifest['uploaded_assets'];
-        if (uploadedAssets is List) {
-          for (final dynamic item in uploadedAssets) {
-            if (item is! Map) {
-              continue;
-            }
-            final Map<String, dynamic> m = Map<String, dynamic>.from(item);
-            final String name = (m['name'] ?? '').toString().trim();
-            final String url = (m['url'] ?? '').toString().trim();
-            if (name.isEmpty || url.isEmpty) {
-              continue;
-            }
-            links.add(<String, dynamic>{
-              'name': name,
-              'url': url,
-              'direct_url': url,
-              'type': (m['type'] ?? 'package').toString(),
-            });
-          }
-        }
-      }
-
-      releases.add(<String, dynamic>{
-        'tag_name': tag,
-        'name': releaseName,
-        'description_markdown': notes,
-        'commit_sha': commitHash,
-        'assets': <String, List<Map<String, dynamic>>>{
-          'links': links,
-          'sources': <Map<String, dynamic>>[],
-        },
-        'provider_metadata': <String, Object>{
-          'manifest_found': manifest != null,
-          'legacy_no_manifest': manifest == null,
-          'manifest': manifest ?? <String, dynamic>{},
-        },
-      });
     }
 
     return releases;
@@ -668,16 +609,31 @@ class BitbucketAdapter extends ProviderAdapter {
 
   @override
   Future<String> publishRelease(PublishReleaseInput input) async {
+    final List<({String name, String url})?> uploadResults =
+        await Concurrency.mapWithLimit<String, ({String name, String url})?>(
+      items: input.downloadedFiles,
+      limit: _assetUploadWorkers,
+      task: (String filePath, int _) async {
+        final String name = ProviderCommon.basename(filePath);
+        try {
+          final String uploadedUrl = await uploadFile(input.providerRef, input.token, filePath);
+          return (name: name, url: uploadedUrl);
+        } catch (_) {
+          return null;
+        }
+      },
+    );
+
     final List<Map<String, dynamic>> uploaded = <Map<String, dynamic>>[];
     final List<Map<String, dynamic>> missing = <Map<String, dynamic>>[];
-    for (final String filePath in input.downloadedFiles) {
-      final String name = filePath.split('/').last;
-
-      try {
-        final String uploadedUrl = await uploadFile(input.providerRef, input.token, filePath);
-        uploaded.add(<String, dynamic>{'name': name, 'url': uploadedUrl, 'type': 'other'});
-      } catch (_) {
+    for (int index = 0; index < input.downloadedFiles.length; index += 1) {
+      final String filePath = input.downloadedFiles[index];
+      final String name = ProviderCommon.basename(filePath);
+      final ({String name, String url})? result = uploadResults[index];
+      if (result == null) {
         missing.add(<String, dynamic>{'name': name, 'url': ''});
+      } else {
+        uploaded.add(<String, dynamic>{'name': result.name, 'url': result.url, 'type': 'other'});
       }
     }
 
@@ -688,7 +644,7 @@ class BitbucketAdapter extends ProviderAdapter {
     final Map<String, dynamic> manifest = buildReleaseManifest(
       tag: input.tag,
       releaseName: input.releaseName,
-      notes: input.notesFile.readAsStringSync(),
+      notes: await input.notesFile.readAsString(),
       uploadedAssets: uploaded,
       missingAssets: missing,
     );
@@ -714,5 +670,78 @@ class BitbucketAdapter extends ProviderAdapter {
     }
 
     return downloadWithAuth(input.token, input.source.url, input.outputPath);
+  }
+
+  Future<Map<String, dynamic>?> _loadManifestPayload(Map<String, dynamic>? manifestItem, String token) async {
+    if (manifestItem == null) {
+      return null;
+    }
+
+    final String manifestUrl = _downloadUrlFromItem(manifestItem);
+    if (manifestUrl.isEmpty) {
+      return null;
+    }
+
+    try {
+      final dynamic payload = await _http.requestJson(
+        manifestUrl,
+        headers: _headers(token),
+        retries: 3,
+        retryDelay: const Duration(seconds: 1),
+      );
+      if (payload is Map) {
+        return Map<String, dynamic>.from(payload);
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Map<String, dynamic> _toReleaseRow(
+    Map<String, dynamic> tagPayload,
+    String tag,
+    Map<String, dynamic>? manifest,
+  ) {
+    final Map<String, dynamic> target = ProviderCommon.mapFrom(tagPayload['target']);
+    final String commitHash = (target['hash'] ?? '').toString();
+    final String notes = (tagPayload['message'] ?? '').toString();
+
+    String releaseName = tag;
+    final List<Map<String, dynamic>> links = <Map<String, dynamic>>[];
+    if (manifest != null) {
+      releaseName = (manifest['release_name'] ?? tag).toString();
+      final List<Map<String, dynamic>> uploadedAssets = ProviderCommon.mapListFrom(manifest['uploaded_assets']);
+      for (final Map<String, dynamic> item in uploadedAssets) {
+        final String name = (item['name'] ?? '').toString().trim();
+        final String url = (item['url'] ?? '').toString().trim();
+        if (name.isEmpty || url.isEmpty) {
+          continue;
+        }
+
+        links.add(<String, dynamic>{
+          'name': name,
+          'url': url,
+          'direct_url': url,
+          'type': (item['type'] ?? 'package').toString(),
+        });
+      }
+    }
+
+    return <String, dynamic>{
+      'tag_name': tag,
+      'name': releaseName,
+      'description_markdown': notes,
+      'commit_sha': commitHash,
+      'assets': <String, List<Map<String, dynamic>>>{
+        'links': links,
+        'sources': <Map<String, dynamic>>[],
+      },
+      'provider_metadata': <String, Object>{
+        'manifest_found': manifest != null,
+        'legacy_no_manifest': manifest == null,
+        'manifest': manifest ?? <String, dynamic>{},
+      },
+    };
   }
 }

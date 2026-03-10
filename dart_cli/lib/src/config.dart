@@ -23,6 +23,18 @@ const Map<String, String> _providerMap = <String, String>{
 };
 
 const Set<String> _knownProviders = <String>{'github', 'gitlab', 'bitbucket'};
+typedef _CommonRuntimeFlags = ({
+  bool skipTagMigration,
+  bool dryRun,
+  String workdir,
+  String logFile,
+  String checkpointFile,
+  String tagsFile,
+  bool noBanner,
+  bool quiet,
+  bool jsonOutput,
+  bool progressBar,
+});
 
 String _normalizeProvider(String? value) {
   if (value == null) {
@@ -72,6 +84,84 @@ double _optionalDouble(ArgResults args, String key, double fallback) {
   } catch (_) {
     return fallback;
   }
+}
+
+_CommonRuntimeFlags _commonRuntimeFlags(ArgResults args) {
+  return (
+    skipTagMigration: _optionalBool(args, 'skip-tags'),
+    dryRun: _optionalBool(args, 'dry-run'),
+    workdir: _optionalString(args, 'workdir'),
+    logFile: _optionalString(args, 'log-file'),
+    checkpointFile: _optionalString(args, 'checkpoint-file'),
+    tagsFile: _optionalString(args, 'tags-file'),
+    noBanner: _optionalBool(args, 'no-banner'),
+    quiet: _optionalBool(args, 'quiet'),
+    jsonOutput: _optionalBool(args, 'json'),
+    progressBar: _optionalBool(args, 'progress-bar'),
+  );
+}
+
+RuntimeOptions _buildRuntimeOptions({
+  required String commandName,
+  required String sourceProvider,
+  required String sourceUrl,
+  required String sourceToken,
+  required String targetProvider,
+  required String targetUrl,
+  required String targetToken,
+  required String fromTag,
+  required String toTag,
+  required bool loadSession,
+  required bool saveSession,
+  required bool resumeSession,
+  required String sessionFile,
+  required String sessionTokenMode,
+  required String sessionSourceTokenEnv,
+  required String sessionTargetTokenEnv,
+  required String settingsProfile,
+  required int downloadWorkers,
+  required int releaseWorkers,
+  required bool demoMode,
+  required int demoReleases,
+  required double demoSleepSeconds,
+  required _CommonRuntimeFlags common,
+}) {
+  return RuntimeOptions(
+    commandName: commandName,
+    sourceProvider: sourceProvider,
+    sourceUrl: sourceUrl,
+    sourceToken: sourceToken,
+    targetProvider: targetProvider,
+    targetUrl: targetUrl,
+    targetToken: targetToken,
+    migrationOrder: '$sourceProvider-to-$targetProvider',
+    skipTagMigration: common.skipTagMigration,
+    fromTag: fromTag,
+    toTag: toTag,
+    dryRun: common.dryRun,
+    nonInteractive: true,
+    workdir: common.workdir,
+    logFile: common.logFile,
+    loadSession: loadSession,
+    saveSession: saveSession,
+    resumeSession: resumeSession,
+    sessionFile: sessionFile,
+    sessionTokenMode: sessionTokenMode,
+    sessionSourceTokenEnv: sessionSourceTokenEnv,
+    sessionTargetTokenEnv: sessionTargetTokenEnv,
+    settingsProfile: settingsProfile,
+    downloadWorkers: downloadWorkers,
+    releaseWorkers: releaseWorkers,
+    checkpointFile: common.checkpointFile,
+    tagsFile: common.tagsFile,
+    noBanner: common.noBanner,
+    quiet: common.quiet,
+    jsonOutput: common.jsonOutput,
+    progressBar: common.progressBar,
+    demoMode: demoMode,
+    demoReleases: demoReleases,
+    demoSleepSeconds: demoSleepSeconds,
+  );
 }
 
 String _resolveTokenFromSession({
@@ -151,8 +241,9 @@ RuntimeOptions _buildMigrateRuntime(ArgResults args) {
   );
   ConfigValidators.validateTokenPresence(sourceToken, targetToken);
 
+  final _CommonRuntimeFlags common = _commonRuntimeFlags(args);
   final bool saveSession = _optionalBool(args, 'save-session');
-  return RuntimeOptions(
+  return _buildRuntimeOptions(
     commandName: commandMigrate,
     sourceProvider: sourceProvider,
     sourceUrl: sourceUrl,
@@ -160,14 +251,8 @@ RuntimeOptions _buildMigrateRuntime(ArgResults args) {
     targetProvider: targetProvider,
     targetUrl: targetUrl,
     targetToken: targetToken,
-    migrationOrder: '$sourceProvider-to-$targetProvider',
-    skipTagMigration: _optionalBool(args, 'skip-tags'),
     fromTag: fromTag,
     toTag: toTag,
-    dryRun: _optionalBool(args, 'dry-run'),
-    nonInteractive: true,
-    workdir: _optionalString(args, 'workdir'),
-    logFile: _optionalString(args, 'log-file'),
     loadSession: false,
     saveSession: saveSession,
     resumeSession: false,
@@ -178,15 +263,10 @@ RuntimeOptions _buildMigrateRuntime(ArgResults args) {
     settingsProfile: settingsProfile,
     downloadWorkers: downloadWorkers,
     releaseWorkers: releaseWorkers,
-    checkpointFile: _optionalString(args, 'checkpoint-file'),
-    tagsFile: _optionalString(args, 'tags-file'),
-    noBanner: _optionalBool(args, 'no-banner'),
-    quiet: _optionalBool(args, 'quiet'),
-    jsonOutput: _optionalBool(args, 'json'),
-    progressBar: _optionalBool(args, 'progress-bar'),
     demoMode: false,
     demoReleases: 5,
     demoSleepSeconds: 1.0,
+    common: common,
   );
 }
 
@@ -264,8 +344,21 @@ RuntimeOptions _buildRuntimeFromSession(ArgResults args) {
   final bool skipTags =
       args.wasParsed('skip-tags') ? _optionalBool(args, 'skip-tags') : ((data['skip_tag_migration'] ?? false) == true);
   final bool saveSession = _optionalBool(args, 'save-session');
+  final _CommonRuntimeFlags baseCommon = _commonRuntimeFlags(args);
+  final _CommonRuntimeFlags common = (
+    skipTagMigration: skipTags,
+    dryRun: baseCommon.dryRun,
+    workdir: baseCommon.workdir,
+    logFile: baseCommon.logFile,
+    checkpointFile: baseCommon.checkpointFile,
+    tagsFile: baseCommon.tagsFile,
+    noBanner: baseCommon.noBanner,
+    quiet: baseCommon.quiet,
+    jsonOutput: baseCommon.jsonOutput,
+    progressBar: baseCommon.progressBar,
+  );
 
-  return RuntimeOptions(
+  return _buildRuntimeOptions(
     commandName: commandResume,
     sourceProvider: sourceProvider,
     sourceUrl: sourceUrl,
@@ -273,14 +366,8 @@ RuntimeOptions _buildRuntimeFromSession(ArgResults args) {
     targetProvider: targetProvider,
     targetUrl: targetUrl,
     targetToken: targetToken,
-    migrationOrder: '$sourceProvider-to-$targetProvider',
-    skipTagMigration: skipTags,
     fromTag: fromTag,
     toTag: toTag,
-    dryRun: _optionalBool(args, 'dry-run'),
-    nonInteractive: true,
-    workdir: _optionalString(args, 'workdir'),
-    logFile: _optionalString(args, 'log-file'),
     loadSession: true,
     saveSession: saveSession,
     resumeSession: true,
@@ -291,15 +378,10 @@ RuntimeOptions _buildRuntimeFromSession(ArgResults args) {
     settingsProfile: settingsProfile,
     downloadWorkers: downloadWorkers,
     releaseWorkers: releaseWorkers,
-    checkpointFile: _optionalString(args, 'checkpoint-file'),
-    tagsFile: _optionalString(args, 'tags-file'),
-    noBanner: _optionalBool(args, 'no-banner'),
-    quiet: _optionalBool(args, 'quiet'),
-    jsonOutput: _optionalBool(args, 'json'),
-    progressBar: _optionalBool(args, 'progress-bar'),
     demoMode: false,
     demoReleases: 5,
     demoSleepSeconds: 1.0,
+    common: common,
   );
 }
 
@@ -321,7 +403,8 @@ RuntimeOptions _buildDemoRuntime(ArgResults args) {
   final String toTag = _optionalString(args, 'to-tag');
   ConfigValidators.validateTagRange(fromTag, toTag);
 
-  return RuntimeOptions(
+  final _CommonRuntimeFlags common = _commonRuntimeFlags(args);
+  return _buildRuntimeOptions(
     commandName: commandDemo,
     sourceProvider: sourceProvider,
     sourceUrl: _optionalString(args, 'source-url'),
@@ -329,14 +412,8 @@ RuntimeOptions _buildDemoRuntime(ArgResults args) {
     targetProvider: targetProvider,
     targetUrl: _optionalString(args, 'target-url'),
     targetToken: _optionalString(args, 'target-token'),
-    migrationOrder: '$sourceProvider-to-$targetProvider',
-    skipTagMigration: _optionalBool(args, 'skip-tags'),
     fromTag: fromTag,
     toTag: toTag,
-    dryRun: _optionalBool(args, 'dry-run'),
-    nonInteractive: true,
-    workdir: _optionalString(args, 'workdir'),
-    logFile: _optionalString(args, 'log-file'),
     loadSession: false,
     saveSession: false,
     resumeSession: false,
@@ -347,15 +424,10 @@ RuntimeOptions _buildDemoRuntime(ArgResults args) {
     settingsProfile: '',
     downloadWorkers: downloadWorkers,
     releaseWorkers: releaseWorkers,
-    checkpointFile: _optionalString(args, 'checkpoint-file'),
-    tagsFile: _optionalString(args, 'tags-file'),
-    noBanner: _optionalBool(args, 'no-banner'),
-    quiet: _optionalBool(args, 'quiet'),
-    jsonOutput: _optionalBool(args, 'json'),
-    progressBar: _optionalBool(args, 'progress-bar'),
     demoMode: true,
     demoReleases: demoReleases,
     demoSleepSeconds: demoSleepSeconds,
+    common: common,
   );
 }
 

@@ -31,10 +31,10 @@ class MigrationEngine {
     final String logPath = options.logFile.isNotEmpty ? options.logFile : '${workdir.path}/migration-log.jsonl';
     final File logFile = File(logPath);
     final Directory logParent = logFile.parent;
-    if (!logParent.existsSync()) {
-      logParent.createSync(recursive: true);
+    if (!await logParent.exists()) {
+      await logParent.create(recursive: true);
     }
-    logFile.writeAsStringSync('');
+    await logFile.writeAsString('');
 
     final String checkpointPath = options.effectiveCheckpointFile();
     final String checkpointSig = SummaryWriter.checkpointSignature(options, sourceRef, targetRef);

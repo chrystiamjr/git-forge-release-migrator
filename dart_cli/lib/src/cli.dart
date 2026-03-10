@@ -183,7 +183,7 @@ Future<int> _runDemo(
 }) async {
   final List<String> tags = _demoTags(options);
   final String logPath = options.logFile.isNotEmpty ? options.logFile : '${runWorkdir.path}/migration-log.jsonl';
-  File(logPath).writeAsStringSync('');
+  await File(logPath).writeAsString('');
 
   logger.info('DEMO MODE enabled (no network calls, no provider API interactions)');
   logger.info('  Source: ${options.sourceProvider} (${options.sourceUrl})');
@@ -210,7 +210,7 @@ Future<int> _runDemo(
     }
 
     final File notesFile = File('${runWorkdir.path}/release-$tag-notes.md');
-    notesFile.writeAsStringSync(
+    await notesFile.writeAsString(
       '# $tag\n\n'
       'This is a local demo run for CLI recording.\n'
       'No real API call was executed.\n',
@@ -232,7 +232,7 @@ Future<int> _runDemo(
   }
 
   final File failedTagsFile = File('${runWorkdir.path}/failed-tags.txt');
-  failedTagsFile.writeAsStringSync('');
+  await failedTagsFile.writeAsString('');
 
   final int durationMs = DateTime.now().difference(startedAll).inMilliseconds;
   final Map<String, Object> summary = <String, Object>{
@@ -260,7 +260,7 @@ Future<int> _runDemo(
   };
 
   final File summaryFile = File('${runWorkdir.path}/summary.json');
-  summaryFile.writeAsStringSync('${const JsonEncoder.withIndent('  ').convert(summary)}\n');
+  await summaryFile.writeAsString('${const JsonEncoder.withIndent('  ').convert(summary)}\n');
 
   logger.info('Migration summary');
   logger.info('  Mode: demo');

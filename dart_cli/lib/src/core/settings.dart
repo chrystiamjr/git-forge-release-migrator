@@ -415,9 +415,7 @@ void _writeSettingsFile(String pathValue, Map<String, dynamic> payload) {
 }
 
 Map<String, dynamic> _maskSettingsSecrets(Map<String, dynamic> payload) {
-  final String jsonPayload = jsonEncode(payload);
-  final dynamic decoded = jsonDecode(jsonPayload);
-  return _maskRecursive(decoded) as Map<String, dynamic>;
+  return _maskRecursive(payload) as Map<String, dynamic>;
 }
 
 dynamic _maskRecursive(dynamic payload) {
