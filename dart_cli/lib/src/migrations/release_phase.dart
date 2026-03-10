@@ -434,13 +434,14 @@ class ReleasePhaseRunner {
     _appendSourceFallbackNotes(ctx, tag, notesFile, assetsResult.sourceFallbackFormats);
     _appendMissingAssetsNotes(notesFile, assetsResult.missingLinks, assetsResult.missingSources);
     if (expectedAssets > 0 && assetsResult.downloaded.isEmpty) {
+      final int durationMs = DateTime.now().difference(start).inMilliseconds;
       _appendLog(
         ctx.logPath,
         status: 'failed',
         tag: tag,
         message: 'No release assets were downloaded',
         assetCount: 0,
-        durationMs: 0,
+        durationMs: durationMs,
         dryRun: false,
       );
       logger.warn('[$tag] failed: no assets downloaded');
@@ -467,7 +468,7 @@ class ReleasePhaseRunner {
         message:
             'Release publish operation failed on ${SelectionService.capitalizeProvider(ctx.options.targetProvider)}',
         assetCount: assetsResult.downloaded.length,
-        durationMs: 0,
+        durationMs: durationMs,
         dryRun: false,
       );
       return 'failed';

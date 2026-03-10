@@ -1,83 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-void _ensureParentSecurity(Directory directory) {
-  directory.createSync(recursive: true);
-  if (Platform.isWindows) {
-    return;
-  }
-
-  try {
-    Process.runSync('chmod', <String>['700', directory.path]);
-  } catch (_) {
-    // Ignore permission hardening failures.
-  }
-}
-
-void _hardenFilePermissions(String pathValue) {
-  if (Platform.isWindows) {
-    return;
-  }
-
-  try {
-    Process.runSync('chmod', <String>['600', pathValue]);
-  } catch (_) {
-    // Ignore permission hardening failures.
-  }
-}
-
-void _replaceFile(File tmpFile, File targetFile) {
-  try {
-    tmpFile.renameSync(targetFile.path);
-    return;
-  } on FileSystemException {
-    // Continue to overwrite-safe fallback.
-  }
-
-  File? backupFile;
-  if (targetFile.existsSync()) {
-    backupFile = File('${targetFile.path}.bak-${DateTime.now().microsecondsSinceEpoch}');
-    try {
-      targetFile.renameSync(backupFile.path);
-    } on FileSystemException {
-      backupFile = null;
-    }
-  }
-
-  bool replaced = false;
-  try {
-    tmpFile.renameSync(targetFile.path);
-    replaced = true;
-  } on FileSystemException {
-    try {
-      tmpFile.copySync(targetFile.path);
-      tmpFile.deleteSync();
-      replaced = true;
-    } on FileSystemException {
-      replaced = false;
-    }
-  }
-
-  if (replaced) {
-    if (backupFile != null && backupFile.existsSync()) {
-      backupFile.deleteSync();
-    }
-    return;
-  }
-
-  if (backupFile != null && backupFile.existsSync() && !targetFile.existsSync()) {
-    try {
-      backupFile.renameSync(targetFile.path);
-      return;
-    } on FileSystemException {
-      backupFile.copySync(targetFile.path);
-      backupFile.deleteSync();
-      return;
-    }
-  }
-
-  throw FileSystemException('Failed to replace file', targetFile.path);
-}
+import 'file_ops.dart';
 
 final class SessionStore {
   const SessionStore._();
@@ -98,12 +22,12 @@ final class SessionStore {
 
   static void saveSession(String path, Map<String, dynamic> payload) {
     final File sessionFile = File(path);
-    _ensureParentSecurity(sessionFile.parent);
+    FileOps.ensureParentSecurity(sessionFile.parent);
 
     final File tmpFile = File('${sessionFile.path}.tmp-${DateTime.now().microsecondsSinceEpoch}');
     tmpFile.writeAsStringSync('${const JsonEncoder.withIndent('  ').convert(payload)}\n');
-    _hardenFilePermissions(tmpFile.path);
-    _replaceFile(tmpFile, sessionFile);
-    _hardenFilePermissions(sessionFile.path);
+    FileOps.hardenFilePermissions(tmpFile.path);
+    FileOps.replaceFile(tmpFile, sessionFile);
+    FileOps.hardenFilePermissions(sessionFile.path);
   }
 }

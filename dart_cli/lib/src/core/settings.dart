@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
+import 'file_ops.dart';
 import 'types/settings_scope_data.dart';
 
 export 'types/settings_command_options.dart';
@@ -401,94 +402,16 @@ Map<String, dynamic> _unsetProviderToken(
   return settings;
 }
 
-void _ensureParentSecurity(Directory directory) {
-  directory.createSync(recursive: true);
-  if (Platform.isWindows) {
-    return;
-  }
-
-  try {
-    Process.runSync('chmod', <String>['700', directory.path]);
-  } catch (_) {
-    // Ignore permission hardening failures.
-  }
-}
-
-void _hardenFilePermissions(String pathValue) {
-  if (Platform.isWindows) {
-    return;
-  }
-
-  try {
-    Process.runSync('chmod', <String>['600', pathValue]);
-  } catch (_) {
-    // Ignore permission hardening failures.
-  }
-}
-
-void _replaceFile(File tmpFile, File targetFile) {
-  try {
-    tmpFile.renameSync(targetFile.path);
-    return;
-  } on FileSystemException {
-    // Continue to overwrite-safe fallback.
-  }
-
-  File? backupFile;
-  if (targetFile.existsSync()) {
-    backupFile = File('${targetFile.path}.bak-${DateTime.now().microsecondsSinceEpoch}');
-    try {
-      targetFile.renameSync(backupFile.path);
-    } on FileSystemException {
-      backupFile = null;
-    }
-  }
-
-  bool replaced = false;
-  try {
-    tmpFile.renameSync(targetFile.path);
-    replaced = true;
-  } on FileSystemException {
-    try {
-      tmpFile.copySync(targetFile.path);
-      tmpFile.deleteSync();
-      replaced = true;
-    } on FileSystemException {
-      replaced = false;
-    }
-  }
-
-  if (replaced) {
-    if (backupFile != null && backupFile.existsSync()) {
-      backupFile.deleteSync();
-    }
-    return;
-  }
-
-  if (backupFile != null && backupFile.existsSync() && !targetFile.existsSync()) {
-    try {
-      backupFile.renameSync(targetFile.path);
-      return;
-    } on FileSystemException {
-      backupFile.copySync(targetFile.path);
-      backupFile.deleteSync();
-      return;
-    }
-  }
-
-  throw FileSystemException('Failed to replace file', targetFile.path);
-}
-
 void _writeSettingsFile(String pathValue, Map<String, dynamic> payload) {
   final File targetFile = File(pathValue);
-  _ensureParentSecurity(targetFile.parent);
+  FileOps.ensureParentSecurity(targetFile.parent);
 
   final String tmpPath = '${targetFile.path}.tmp-${DateTime.now().microsecondsSinceEpoch}';
   final File tmpFile = File(tmpPath);
   tmpFile.writeAsStringSync('${const JsonEncoder.withIndent('  ').convert(payload)}\n');
-  _hardenFilePermissions(tmpPath);
-  _replaceFile(tmpFile, targetFile);
-  _hardenFilePermissions(targetFile.path);
+  FileOps.hardenFilePermissions(tmpPath);
+  FileOps.replaceFile(tmpFile, targetFile);
+  FileOps.hardenFilePermissions(targetFile.path);
 }
 
 Map<String, dynamic> _maskSettingsSecrets(Map<String, dynamic> payload) {

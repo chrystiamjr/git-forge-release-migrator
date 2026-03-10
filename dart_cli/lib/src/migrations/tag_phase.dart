@@ -233,6 +233,24 @@ class TagPhaseRunner {
       if (exc is AuthenticationError) {
         counts.failed += 1;
         ctx.failedTags.add(tag);
+        _appendLog(
+          ctx.logPath,
+          status: 'tag_failed',
+          tag: tag,
+          message: 'Tag creation failed: authentication error',
+          assetCount: 0,
+          durationMs: 0,
+          dryRun: false,
+        );
+        _checkpointMark(
+          ctx.checkpointPath,
+          ctx.checkpointState,
+          signature: ctx.checkpointSignature,
+          key: checkpointKey,
+          tag: tag,
+          status: 'tag_failed',
+          message: 'Tag creation failed: authentication error',
+        );
         logger.warn('[$tag] tag creation failed: authentication error: $exc');
         return;
       }
@@ -256,6 +274,24 @@ class TagPhaseRunner {
 
       counts.failed += 1;
       ctx.failedTags.add(tag);
+      _appendLog(
+        ctx.logPath,
+        status: 'tag_failed',
+        tag: tag,
+        message: 'Failed to create tag in ${SelectionService.capitalizeProvider(ctx.options.targetProvider)}: $exc',
+        assetCount: 0,
+        durationMs: 0,
+        dryRun: false,
+      );
+      _checkpointMark(
+        ctx.checkpointPath,
+        ctx.checkpointState,
+        signature: ctx.checkpointSignature,
+        key: checkpointKey,
+        tag: tag,
+        status: 'tag_failed',
+        message: 'Failed to create tag in ${SelectionService.capitalizeProvider(ctx.options.targetProvider)}: $exc',
+      );
       logger.warn(
           '[$tag] failed to create tag in ${SelectionService.capitalizeProvider(ctx.options.targetProvider)}: $exc');
     }
