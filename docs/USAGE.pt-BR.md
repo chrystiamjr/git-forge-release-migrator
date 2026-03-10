@@ -28,17 +28,26 @@ Comandos Dart diretos continuam funcionando, mas a documentação prioriza scrip
 
 Artefatos gerados pelo CI:
 
-- `gfrm-macos` contendo `gfrm`
-- `gfrm-linux` contendo `gfrm`
-- `gfrm-windows` contendo `gfrm.exe`
+- `gfrm-macos-intel.zip` contendo `gfrm` (Macs Intel)
+- `gfrm-macos-silicon.zip` contendo `gfrm` (Macs Apple Silicon)
+- `gfrm-linux.zip` contendo `gfrm`
+- `gfrm-windows.zip` contendo `gfrm.exe`
 
-macOS:
+macOS (Intel):
 
 ```bash
-unzip gfrm-macos.zip -d ./gfrm-macos
-cd ./gfrm-macos
+unzip gfrm-macos-intel.zip -d ./gfrm-macos-intel
+cd ./gfrm-macos-intel
 chmod +x ./gfrm
-xattr -d com.apple.quarantine ./gfrm || true
+./gfrm --help
+```
+
+macOS (Apple Silicon):
+
+```bash
+unzip gfrm-macos-silicon.zip -d ./gfrm-macos-silicon
+cd ./gfrm-macos-silicon
+chmod +x ./gfrm
 ./gfrm --help
 ```
 
@@ -60,7 +69,9 @@ Expand-Archive .\gfrm-windows.zip -DestinationPath .\gfrm-windows
 
 Notas:
 
-- No macOS, a notarização ainda pode ser necessária para primeira execução sem alerta do Gatekeeper.
+- O workflow de release suporta modo de segurança macOS permissivo/estrito (`MACOS_RELEASE_SECURITY_MODE`) para assinatura/notarização.
+- No modo estrito, os jobs macOS falham quando faltam credenciais de assinatura/notarização ou quando a notarização falha.
+- Se o Gatekeeper ainda bloquear a execução, use o fallback de troubleshooting: `xattr -d com.apple.quarantine ./gfrm`.
 - No Windows, alertas do SmartScreen são esperados enquanto os binários estiverem sem assinatura.
 
 ## Providers e Aliases
