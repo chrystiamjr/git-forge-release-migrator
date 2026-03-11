@@ -2,15 +2,35 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../config.dart';
+import '../core/console_output.dart';
+import '../core/input_reader.dart';
 import '../core/logging.dart';
 import '../core/settings.dart';
+import '../core/std_console_output.dart';
+import '../core/std_input_reader.dart';
 import '../core/test_helper.dart';
 import '../models/runtime_options.dart';
 
 class SettingsSetupCommandHandler {
-  SettingsSetupCommandHandler({required this.logger});
+  SettingsSetupCommandHandler({
+    required this.logger,
+    ConsoleOutput? output,
+    InputReader? input,
+    Map<String, String>? environment,
+    Set<String> Function()? scanShellExportNames,
+    bool Function()? isTestProcess,
+  })  : output = output ?? const StdConsoleOutput(),
+        input = input ?? const StdInputReader(),
+        _environmentOverride = environment,
+        _scanShellExportNamesOverride = scanShellExportNames,
+        _isTestProcessOverride = isTestProcess;
 
   final ConsoleLogger logger;
+  final ConsoleOutput output;
+  final InputReader input;
+  final Map<String, String>? _environmentOverride;
+  final Set<String> Function()? _scanShellExportNamesOverride;
+  final bool Function()? _isTestProcessOverride;
 
   int runSetupCommand(SetupCommandOptions options) {
     final Map<String, dynamic> effective = SettingsManager.loadEffectiveSettings();
@@ -25,8 +45,8 @@ class SettingsSetupCommandHandler {
     final bool localScope = _chooseSetupScope(options);
     final SettingsScopeData scope = SettingsManager.readScopeSettings(local: localScope);
     final Set<String> knownEnvNames = <String>{
-      ...Platform.environment.keys,
-      ...SettingsManager.scanShellExportNames(),
+      ..._environment.keys,
+      ..._scanShellExportNames(),
     };
 
     Map<String, dynamic> updated = scope.payload;
@@ -75,14 +95,12 @@ class SettingsSetupCommandHandler {
       final Map<String, dynamic> effective = SettingsManager.loadEffectiveSettings();
       final String profile = SettingsManager.resolveProfileName(effective, options.profile);
       final Map<String, dynamic> masked = SettingsManager.maskSettingsSecrets(effective);
-      if (!TestEnvironment.isTestProcess()) {
-        stdout.writeln(
-          const JsonEncoder.withIndent('  ').convert(<String, dynamic>{
-            'profile': profile,
-            'settings': masked,
-          }),
-        );
-      }
+      _writeLine(
+        const JsonEncoder.withIndent('  ').convert(<String, dynamic>{
+          'profile': profile,
+          'settings': masked,
+        }),
+      );
 
       return 0;
     }
@@ -146,8 +164,30 @@ class SettingsSetupCommandHandler {
   }
 
   String _promptLine(String prompt) {
-    stdout.write(prompt);
-    return (stdin.readLineSync() ?? '').trim();
+    output.writeOut(prompt);
+    return input.readLine().trim();
+  }
+
+  void _writeLine(String line) {
+    output.writeOutLine(line);
+  }
+
+  Map<String, String> get _environment => _environmentOverride ?? Platform.environment;
+
+  Set<String> _scanShellExportNames() {
+    if (_scanShellExportNamesOverride != null) {
+      return _scanShellExportNamesOverride();
+    }
+
+    return SettingsManager.scanShellExportNames();
+  }
+
+  bool _isTestProcess() {
+    if (_isTestProcessOverride != null) {
+      return _isTestProcessOverride();
+    }
+
+    return TestEnvironment.isTestProcess();
   }
 
   bool _hasConfiguredTokenValues(Map<String, dynamic> payload) {
@@ -275,20 +315,20 @@ class SettingsSetupCommandHandler {
   }
 
   void _printSetupExamples(String profile) {
-    if (TestEnvironment.isTestProcess()) {
+    if (_isTestProcess()) {
       return;
     }
 
     final String effectiveProfile = profile.trim().isEmpty ? 'default' : profile.trim();
-    stdout.writeln();
-    stdout.writeln('Next commands:');
-    stdout.writeln('  $publicCommandName settings show --profile $effectiveProfile');
-    stdout.writeln(
+    _writeLine('');
+    _writeLine('Next commands:');
+    _writeLine('  $publicCommandName settings show --profile $effectiveProfile');
+    _writeLine(
       '  $publicCommandName migrate --source-provider <provider> --source-url <url> --target-provider <provider> '
       '--target-url <url> --settings-profile $effectiveProfile',
     );
-    stdout.writeln('  $publicCommandName resume --settings-profile $effectiveProfile');
-    stdout.writeln();
+    _writeLine('  $publicCommandName resume --settings-profile $effectiveProfile');
+    _writeLine('');
   }
 
   int _runSettingsInit(SettingsCommandOptions options) {
@@ -296,8 +336,8 @@ class SettingsSetupCommandHandler {
     final Map<String, dynamic> effective = SettingsManager.loadEffectiveSettings();
     final String profile = SettingsManager.resolveProfileName(effective, options.profile);
     final Set<String> knownEnvNames = <String>{
-      ...Platform.environment.keys,
-      ...SettingsManager.scanShellExportNames(),
+      ..._environment.keys,
+      ..._scanShellExportNames(),
     };
 
     Map<String, dynamic> updated = scope.payload;

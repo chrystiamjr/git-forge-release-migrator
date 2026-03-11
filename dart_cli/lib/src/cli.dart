@@ -4,16 +4,20 @@ import 'dart:io';
 import 'cli/settings_setup_command_handler.dart';
 import 'config.dart';
 import 'core/adapters/provider_adapter.dart';
+import 'core/console_output.dart';
+import 'core/input_reader.dart';
 import 'core/jsonl.dart';
 import 'core/logging.dart';
 import 'core/session_store.dart';
 import 'core/settings.dart';
+import 'core/std_console_output.dart';
+import 'core/std_input_reader.dart';
 import 'migrations/engine.dart';
 import 'models/runtime_options.dart';
 import 'providers/registry.dart';
 
-void _printBanner() {
-  if (!stdout.hasTerminal) {
+void _printBanner(ConsoleOutput output) {
+  if (!output.hasTerminal) {
     return;
   }
 
@@ -32,16 +36,16 @@ void _printBanner() {
                                                |___/
 ''';
 
-  stdout.writeln();
-  stdout.writeln(logo);
-  stdout.writeln('Migrate tags, releases, changelog and assets between Git forges.');
-  stdout.writeln('Quick commands:');
-  stdout.writeln('  $publicCommandName migrate --help');
-  stdout.writeln('  $publicCommandName resume --session-file ./sessions/last-session.json');
-  stdout.writeln('  $publicCommandName demo --demo-releases 10');
-  stdout.writeln('  $publicCommandName setup');
-  stdout.writeln('  $publicCommandName settings show');
-  stdout.writeln();
+  output.writeOutLine('');
+  output.writeOutLine(logo);
+  output.writeOutLine('Migrate tags, releases, changelog and assets between Git forges.');
+  output.writeOutLine('Quick commands:');
+  output.writeOutLine('  $publicCommandName migrate --help');
+  output.writeOutLine('  $publicCommandName resume --session-file ./sessions/last-session.json');
+  output.writeOutLine('  $publicCommandName demo --demo-releases 10');
+  output.writeOutLine('  $publicCommandName setup');
+  output.writeOutLine('  $publicCommandName settings show');
+  output.writeOutLine('');
 }
 
 Directory _allocateRunWorkdir(Directory baseDir) {
@@ -294,29 +298,43 @@ Future<int> _executeMigration(
   return 0;
 }
 
-Future<int> _runCli(List<String> argv) async {
+Future<int> _runCli(List<String> argv, {ConsoleOutput? output, InputReader? input}) async {
+  final ConsoleOutput resolvedOutput = output ?? const StdConsoleOutput();
+  final InputReader resolvedInput = input ?? const StdInputReader();
   ConsoleLogger? logger;
   try {
     final CliRequest request = CliRequestParser.parseCliRequest(argv);
     if (request.command == 'help') {
-      stdout.writeln(request.usage);
+      resolvedOutput.writeOutLine(request.usage);
       return 0;
     }
 
     if (request.command == commandSettings) {
-      logger = ConsoleLogger(quiet: false, jsonOutput: false);
-      return SettingsSetupCommandHandler(logger: logger).runSettingsCommand(request.settings!);
+      logger = ConsoleLogger(quiet: false, jsonOutput: false, output: resolvedOutput);
+      return SettingsSetupCommandHandler(
+        logger: logger,
+        output: resolvedOutput,
+        input: resolvedInput,
+      ).runSettingsCommand(request.settings!);
     }
 
     if (request.command == commandSetup) {
-      logger = ConsoleLogger(quiet: false, jsonOutput: false);
-      return SettingsSetupCommandHandler(logger: logger).runSetupCommand(request.setup!);
+      logger = ConsoleLogger(quiet: false, jsonOutput: false, output: resolvedOutput);
+      return SettingsSetupCommandHandler(
+        logger: logger,
+        output: resolvedOutput,
+        input: resolvedInput,
+      ).runSetupCommand(request.setup!);
     }
 
     final RuntimeOptions initialOptions = request.options!;
-    logger = ConsoleLogger(quiet: initialOptions.quiet, jsonOutput: initialOptions.jsonOutput);
+    logger = ConsoleLogger(
+      quiet: initialOptions.quiet,
+      jsonOutput: initialOptions.jsonOutput,
+      output: resolvedOutput,
+    );
     if (!initialOptions.noBanner && !initialOptions.jsonOutput && !initialOptions.quiet) {
-      _printBanner();
+      _printBanner(resolvedOutput);
     }
 
     final _PreparedRun prepared = _prepareRun(initialOptions);
@@ -340,7 +358,7 @@ Future<int> _runCli(List<String> argv) async {
     if (logger != null) {
       logger.error(exc.toString());
     } else {
-      stderr.writeln('[ERROR] $exc');
+      resolvedOutput.writeErrLine('[ERROR] $exc');
     }
 
     return 1;
@@ -350,7 +368,7 @@ Future<int> _runCli(List<String> argv) async {
 final class CliRunner {
   const CliRunner._();
 
-  static Future<int> run(List<String> argv) async {
-    return _runCli(argv);
+  static Future<int> run(List<String> argv, {ConsoleOutput? output, InputReader? input}) async {
+    return _runCli(argv, output: output, input: input);
   }
 }

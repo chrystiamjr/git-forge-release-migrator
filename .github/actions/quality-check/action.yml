@@ -4,30 +4,29 @@ description: Run quality checks
 runs:
   using: composite
   steps:
-    - name: Format check
+    - name: Enable Corepack
       shell: bash
-      working-directory: dart_cli
-      run: dart format -l 120 --set-exit-if-changed bin lib test
+      run: corepack enable
 
-    - name: Static analysis
+    - name: Install Node dependencies
       shell: bash
-      working-directory: dart_cli
-      run: dart analyze
+      run: yarn install --immutable
+
+    - name: Lint Dart sources
+      shell: bash
+      run: yarn lint:dart
 
     - name: Run tests with coverage
       shell: bash
-      working-directory: dart_cli
-      run: dart test --coverage=coverage/
-
-    - name: Generate LCOV report
-      shell: bash
-      working-directory: dart_cli
-      run: dart run coverage:format_coverage --lcov --in=coverage/ --out=coverage/lcov.info --report-on=lib
+      run: yarn coverage:dart
 
     - name: Upload coverage report
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: coverage-report
-        path: dart_cli/coverage/lcov.info
+        path: |
+          dart_cli/coverage/lcov.info
+          dart_cli/coverage/coverage_html.zip
         if-no-files-found: warn
         retention-days: 7

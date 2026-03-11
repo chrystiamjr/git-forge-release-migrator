@@ -149,7 +149,13 @@ Settings behavior to preserve:
   1. explicit `--settings-profile`
   2. `defaults.profile`
   3. `default`
-- token precedence (`migrate`/`resume`) must remain deterministic and documented
+- token precedence (`migrate`/`resume`) must remain deterministic and documented:
+  - `migrate`: settings (`token_env`, then `token_plain`) -> env aliases
+  - `resume`: session token context -> settings (`token_env`, then `token_plain`) -> env aliases
+- hidden legacy overrides:
+  - `--source-token`
+  - `--target-token`
+  - These flags still override token resolution when explicitly provided, but they are not part of the recommended public workflow.
 
 ## Architecture Map (Dart)
 
@@ -234,7 +240,8 @@ Apply these rules to new and modified code:
 ## Formatting and Tooling
 
 - line width: `120`
-- project SDK pinned by `.fvmrc` (`3.41.0`)
+- Dart/Flutter SDK pinned by `.fvmrc` (`3.41.0`)
+- Node.js version pinned by `.nvmrc` (`22.14.0`) — use `nvm use` or match it manually
 - use Husky hooks for local quality gates
 
 Primary local commands (from repo root):
@@ -243,6 +250,14 @@ Primary local commands (from repo root):
 yarn lint:dart
 yarn test:dart
 ```
+
+Coverage workflow:
+
+- `yarn coverage:dart` generates `dart_cli/coverage/lcov.info` and `dart_cli/coverage/html/`
+- `yarn coverage:dart` also packages `dart_cli/coverage/coverage_html.zip` via a Node script shared with CI expectations
+- CI publishes `dart_cli/coverage/coverage_html.zip` alongside `dart_cli/coverage/lcov.info`
+- coverage threshold is `80%`, enforced with `coverde`
+- `yarn coverage:dart` is part of the expected local validation flow and should pass before finalizing changes
 
 Equivalent direct commands (inside `dart_cli`, use as fallback/debug):
 
@@ -265,6 +280,8 @@ When changing behavior:
 - add/update unit tests for granular logic
 - add/update feature tests for CLI and flow-level behavior
 - add/update integration tests for end-to-end invariants
+- keep terminal I/O at the production edge; tests should prefer in-memory output/input adapters over real `stdout/stderr/stdin`
+- for CLI and logger tests, assert captured sink content instead of relying on terminal output side effects
 
 Minimum coverage priorities:
 
@@ -274,6 +291,14 @@ Minimum coverage priorities:
 - checkpoint terminal-state semantics
 - retry generation and summary consistency
 - idempotency + failed-tags behavior
+
+Current quality gate implementation:
+
+- main quality gate logic lives in `.github/actions/quality-check/action.yml`
+- primary workflows are `.github/workflows/quality-checks.yml` and `.github/workflows/release.yml`
+- `.github/workflows/quality-checks.yml` runs on `pull_request`
+- `.github/workflows/release.yml` runs on `push` to `main`
+- there is no manual `workflow_dispatch` path for the main quality-check or release pipelines
 
 Run a specific test file (inside `dart_cli`):
 
@@ -291,6 +316,12 @@ If command contract, auth model, support matrix, or output artifacts change, upd
 - `docs/pt_br/USAGE.md`
 - `dart_cli/README.md`
 
+## Repository Hygiene
+
+- keep active developer tooling under `scripts/`
+- move one-off or destructive maintenance utilities under `scripts/maintenance/`
+- new scripts should be referenced by `package.json`, docs, or a workflow; otherwise they are candidates for maintenance-only placement or should not be committed
+
 ## Commit Message Conventions
 
 All commits must follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
@@ -307,15 +338,18 @@ All commits must follow [Conventional Commits](https://www.conventionalcommits.o
 
 ### Types
 
-| Type | When to use |
-|------|-------------|
-| `feat` | New capability or behavior visible to users or downstream code |
-| `fix` | Corrects a bug or wrong behavior |
-| `test` | Adds or updates tests only (no production code change) |
-| `refactor` | Internal restructuring with no behavior change |
-| `docs` | Documentation, comments, or guide-only changes |
-| `chore` | Tooling, config, CI, dependency bumps, or housekeeping |
-| `perf` | Performance improvement with no behavior change |
+| Type | When to use | Triggers release |
+|------|-------------|-----------------|
+| `feat` | New capability or behavior visible to users or downstream code | minor |
+| `fix` | Corrects a bug or wrong behavior | patch |
+| `perf` | Performance improvement with no behavior change | patch |
+| `refactor` | Internal restructuring with no behavior change | patch |
+| `test` | Adds or updates tests only (no production code change) | patch |
+| `chore` | Tooling, config, dependency bumps, or housekeeping | patch |
+| `build` | Build system or compilation changes | patch |
+| `style` | Formatting or whitespace only | patch |
+| `docs` | Documentation, comments, or guide-only changes | **none** |
+| `ci` | CI/CD workflow or pipeline changes | **none** |
 
 ### Scopes
 
@@ -335,6 +369,7 @@ All commits must follow [Conventional Commits](https://www.conventionalcommits.o
 4. Group tightly related changes into one bullet; avoid one bullet per file.
 5. Do not add a co-author trailer unless explicitly requested.
 6. Keep the subject line free of punctuation at the end.
+7. `docs` and `ci` commits do **not** trigger a release. For a `chore` that should also not release (e.g. adding a tooling file with no product impact), append `[skip ci]` to the commit message.
 
 ### Examples
 

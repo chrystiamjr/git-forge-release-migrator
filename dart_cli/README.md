@@ -6,6 +6,7 @@ Dart runtime package for `git-forge-release-migrator`.
 
 - Flutter SDK `3.41.0` pinned via `.fvmrc` (ships Dart `3.11.0`)
 - `fvm` available for SDK management (`brew install fvm` or see [fvm.app](https://fvm.app/))
+- Node.js `22.14.0` pinned via `.nvmrc` (used by semantic-release and yarn tooling)
 - `yarn` available for the preferred local workflow
 
 ## Quick Start
@@ -105,25 +106,50 @@ fvm dart test test/integration
 fvm dart test test/unit/some_test.dart
 ```
 
-Generating a coverage report (LCOV):
+Generating coverage reports with `coverde`:
 
 ```bash
-cd dart_cli
-fvm dart test --coverage=coverage/
-fvm dart run coverage:format_coverage \
-  --lcov \
-  --in=coverage/ \
-  --out=coverage/lcov.info \
-  --report-on=lib
+yarn coverage:dart
 ```
 
-The resulting `coverage/lcov.info` can be consumed by any LCOV-compatible viewer (e.g., `genhtml`, VS Code Coverage Gutters, or CI coverage services).
+This command:
+
+- runs the Dart test suite with coverage collection
+- generates `coverage/lcov.info` for tooling compatibility
+- generates an HTML report under `coverage/html/`
+- packages the HTML report as `coverage/coverage_html.zip` using the same cross-platform Node flow used by CI
+- enforces the minimum line coverage threshold of `80%`
+
+Open the HTML report locally:
+
+```bash
+open coverage/html/index.html
+```
+
+If you already have `coverage/lcov.info` and only want to rebuild the HTML report:
+
+```bash
+yarn coverage:dart:html
+```
+
+If you want a terminal-friendly text report:
+
+```bash
+yarn coverage:dart:text
+```
+
+The `coverage/lcov.info` file remains available as the technical artifact for LCOV-compatible tools and CI integrations.
+
+CI enforces a minimum line coverage of **80%**, uploads both `coverage/lcov.info` and `coverage/coverage_html.zip`, and
+no longer depends on `genhtml`.
+
+`yarn coverage:dart` is part of the expected local validation flow and should pass before changes are finalized.
 
 `./scripts/smoke-test.sh` runs a local end-to-end smoke test against the compiled binary (no external forge credentials required).
 
 Husky hooks:
 
-- `pre-commit`: `dart format -l 120 --set-exit-if-changed` + `dart analyze`
+- `pre-commit`: `dart format -l 120 --set-exit-if-changed` + `dart analyze --fatal-infos`
 - `pre-push`: `dart test`
 
 Test organization:
@@ -131,6 +157,7 @@ Test organization:
 - `test/unit/**`: granular unit tests for isolated functions and adapters
 - `test/feature/**`: command and feature-level behavior
 - `test/integration/**`: end-to-end migration flows and invariants
+- keep CLI/logging I/O at the adapter boundary; tests should capture output in memory instead of writing to the real terminal
 
 ## Build
 
@@ -172,6 +199,10 @@ CI/release is Dart-only and runs format/analyze/test gates.
 - Build artifacts workflow: `.github/workflows/release.yml` (job `build-release-assets`)
 - Semantic release workflow: `.github/workflows/release.yml`
 - Semantic release config: `release.config.cjs`
+
+- `quality-checks.yml` runs automatically on `pull_request`
+- `release.yml` runs automatically on `push` to `main`
+- there is no manual `workflow_dispatch` path for these pipelines
 
 Release archive names:
 

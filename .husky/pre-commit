@@ -4,8 +4,8 @@ cd dart_cli || exit 1
 
 if command -v fvm >/dev/null 2>&1; then
   fvm dart format -l 120 --set-exit-if-changed bin lib test
-  fvm dart analyze
+  fvm dart analyze --fatal-infos
 else
   dart format -l 120 --set-exit-if-changed bin lib test
-  dart analyze
+  dart analyze --fatal-infos
 fi

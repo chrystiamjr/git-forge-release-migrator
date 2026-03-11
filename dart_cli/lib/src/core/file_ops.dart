@@ -1,36 +1,41 @@
 import 'dart:io';
 
+import 'package:gfrm_dart/src/core/file_ops_driver.dart';
+import 'package:gfrm_dart/src/core/system_file_ops_driver.dart';
+
 final class FileOps {
   const FileOps._();
 
-  static void ensureParentSecurity(Directory directory) {
+  static const FileOpsDriver _defaultDriver = SystemFileOpsDriver();
+
+  static void ensureParentSecurity(Directory directory, {FileOpsDriver driver = _defaultDriver}) {
     directory.createSync(recursive: true);
     if (Platform.isWindows) {
       return;
     }
 
     try {
-      Process.runSync('chmod', <String>['700', directory.path]);
+      driver.runProcess('chmod', <String>['700', directory.path]);
     } catch (_) {
       // Ignore permission hardening failures.
     }
   }
 
-  static void hardenFilePermissions(String pathValue) {
+  static void hardenFilePermissions(String pathValue, {FileOpsDriver driver = _defaultDriver}) {
     if (Platform.isWindows) {
       return;
     }
 
     try {
-      Process.runSync('chmod', <String>['600', pathValue]);
+      driver.runProcess('chmod', <String>['600', pathValue]);
     } catch (_) {
       // Ignore permission hardening failures.
     }
   }
 
-  static void replaceFile(File tmpFile, File targetFile) {
+  static void replaceFile(File tmpFile, File targetFile, {FileOpsDriver driver = _defaultDriver}) {
     try {
-      tmpFile.renameSync(targetFile.path);
+      driver.renameFile(tmpFile, targetFile.path);
       return;
     } on FileSystemException {
       // Continue to overwrite-safe fallback.
@@ -40,7 +45,7 @@ final class FileOps {
     if (targetFile.existsSync()) {
       backupFile = File('${targetFile.path}.bak-${DateTime.now().microsecondsSinceEpoch}');
       try {
-        targetFile.renameSync(backupFile.path);
+        driver.renameFile(targetFile, backupFile.path);
       } on FileSystemException {
         backupFile = null;
       }
@@ -48,12 +53,12 @@ final class FileOps {
 
     bool replaced = false;
     try {
-      tmpFile.renameSync(targetFile.path);
+      driver.renameFile(tmpFile, targetFile.path);
       replaced = true;
     } on FileSystemException {
       try {
-        tmpFile.copySync(targetFile.path);
-        tmpFile.deleteSync();
+        driver.copyFile(tmpFile, targetFile.path);
+        driver.deleteFile(tmpFile);
         replaced = true;
       } on FileSystemException {
         replaced = false;
@@ -62,7 +67,7 @@ final class FileOps {
 
     if (replaced) {
       if (backupFile != null && backupFile.existsSync()) {
-        backupFile.deleteSync();
+        driver.deleteFile(backupFile);
       }
 
       return;
@@ -70,11 +75,11 @@ final class FileOps {
 
     if (backupFile != null && backupFile.existsSync() && !targetFile.existsSync()) {
       try {
-        backupFile.renameSync(targetFile.path);
+        driver.renameFile(backupFile, targetFile.path);
         return;
       } on FileSystemException {
-        backupFile.copySync(targetFile.path);
-        backupFile.deleteSync();
+        driver.copyFile(backupFile, targetFile.path);
+        driver.deleteFile(backupFile);
         return;
       }
     }

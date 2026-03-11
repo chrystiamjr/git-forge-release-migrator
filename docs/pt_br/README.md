@@ -17,12 +17,12 @@ retomadas com `gfrm resume` — itens concluídos são ignorados automaticamente
 ## Quick Start
 
 1. Baixe o artefato para o seu sistema operacional na [página de releases](/releases).
-2. Descompacte e torne o binário executável (macOS/Linux: `chmod +x ./gfrm`).
-3. Configure suas credenciais uma única vez:
+2. Descompacte e torne o binário executável no macOS/Linux com `chmod +x ./gfrm`.
+3. Configure os tokens uma única vez com:
    ```bash
    ./gfrm setup
    ```
-4. Execute sua primeira migração:
+4. Execute sua primeira migração usando o perfil configurado ou aliases de ambiente:
    ```bash
    ./gfrm migrate \
      --source-provider gitlab \
@@ -71,8 +71,19 @@ Artefatos de release:
 - `gfrm-macos-silicon.zip`
 - `gfrm-linux.zip`
 - `gfrm-windows.zip`
+- `checksums-sha256.txt` — checksums SHA256 para todos os artefatos zip
 
 Os binários compilados do `gfrm` rodam em máquinas limpas sem Dart/FVM/Node/Yarn.
+
+Para verificar a integridade antes de executar:
+
+```bash
+# macOS / Linux
+sha256sum --check checksums-sha256.txt
+
+# macOS (shasum)
+shasum -a 256 --check checksums-sha256.txt
+```
 
 macOS (Intel):
 
@@ -147,12 +158,15 @@ Ordem de resolução de perfil:
 
 Ordem padrão de resolução de token:
 
-1. `migrate` e `resume`: flags `--source-token` / `--target-token` (ocultos, legado — maior precedência quando fornecidos)
-2. `migrate`: token do provider em settings (`token_env`, depois `token_plain`)
-3. `migrate`: aliases de ambiente (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, aliases por provider)
-4. `resume`: contexto de token da sessão
-5. `resume`: token do provider em settings (`token_env`, depois `token_plain`)
-6. `resume`: aliases de ambiente (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, aliases por provider)
+1. `migrate`: token do provider em settings (`token_env`, depois `token_plain`)
+2. `migrate`: aliases de ambiente (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, aliases por provider)
+3. `resume`: contexto de token da sessão
+4. `resume`: token do provider em settings (`token_env`, depois `token_plain`)
+5. `resume`: aliases de ambiente (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, aliases por provider)
+
+Overrides legados ocultos:
+
+- `--source-token` e `--target-token` ainda existem para compatibilidade ou uso interno, mas não fazem parte do fluxo público recomendado.
 
 ## Exemplos de Migração
 
@@ -207,6 +221,19 @@ Artefatos:
 - `failed-tags.txt`
 
 Quando existem falhas, `summary.json` inclui `retry_command` usando `gfrm resume`.
+
+## Avisos Diagnósticos
+
+O `gfrm` escreve avisos no `stderr` em duas situações sem interromper a migração:
+
+- **Entrada de checkpoint corrompida** — se uma linha `.jsonl` do checkpoint não puder ser processada, um aviso é exibido e a entrada é ignorada. As entradas restantes ainda são carregadas.
+- **Arquivo de settings malformado** — se um arquivo `settings.yaml` falhar no parsing YAML, o `gfrm` tenta novamente como JSON e emite um aviso. Se ambos falharem, os valores padrão são utilizados.
+
+Em ambos os casos o formato do aviso é:
+
+```
+[gfrm] warning: <descrição>
+```
 
 ## Códigos de Saída
 

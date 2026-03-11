@@ -29,6 +29,7 @@ node_modules/
 **/.dart_tool/
 **/.packages
 **/build/
+**/coverage/
 **/pubspec.lock
 .fvm/
 

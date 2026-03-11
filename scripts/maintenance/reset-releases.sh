@@ -6,7 +6,7 @@ usage() {
 Reset GitHub releases/tags and restart from a fresh version tag.
 
 Usage:
-  ./scripts/reset-releases.sh [options]
+  ./scripts/maintenance/reset-releases.sh [options]
 
 Options:
   --new-version <version>  Version tag used with --create-tag/--create-release
@@ -21,10 +21,10 @@ Options:
   -h, --help               Show this help
 
 Examples:
-  ./scripts/reset-releases.sh --yes
-  ./scripts/reset-releases.sh --create-tag --new-version 0.1.0 --yes
-  ./scripts/reset-releases.sh --create-release --new-version v0.1.0 --yes
-  ./scripts/reset-releases.sh --dry-run
+  ./scripts/maintenance/reset-releases.sh --yes
+  ./scripts/maintenance/reset-releases.sh --create-tag --new-version 0.1.0 --yes
+  ./scripts/maintenance/reset-releases.sh --create-release --new-version v0.1.0 --yes
+  ./scripts/maintenance/reset-releases.sh --dry-run
 EOF
 }
 
