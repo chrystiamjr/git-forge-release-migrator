@@ -1,3 +1,13 @@
+## [0.5.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.4.0...v0.5.0) (2026-03-11)
+
+### Features
+
+* **website:** add modern landing page with dynamic download component ([18b95ec](https://github.com/chrystiamjr/git-forge-release-migrator/commit/18b95ec33d81bbc64d437cfe7ef4a280a0cd2b83))
+
+### Bug Fixes
+
+* **i18n:** translate all PT-BR page titles and sidebar categories ([d05e911](https://github.com/chrystiamjr/git-forge-release-migrator/commit/d05e911c840ecf01994230c9e629926b9f5db739))
+
 ## [0.4.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.3.2...v0.4.0) (2026-03-11)
 
 ### Features
