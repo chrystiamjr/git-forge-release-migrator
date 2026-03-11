@@ -3,14 +3,16 @@ import 'dart:io';
 
 import 'package:gfrm_dart/gfrm_dart.dart';
 import 'package:gfrm_dart/src/models/runtime_options.dart';
-import '../../support/temp_dir.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+
+import '../../support/temp_dir.dart';
 
 File _findSingleFile(Directory root, String name) {
   final List<File> matches = root
       .listSync(recursive: true)
       .whereType<File>()
-      .where((File file) => file.path.endsWith('/$name'))
+      .where((File file) => p.basename(file.path) == name)
       .toList(growable: false);
   expect(matches, hasLength(1));
   return matches.single;

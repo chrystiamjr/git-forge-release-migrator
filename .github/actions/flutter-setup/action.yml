@@ -4,6 +4,11 @@ description: Installs Flutter (version from .fvmrc), caches pub packages, and ru
 runs:
   using: composite
   steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version-file: '.nvmrc'
+
     - name: Read Flutter version from .fvmrc
       id: fvm
       shell: bash

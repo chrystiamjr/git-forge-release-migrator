@@ -241,7 +241,7 @@ Apply these rules to new and modified code:
 
 - line width: `120`
 - Dart/Flutter SDK pinned by `.fvmrc` (`3.41.0`)
-- Node.js version pinned by `.nvmrc` (`20`) — use `nvm use` or match it manually
+- Node.js version pinned by `.nvmrc` (`22.14.0`) — use `nvm use` or match it manually
 - use Husky hooks for local quality gates
 
 Primary local commands (from repo root):
@@ -256,7 +256,7 @@ Coverage workflow:
 - `yarn coverage:dart` generates `dart_cli/coverage/lcov.info` and `dart_cli/coverage/html/`
 - CI publishes `dart_cli/coverage/coverage_html.zip` alongside `dart_cli/coverage/lcov.info`
 - coverage threshold is `80%`, enforced with `coverde`
-- `yarn coverage:dart` is currently useful for diagnostics/reporting, but it is expected to fail until repository-wide coverage reaches the threshold
+- `yarn coverage:dart` is part of the expected local validation flow and should pass before finalizing changes
 
 Equivalent direct commands (inside `dart_cli`, use as fallback/debug):
 
@@ -293,7 +293,8 @@ Current quality gate implementation:
 
 - main quality gate logic lives in `.github/actions/quality-check/action.yml`
 - primary workflows are `.github/workflows/quality-checks.yml` and `.github/workflows/release.yml`
-- these workflows run on `push` to `main`
+- `.github/workflows/quality-checks.yml` runs on `pull_request`
+- `.github/workflows/release.yml` runs on `push` to `main`
 - there is no manual `workflow_dispatch` path for the main quality-check or release pipelines
 
 Run a specific test file (inside `dart_cli`):

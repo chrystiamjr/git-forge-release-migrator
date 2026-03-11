@@ -11,6 +11,9 @@ final class ScriptedHttpClientHelper extends HttpClientHelper {
     this.statusResponses = const <int>[],
     bool? downloadResult,
     this.downloadResponses = const <bool>[],
+    this.allowUnscriptedJson = false,
+    this.allowUnscriptedStatus = false,
+    this.allowUnscriptedDownload = false,
     this.onDownload,
   })  : _jsonSeed = jsonResponse,
         _statusSeed = statusCode,
@@ -23,6 +26,9 @@ final class ScriptedHttpClientHelper extends HttpClientHelper {
   final List<dynamic> jsonResponses;
   final List<int> statusResponses;
   final List<bool> downloadResponses;
+  final bool allowUnscriptedJson;
+  final bool allowUnscriptedStatus;
+  final bool allowUnscriptedDownload;
   final Future<void> Function(String destination)? onDownload;
 
   int _jsonIndex = 0;
@@ -43,7 +49,10 @@ final class ScriptedHttpClientHelper extends HttpClientHelper {
         _jsonIndex += 1;
         return _unwrap(_jsonSeed);
       }
-      return <String, dynamic>{};
+      if (allowUnscriptedJson) {
+        return <String, dynamic>{};
+      }
+      throw StateError('Unexpected requestJson call for $url without scripted response.');
     }
 
     final dynamic next = jsonResponses[_jsonIndex];
@@ -68,7 +77,10 @@ final class ScriptedHttpClientHelper extends HttpClientHelper {
         _statusIndex += 1;
         return _statusSeed;
       }
-      return 0;
+      if (allowUnscriptedStatus) {
+        return 0;
+      }
+      throw StateError('Unexpected requestStatus call for $url without scripted response.');
     }
 
     final int next = statusResponses[_statusIndex];
@@ -93,7 +105,10 @@ final class ScriptedHttpClientHelper extends HttpClientHelper {
         _downloadIndex += 1;
         return _downloadSeed;
       }
-      return true;
+      if (allowUnscriptedDownload) {
+        return true;
+      }
+      throw StateError('Unexpected downloadFile call for $url without scripted response.');
     }
 
     final bool next = downloadResponses[_downloadIndex];

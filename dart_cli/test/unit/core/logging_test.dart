@@ -3,9 +3,9 @@ import 'package:test/test.dart';
 
 void main() {
   group('ConsoleLogger', () {
-    // All loggers in tests use silent:true so they do not emit to stdout/stderr.
-    // This validates that methods complete without throwing and that
-    // state transitions (spinner) are correct regardless of output.
+    // Most logger instances in these tests use silent:true so they do not emit
+    // to stdout/stderr. This validates that methods complete without throwing
+    // and that state transitions (spinner) are correct regardless of output.
 
     test('info does not throw in silent mode', () {
       final ConsoleLogger logger = ConsoleLogger(quiet: false, jsonOutput: false, silent: true);

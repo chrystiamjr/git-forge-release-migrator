@@ -6,7 +6,7 @@ Dart runtime package for `git-forge-release-migrator`.
 
 - Flutter SDK `3.41.0` pinned via `.fvmrc` (ships Dart `3.11.0`)
 - `fvm` available for SDK management (`brew install fvm` or see [fvm.app](https://fvm.app/))
-- Node.js `20` pinned via `.nvmrc` (used by semantic-release and yarn tooling)
+- Node.js `22.14.0` pinned via `.nvmrc` (used by semantic-release and yarn tooling)
 - `yarn` available for the preferred local workflow
 
 ## Quick Start
@@ -143,8 +143,7 @@ The `coverage/lcov.info` file remains available as the technical artifact for LC
 CI enforces a minimum line coverage of **80%**, uploads both `coverage/lcov.info` and `coverage/coverage_html.zip`, and
 no longer depends on `genhtml`.
 
-At the moment, the repository-wide coverage is still below the configured threshold, so `yarn coverage:dart` will generate
-the reports and then fail until the codebase reaches the minimum percentage.
+`yarn coverage:dart` is part of the expected local validation flow and should pass before changes are finalized.
 
 `./scripts/smoke-test.sh` runs a local end-to-end smoke test against the compiled binary (no external forge credentials required).
 
@@ -200,8 +199,9 @@ CI/release is Dart-only and runs format/analyze/test gates.
 - Semantic release workflow: `.github/workflows/release.yml`
 - Semantic release config: `release.config.cjs`
 
-Both the quality-check and release workflows run automatically from `push` events on `main`; there is no manual
-`workflow_dispatch` path for these pipelines.
+- `quality-checks.yml` runs automatically on `pull_request`
+- `release.yml` runs automatically on `push` to `main`
+- there is no manual `workflow_dispatch` path for these pipelines
 
 Release archive names:
 
