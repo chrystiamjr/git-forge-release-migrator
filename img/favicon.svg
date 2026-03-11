@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+    <!-- White circle background -->
+    <circle cx="16" cy="16" r="16" fill="white"/>
+
+    <g fill="none" stroke="#4F46E5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+
+        <!-- Source node -->
+        <rect x="4" y="18" width="6" height="6" rx="1.5"/>
+
+        <!-- Target node -->
+        <rect x="22" y="8" width="6" height="6" rx="1.5"/>
+
+        <!-- Git node -->
+        <circle cx="16" cy="19" r="1.8" fill="#4F46E5" stroke="none"/>
+
+        <!-- Branch lines -->
+        <path d="M10 21H16"/>
+        <path d="M16 19V11"/>
+        <path d="M16 11H22"/>
+
+        <!-- Arrow -->
+        <path d="M10 21H21"/>
+        <path d="M18.5 18.5L21 21L18.5 23.5"/>
+
+    </g>
+</svg>
