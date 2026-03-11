@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="website/static/img/logo-dark.svg">
+    <img alt="gfrm logo" src="website/static/img/logo.svg" height="48">
+  </picture>
+</p>
+
 # Git Forge Release Migrator (gfrm)
 
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
