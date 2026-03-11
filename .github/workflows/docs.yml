@@ -12,6 +12,10 @@ on:
       - '.nvmrc'
       - '.github/workflows/docs.yml'
 
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
