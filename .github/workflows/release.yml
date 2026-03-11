@@ -128,7 +128,7 @@ jobs:
         id: semantic
         uses: cycjimmy/semantic-release-action@v4
         with:
-          semantic_version: 24
+          semantic_version: 25
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
