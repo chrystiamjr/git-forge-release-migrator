@@ -1,6 +1,6 @@
 ---
 sidebar_position: 4
-title: File Locations
+title: Localização dos Arquivos
 ---
 
 ## Arquivos de runtime

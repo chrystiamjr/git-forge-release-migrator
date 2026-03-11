@@ -1,6 +1,6 @@
 ---
 sidebar_position: 2
-title: Install and Verify
+title: Instalar e Validar
 ---
 
 Os binários de release do `gfrm` rodam em máquinas limpas. Você não precisa de Dart, FVM, Node ou Yarn no host de destino.

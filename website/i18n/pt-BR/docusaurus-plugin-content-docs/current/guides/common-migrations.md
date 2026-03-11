@@ -1,6 +1,6 @@
 ---
 sidebar_position: 1
-title: Common Migrations
+title: Migrações Comuns
 ---
 
 ## Bootstrap inicial

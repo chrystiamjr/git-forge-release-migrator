@@ -4,6 +4,7 @@
 *.swp
 
 # Runtime work directories
+roadmap/
 workdir/
 migration-results/
 sessions/

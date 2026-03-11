@@ -1,0 +1,307 @@
+/* ── Hero ───────────────────────────────────────── */
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: 6rem 1.5rem 5rem;
+  text-align: center;
+}
+
+.heroGlow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 80% 60% at 50% -10%,
+    rgba(79, 70, 229, 0.15) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+[data-theme='dark'] .heroGlow {
+  background: radial-gradient(
+    ellipse 80% 60% at 50% -10%,
+    rgba(129, 140, 248, 0.12) 0%,
+    transparent 70%
+  );
+}
+
+.heroInner {
+  position: relative;
+  z-index: 1;
+  max-width: 820px;
+  margin: 0 auto;
+  animation: fadeInUp 0.55s ease both;
+}
+
+.kicker {
+  display: inline-block;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--ifm-color-primary);
+  margin-bottom: 1.25rem;
+  padding: 0.25rem 0.8rem;
+  border: 1.5px solid var(--ifm-color-primary);
+  border-radius: 999px;
+  opacity: 0.9;
+}
+
+.heroTitle {
+  font-size: clamp(2.25rem, 5vw, 3.5rem);
+  line-height: 1.08;
+  font-weight: 800;
+  margin-bottom: 1rem;
+  color: var(--ifm-heading-color);
+  letter-spacing: -0.02em;
+}
+
+.heroAccent {
+  color: var(--ifm-color-primary);
+}
+
+.heroSubtitle {
+  font-size: 1.1rem;
+  max-width: 580px;
+  margin: 0 auto 2.25rem;
+  opacity: 0.75;
+  line-height: 1.6;
+}
+
+.heroCtas {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.ctaPrimary {
+  padding: 0.8rem 2rem;
+  background: var(--ifm-color-primary);
+  color: #fff !important;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 1rem;
+  text-decoration: none !important;
+  transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.3);
+}
+
+.ctaPrimary:hover {
+  background: var(--ifm-color-primary-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.4);
+  text-decoration: none !important;
+}
+
+.ctaSecondary {
+  padding: 0.8rem 2rem;
+  background: transparent;
+  color: var(--ifm-color-primary) !important;
+  border: 2px solid var(--ifm-color-primary);
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 1rem;
+  text-decoration: none !important;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.ctaSecondary:hover {
+  background: var(--gfrm-surface);
+  transform: translateY(-2px);
+  text-decoration: none !important;
+}
+
+/* ── Shared layout ──────────────────────────────── */
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+.sectionTitle {
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+  color: var(--ifm-heading-color);
+  letter-spacing: -0.01em;
+}
+
+.sectionSubtitle {
+  font-size: 1rem;
+  opacity: 0.7;
+  margin-bottom: 2rem;
+}
+
+/* ── Features ───────────────────────────────────── */
+.features {
+  padding: 4rem 0;
+  background: var(--gfrm-surface);
+  border-top: 1px solid var(--gfrm-border);
+  border-bottom: 1px solid var(--gfrm-border);
+}
+
+.featureGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.featureCard {
+  padding: 1.75rem 1.5rem;
+  background: var(--ifm-background-color);
+  border: 1px solid var(--gfrm-border);
+  border-radius: 20px;
+  animation: fadeInUp 0.5s ease both;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.featureCard:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 30px rgba(79, 70, 229, 0.1);
+}
+
+[data-theme='dark'] .featureCard:hover {
+  box-shadow: 0 10px 30px rgba(129, 140, 248, 0.1);
+}
+
+.featureIcon {
+  font-size: 2rem;
+  margin-bottom: 0.85rem;
+  line-height: 1;
+}
+
+.featureTitle {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.featureDesc {
+  font-size: 0.95rem;
+  opacity: 0.75;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ── Download ───────────────────────────────────── */
+.downloadSection {
+  padding: 4rem 0;
+}
+
+/* ── Quick start ────────────────────────────────── */
+.quickStart {
+  padding: 4rem 0 5rem;
+  background: var(--gfrm-surface);
+  border-top: 1px solid var(--gfrm-border);
+}
+
+.terminal {
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #0d1117;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25);
+}
+
+.terminalBar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 0.65rem 1rem;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.dot:nth-child(1) {
+  background: #ff5f57;
+}
+.dot:nth-child(2) {
+  background: #febc2e;
+}
+.dot:nth-child(3) {
+  background: #28c840;
+}
+
+.terminalTitle {
+  margin-left: auto;
+  font-size: 0.72rem;
+  font-family: var(--ifm-font-family-monospace);
+  color: rgba(255, 255, 255, 0.3);
+  letter-spacing: 0.04em;
+}
+
+.terminalCode {
+  margin: 0;
+  padding: 1.5rem 1.75rem;
+  font-size: 0.88rem;
+  line-height: 1.75;
+  color: #cdd9e5;
+  font-family: var(--ifm-font-family-monospace);
+  background: transparent;
+  border: none;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.readNext {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  margin-top: 2rem;
+}
+
+.readNextLink {
+  font-weight: 600;
+  color: var(--ifm-color-primary);
+  text-decoration: none;
+  font-size: 0.95rem;
+  transition: opacity 0.15s;
+}
+
+.readNextLink:hover {
+  text-decoration: underline;
+}
+
+/* ── Animation ──────────────────────────────────── */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Mobile ─────────────────────────────────────── */
+@media (max-width: 640px) {
+  .hero {
+    padding: 4rem 1.25rem 3.5rem;
+  }
+
+  .heroCtas {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .ctaPrimary,
+  .ctaSecondary {
+    width: 100%;
+    max-width: 280px;
+    text-align: center;
+  }
+
+  .readNext {
+    gap: 1rem;
+    flex-direction: column;
+  }
+}

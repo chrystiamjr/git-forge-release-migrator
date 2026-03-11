@@ -84,7 +84,7 @@ const config: Config = {
                 {
                     title: 'Start Here',
                     items: [
-                        {label: 'Overview', to: '/'},
+                        {label: 'Overview', to: '/intro'},
                         {label: 'Quick Start', to: '/getting-started/quick-start'},
                         {label: 'Install and Verify', to: '/getting-started/install-and-verify'},
                     ],

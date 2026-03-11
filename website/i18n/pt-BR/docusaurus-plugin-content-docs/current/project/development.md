@@ -1,6 +1,6 @@
 ---
 sidebar_position: 2
-title: Development
+title: Desenvolvimento
 ---
 
 A orientação de desenvolvimento e runtime está em [`dart_cli/README.md`](https://github.com/chrystiamjr/git-forge-release-migrator/blob/main/dart_cli/README.md).
@@ -23,3 +23,14 @@ yarn coverage:dart
 - `dart_cli/coverage/coverage_html.zip`
 
 O CI exige cobertura mínima de `80%`.
+
+## Checks da documentação do site
+
+Quando uma mudança tocar `website/`, a fonte da verdade da documentação pública ainda precisa compilar sem erro:
+
+```bash
+yarn docs:build
+```
+
+Use `website/` como fonte da verdade da documentação pública. Mantenha `README.md` e `dart_cli/README.md` enxutos e
+alinhados com o site.

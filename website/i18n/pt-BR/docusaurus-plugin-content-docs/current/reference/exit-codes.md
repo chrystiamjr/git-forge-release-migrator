@@ -1,6 +1,6 @@
 ---
 sidebar_position: 2
-title: Exit Codes
+title: Códigos de Saída
 ---
 
 | Código | Significado |

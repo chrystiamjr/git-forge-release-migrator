@@ -5,7 +5,7 @@ High-signal context for coding agents working in this repository.
 ## Quick Start
 
 1. Read `AGENTS.md` (this file) and `dart_cli/README.md` before touching code.
-2. Run `yarn lint:dart && yarn test:dart` from the repo root before submitting any change.
+2. Run `yarn lint:dart && yarn test:dart && yarn coverage:dart` from the repo root before submitting any change.
 3. All production code lives in `dart_cli/lib/src/`. Architecture map is below.
 4. Check "Documentation Sync Rules" if you change any user-facing behavior.
 5. Check "Known Pitfalls" and "Agent Constraints" before making structural decisions.
@@ -189,7 +189,7 @@ Provider adapters must produce canonical release data consumed by the engine.
 3. Preserve behavior for unaffected provider pairs.
 4. Prefer additive/refactor-safe edits over broad rewrites.
 5. Extract logic into small, single-responsibility helpers rather than expanding existing methods.
-6. Run lint/analyze/tests before finalizing.
+6. Run lint/analyze/tests/coverage before finalizing.
 7. Keep docs and tests aligned with implementation.
 8. Update `AGENTS.md` if the change affects CLI contract, invariants, or architecture.
 
@@ -334,6 +334,13 @@ The docs site is deployed automatically to **[gfrm.envolvosystems.com.br](https:
 - `dart_cli/README.md` remains the development/runtime guide, not the public product manual
 - PT-BR translations live under `website/i18n/pt-BR/`; always update both locales when changing content
 
+## Internal Planning Docs
+
+- `roadmap/` is a local planning workspace and is gitignored by default
+- files under `roadmap/` are not a substitute for shipped behavior, public docs, or contract source-of-truth material
+- if implementation behavior changes, still update the public docs listed in "Documentation Sync Rules"
+- if `roadmap/` exists locally, prefer clear epic folders with progress plus sprint/task breakdowns so planning stays navigable
+
 ## Repository Hygiene
 
 - keep active developer tooling under `scripts/`
@@ -441,7 +448,7 @@ Read each comment carefully and classify it before touching code:
 Make all applicable fixes. Run lint and tests before committing:
 
 ```bash
-yarn lint:dart && yarn test:dart
+yarn lint:dart && yarn test:dart && yarn coverage:dart
 ```
 
 ### 3. Commit and push

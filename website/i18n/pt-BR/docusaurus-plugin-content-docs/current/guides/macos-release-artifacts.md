@@ -1,6 +1,6 @@
 ---
 sidebar_position: 4
-title: macOS Release Artifacts
+title: Artefatos de Release no macOS
 ---
 
 ## Escolha o artefato correto

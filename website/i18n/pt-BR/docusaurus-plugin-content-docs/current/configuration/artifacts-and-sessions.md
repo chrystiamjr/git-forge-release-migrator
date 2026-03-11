@@ -1,6 +1,6 @@
 ---
 sidebar_position: 4
-title: Artifacts and Sessions
+title: Artefatos e Sessões
 ---
 
 Cada execução grava artefatos em um diretório de trabalho com timestamp:

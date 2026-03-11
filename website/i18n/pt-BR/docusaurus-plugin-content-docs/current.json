@@ -1,0 +1,26 @@
+{
+  "sidebar.docs.category.Start Here": {
+    "message": "Comece Aqui",
+    "description": "Sidebar category"
+  },
+  "sidebar.docs.category.Configuration": {
+    "message": "Configuração",
+    "description": "Sidebar category"
+  },
+  "sidebar.docs.category.Commands": {
+    "message": "Comandos",
+    "description": "Sidebar category"
+  },
+  "sidebar.docs.category.Guides": {
+    "message": "Guias",
+    "description": "Sidebar category"
+  },
+  "sidebar.docs.category.Reference": {
+    "message": "Referência",
+    "description": "Sidebar category"
+  },
+  "sidebar.docs.category.Project": {
+    "message": "Projeto",
+    "description": "Sidebar category"
+  }
+}

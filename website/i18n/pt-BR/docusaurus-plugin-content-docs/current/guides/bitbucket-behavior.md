@@ -1,6 +1,6 @@
 ---
 sidebar_position: 3
-title: Bitbucket Behavior
+title: Comportamento do Bitbucket
 ---
 
 O Bitbucket Cloud não mapeia um-para-um com a semântica nativa de release do GitHub ou GitLab.
