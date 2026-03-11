@@ -1,3 +1,11 @@
+## [0.3.1](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.3.0...v0.3.1) (2026-03-11)
+
+## [0.3.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.2.1...v0.3.0) (2026-03-11)
+
+### Features
+
+* **ci:** improve workflow efficiency and Dependabot configuration ([81cdd2e](https://github.com/chrystiamjr/git-forge-release-migrator/commit/81cdd2e581523edd38ccf5363090df75e1d74918))
+
 ## [0.2.1](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.2.0...v0.2.1) (2026-03-11)
 
 ## [0.2.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.1.0...v0.2.0) (2026-03-11)
