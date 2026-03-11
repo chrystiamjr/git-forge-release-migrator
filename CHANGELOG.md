@@ -1,3 +1,17 @@
+## [0.2.1](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.2.0...v0.2.1) (2026-03-11)
+
+## [0.2.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.1.0...v0.2.0) (2026-03-11)
+
+### Features
+
+* **ci:** add coverage reporting, smoke tests, SHA256 checksums, and Dependabot ([a585e22](https://github.com/chrystiamjr/git-forge-release-migrator/commit/a585e22aef79be547a941664718bbfe9f044ad40))
+* **dart:** improve HTTP resilience, error handling, and diagnostic logging ([43e76d2](https://github.com/chrystiamjr/git-forge-release-migrator/commit/43e76d26703f366cb133fd74ef07b51c2d15abad))
+
+### Bug Fixes
+
+* address PR review comments from Copilot ([63c6050](https://github.com/chrystiamjr/git-forge-release-migrator/commit/63c60502c783cad25f3cb20670826bd656c64d49))
+* address second round of PR review comments ([d215701](https://github.com/chrystiamjr/git-forge-release-migrator/commit/d215701ab4f68153d4ca05d9c5898d85dfdbda85))
+
 ## [0.1.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.0.0...v0.1.0) (2026-03-10)
 
 ### ⚠ BREAKING CHANGES
