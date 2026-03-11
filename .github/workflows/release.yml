@@ -348,6 +348,13 @@ jobs:
           name: release-asset-${{ env.PLATFORM }}
           path: dart_cli/${{ env.ARCHIVE_NAME }}
 
+      - name: Run smoke test
+        if: runner.os != 'Windows'
+        working-directory: dart_cli
+        shell: bash
+        run: |
+          "${OUT}" --help
+
       - name: Cleanup temporary macOS keychain
         if: matrix.is_macos && env.KEYCHAIN_PATH
         shell: bash
