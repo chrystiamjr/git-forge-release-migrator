@@ -16,10 +16,15 @@ class ConsoleLogger {
     bool? silent,
   })  : output = output ?? const StdConsoleOutput(),
         _silent = silent ?? TestEnvironment.isTestProcess(),
-        _tty = !(silent ?? TestEnvironment.isTestProcess()) &&
-            (output ?? const StdConsoleOutput()).supportsAnsiEscapes &&
-            !quiet &&
-            !jsonOutput;
+        _tty = _resolveTty(
+          output ?? const StdConsoleOutput(),
+          silent ?? TestEnvironment.isTestProcess(),
+          quiet,
+          jsonOutput,
+        );
+
+  static bool _resolveTty(ConsoleOutput output, bool silent, bool quiet, bool jsonOutput) =>
+      !silent && output.supportsAnsiEscapes && !quiet && !jsonOutput;
 
   final bool quiet;
   final bool jsonOutput;

@@ -45,6 +45,10 @@ function main() {
 
   zipFile.end();
   zipFile.outputStream
+    .on('error', (error) => {
+      console.error(error);
+      process.exit(1);
+    })
     .pipe(fs.createWriteStream(zipPath))
     .on('close', () => {
       console.log(`Packaged coverage HTML report: ${zipPath}`);

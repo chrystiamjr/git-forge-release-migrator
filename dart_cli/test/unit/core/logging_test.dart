@@ -176,6 +176,20 @@ void main() {
       expect(output.stderrLines[1], allOf(contains('"level":"error"'), contains('json error')));
     });
 
+    test('_tty is false when supportsAnsiEscapes is false', () {
+      final BufferConsoleOutput output = BufferConsoleOutput(supportsAnsiEscapes: false);
+      final ConsoleLogger logger = ConsoleLogger(
+        quiet: false,
+        jsonOutput: false,
+        output: output,
+        silent: false,
+      );
+
+      // startSpinner returns false when _tty is false (falls back to info)
+      expect(logger.startSpinner('msg'), isFalse);
+      expect(output.rawWrites, isEmpty);
+    });
+
     test('startSpinner falls back to info output when ansi is unavailable', () {
       final BufferConsoleOutput output = BufferConsoleOutput(supportsAnsiEscapes: false);
       final ConsoleLogger logger = ConsoleLogger(

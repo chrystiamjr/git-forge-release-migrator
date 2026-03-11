@@ -102,23 +102,26 @@ final class ScriptedHttpClientHelper extends HttpClientHelper {
     int retries = 3,
     Duration backoff = const Duration(milliseconds: 750),
   }) async {
-    if (onDownload != null) {
-      await onDownload!(destination);
-    }
+    final bool result;
 
     if (_downloadIndex >= downloadResponses.length) {
       if (_downloadIndex == 0 && _downloadSeed != null) {
         _downloadIndex += 1;
-        return _downloadSeed;
+        result = _downloadSeed;
+      } else if (allowUnscriptedDownload) {
+        result = true;
+      } else {
+        throw StateError('Unexpected downloadFile call for $url without scripted response.');
       }
-      if (allowUnscriptedDownload) {
-        return true;
-      }
-      throw StateError('Unexpected downloadFile call for $url without scripted response.');
+    } else {
+      result = downloadResponses[_downloadIndex];
+      _downloadIndex += 1;
     }
 
-    final bool next = downloadResponses[_downloadIndex];
-    _downloadIndex += 1;
-    return next;
+    if (result && onDownload != null) {
+      await onDownload!(destination);
+    }
+
+    return result;
   }
 }

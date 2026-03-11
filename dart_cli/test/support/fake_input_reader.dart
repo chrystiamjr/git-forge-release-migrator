@@ -8,7 +8,7 @@ final class FakeInputReader extends InputReader {
   @override
   String readLine() {
     if (_answers.isEmpty) {
-      return '';
+      throw StateError('FakeInputReader: unexpected readLine() call — queue exhausted.');
     }
 
     return _answers.removeAt(0);
