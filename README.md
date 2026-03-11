@@ -10,7 +10,7 @@ Bitbucket with idempotent retries.
 
 ## Documentation
 
-Full documentation is available at **[chrystiamjr.github.io/git-forge-release-migrator](https://chrystiamjr.github.io/git-forge-release-migrator/)**.
+Full documentation is available at **[gfrm.envolvosystems.com.br](https://gfrm.envolvosystems.com.br/)**.
 
 - Development/runtime guide: [dart_cli/README.md](dart_cli/README.md)
 
