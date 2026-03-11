@@ -316,6 +316,12 @@ If command contract, auth model, support matrix, or output artifacts change, upd
 - `docs/pt_br/USAGE.md`
 - `dart_cli/README.md`
 
+## Repository Hygiene
+
+- keep active developer tooling under `scripts/`
+- move one-off or destructive maintenance utilities under `scripts/maintenance/`
+- new scripts should be referenced by `package.json`, docs, or a workflow; otherwise they are candidates for maintenance-only placement or should not be committed
+
 ## Commit Message Conventions
 
 All commits must follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
