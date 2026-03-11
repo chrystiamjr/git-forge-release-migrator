@@ -1,6 +1,6 @@
 ---
 sidebar_position: 2
-title: Development
+title: Desenvolvimento
 ---
 
 A orientação de desenvolvimento e runtime está em [`dart_cli/README.md`](https://github.com/chrystiamjr/git-forge-release-migrator/blob/main/dart_cli/README.md).

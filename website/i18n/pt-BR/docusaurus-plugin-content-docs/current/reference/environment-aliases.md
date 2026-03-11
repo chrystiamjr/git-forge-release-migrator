@@ -1,6 +1,6 @@
 ---
 sidebar_position: 3
-title: Environment Aliases
+title: Aliases de Ambiente
 ---
 
 ## Aliases genéricos

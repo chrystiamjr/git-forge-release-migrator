@@ -1,6 +1,6 @@
 ---
 sidebar_position: 3
-title: First Migration
+title: Primeira Migração
 ---
 
 Este é o caminho mínimo útil para uma migração real.

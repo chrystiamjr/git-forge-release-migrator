@@ -1,6 +1,6 @@
 ---
 sidebar_position: 3
-title: HTTP and Runtime
+title: HTTP e Runtime
 ---
 
 As configurações HTTP avançadas vivem sob o perfil ativo.

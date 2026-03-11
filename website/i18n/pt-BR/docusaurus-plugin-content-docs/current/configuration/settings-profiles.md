@@ -1,6 +1,6 @@
 ---
 sidebar_position: 1
-title: Settings Profiles
+title: Perfis de Configuração
 ---
 
 O `gfrm` persiste a configuração dos providers em arquivos YAML e resolve um perfil ativo por execução.

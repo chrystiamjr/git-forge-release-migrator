@@ -1,6 +1,6 @@
 ---
 sidebar_position: 1
-title: Quick Start
+title: Início Rápido
 ---
 
 Comece com o binário compilado da sua plataforma, configure os tokens dos providers uma vez e execute uma migração com

@@ -1,6 +1,6 @@
 ---
 sidebar_position: 2
-title: Tokens and Auth
+title: Tokens e Autenticação
 ---
 
 ## Modelo de autenticação por provider

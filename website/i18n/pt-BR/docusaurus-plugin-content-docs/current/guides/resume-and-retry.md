@@ -1,6 +1,6 @@
 ---
 sidebar_position: 2
-title: Resume and Retry
+title: Retomar e Repetir
 ---
 
 Use `gfrm resume` sempre que uma execução for interrompida ou falhar parcialmente.

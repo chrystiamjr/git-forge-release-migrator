@@ -1,6 +1,6 @@
 ---
 sidebar_position: 3
-title: CI and Release
+title: CI e Release
 ---
 
 ## Pipelines principais

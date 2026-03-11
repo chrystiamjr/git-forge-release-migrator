@@ -1,6 +1,6 @@
 ---
 sidebar_position: 1
-title: Support Matrix
+title: Matriz de Suporte
 ---
 
 ## Pares cross-forge suportados
