@@ -120,6 +120,8 @@ fvm dart run coverage:format_coverage \
 
 The resulting `coverage/lcov.info` can be consumed by any LCOV-compatible viewer (e.g., `genhtml`, VS Code Coverage Gutters, or CI coverage services).
 
+CI enforces a minimum line coverage of **80%**. Builds fail if coverage drops below this threshold.
+
 `./scripts/smoke-test.sh` runs a local end-to-end smoke test against the compiled binary (no external forge credentials required).
 
 Husky hooks:

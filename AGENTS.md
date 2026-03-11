@@ -308,15 +308,18 @@ All commits must follow [Conventional Commits](https://www.conventionalcommits.o
 
 ### Types
 
-| Type | When to use |
-|------|-------------|
-| `feat` | New capability or behavior visible to users or downstream code |
-| `fix` | Corrects a bug or wrong behavior |
-| `test` | Adds or updates tests only (no production code change) |
-| `refactor` | Internal restructuring with no behavior change |
-| `docs` | Documentation, comments, or guide-only changes |
-| `chore` | Tooling, config, CI, dependency bumps, or housekeeping |
-| `perf` | Performance improvement with no behavior change |
+| Type | When to use | Triggers release |
+|------|-------------|-----------------|
+| `feat` | New capability or behavior visible to users or downstream code | minor |
+| `fix` | Corrects a bug or wrong behavior | patch |
+| `perf` | Performance improvement with no behavior change | patch |
+| `refactor` | Internal restructuring with no behavior change | patch |
+| `test` | Adds or updates tests only (no production code change) | patch |
+| `chore` | Tooling, config, dependency bumps, or housekeeping | patch |
+| `build` | Build system or compilation changes | patch |
+| `style` | Formatting or whitespace only | patch |
+| `docs` | Documentation, comments, or guide-only changes | **none** |
+| `ci` | CI/CD workflow or pipeline changes | **none** |
 
 ### Scopes
 
@@ -336,6 +339,7 @@ All commits must follow [Conventional Commits](https://www.conventionalcommits.o
 4. Group tightly related changes into one bullet; avoid one bullet per file.
 5. Do not add a co-author trailer unless explicitly requested.
 6. Keep the subject line free of punctuation at the end.
+7. `docs` and `ci` commits do **not** trigger a release. For a `chore` that should also not release (e.g. adding a tooling file with no product impact), append `[skip ci]` to the commit message.
 
 ### Examples
 
