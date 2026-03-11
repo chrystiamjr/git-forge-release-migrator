@@ -361,7 +361,7 @@ jobs:
     if: needs.semantic-release.outputs.new_release_published == 'true'
     steps:
       - name: Download built archives
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: release-assets
           pattern: release-asset-*
