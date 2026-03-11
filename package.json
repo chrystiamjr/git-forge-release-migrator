@@ -18,9 +18,10 @@
     "coverage:dart:text": "cd dart_cli && node ../scripts/run-dart.js test --coverage=coverage/ && node ../scripts/run-dart.js run coverage:format_coverage --in=coverage/ --out=coverage/coverage.txt --report-on=lib --pretty-print",
     "release": "semantic-release",
     "release:dry": "semantic-release --dry-run",
+    "docs:clean": "docusaurus clear website",
     "docs:dev": "docusaurus start website",
     "docs:dev:pt-BR": "docusaurus start website --locale pt-BR",
-    "docs:build": "docusaurus build website",
+    "docs:build": "docusaurus clear website && docusaurus build website",
     "docs:serve": "docusaurus serve website"
   },
   "devDependencies": {
