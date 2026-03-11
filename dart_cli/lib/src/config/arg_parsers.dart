@@ -127,10 +127,10 @@ final class CliParserCatalog {
     final ArgParser parser = _baseRuntimeFlags();
     parser.addOption('source-provider');
     parser.addOption('source-url');
-    parser.addOption('source-token', defaultsTo: '');
+    parser.addOption('source-token', defaultsTo: '', hide: true);
     parser.addOption('target-provider');
     parser.addOption('target-url');
-    parser.addOption('target-token', defaultsTo: '');
+    parser.addOption('target-token', defaultsTo: '', hide: true);
     parser.addFlag('save-session', defaultsTo: true, negatable: true);
     parser.addOption('session-file', defaultsTo: '');
     parser.addOption('session-token-mode', defaultsTo: 'env');

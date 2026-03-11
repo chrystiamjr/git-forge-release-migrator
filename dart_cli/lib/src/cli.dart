@@ -7,6 +7,7 @@ import 'core/adapters/provider_adapter.dart';
 import 'core/jsonl.dart';
 import 'core/logging.dart';
 import 'core/session_store.dart';
+import 'core/settings.dart';
 import 'migrations/engine.dart';
 import 'models/runtime_options.dart';
 import 'providers/registry.dart';
@@ -275,7 +276,9 @@ Future<int> _runDemo(
 
 Future<int> _executeMigration(
     RuntimeOptions options, ConsoleLogger logger, Directory resultsRoot, Directory runWorkdir) async {
-  final ProviderRegistry registry = ProviderRegistry.defaults();
+  final Map<String, dynamic> settingsPayload = SettingsManager.loadEffectiveSettings();
+  final HttpConfig httpConfig = SettingsManager.httpConfigFromSettings(settingsPayload, options.settingsProfile);
+  final ProviderRegistry registry = ProviderRegistry.defaults(config: httpConfig);
   final ProviderAdapter sourceAdapter = registry.get(options.sourceProvider);
   final ProviderAdapter targetAdapter = registry.get(options.targetProvider);
 

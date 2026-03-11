@@ -2,6 +2,7 @@ import 'dart:io';
 
 import '../core/checkpoint.dart';
 import '../core/concurrency.dart';
+import '../core/exceptions/authentication_error.dart';
 import '../core/files.dart';
 import '../core/jsonl.dart';
 import '../core/logging.dart';
@@ -91,6 +92,8 @@ class ReleasePhaseRunner {
           existingInfo: existingInfo,
         ),
       );
+    } on AuthenticationError {
+      rethrow;
     } catch (_) {
       return 'failed';
     }

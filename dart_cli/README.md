@@ -1,30 +1,65 @@
-# gfrm Dart CLI
+# GFRM Dart CLI
 
 Dart runtime package for `git-forge-release-migrator`.
 
-## SDK and Version Management
+## Requirements
 
-Project SDK is pinned to `3.41.0` via `.fvmrc` in repository root.
+- Flutter SDK `3.41.0` pinned via `.fvmrc` (ships Dart `3.11.0`)
+- `fvm` available for SDK management (`brew install fvm` or see [fvm.app](https://fvm.app/))
+- `yarn` available for the preferred local workflow
 
-Recommended local setup:
+## Quick Start
+
+From the repository root:
 
 ```bash
-cd ..
+yarn install
+yarn prepare
+
 fvm use 3.41.0
+yarn fvm:global
+
+yarn get:dart
+yarn lint:dart
+yarn test:dart
 ```
 
-Run Dart commands with FVM for deterministic behavior:
+If your shell `dart` is not bound to FVM globally:
 
 ```bash
-fvm dart --version
-fvm dart pub get
+fvm dart run dart_cli/bin/gfrm_dart.dart --help
+```
+
+Script reference:
+
+- `yarn install` — installs Node dependencies (semantic-release, hooks, lint tooling)
+- `yarn prepare` — sets up Husky git hooks
+- `fvm use 3.41.0` — activates the pinned Flutter/Dart SDK for the shell session
+- `yarn fvm:global` — sets the FVM version as the global `dart` binary on PATH
+- `yarn get:dart` — runs `dart pub get` inside `dart_cli/`
+- `yarn lint:dart` — formats and analyzes Dart code
+- `yarn test:dart` — runs the full Dart test suite
+
+## Project Structure
+
+```text
+dart_cli/
+├── bin/
+│   └── gfrm_dart.dart     # CLI entrypoint
+├── lib/
+│   └── src/               # Feature implementation
+├── test/
+│   ├── unit/              # Isolated function and adapter tests
+│   ├── feature/           # Command and feature-level behavior
+│   └── integration/       # End-to-end migration flows
+└── pubspec.yaml
 ```
 
 ## Entrypoints
 
 - Internal Dart package entrypoint: `dart_cli/bin/gfrm_dart.dart`
 - Public command wrapper at repository root: `bin/gfrm`
-- Public command contract is `gfrm`; `gfrm_dart.dart` is an implementation detail for package/runtime workflows.
+- Public command contract is `gfrm`; `gfrm_dart.dart` is an implementation detail.
 
 Supported public subcommands:
 
@@ -34,22 +69,19 @@ Supported public subcommands:
 - `setup`
 - `settings`
 
-## Development
+## Developer Workflow
 
 Preferred local workflow (from repository root):
 
 ```bash
-yarn install
-yarn prepare
-yarn get:dart
 yarn lint:dart
 yarn test:dart
+./scripts/smoke-test.sh
 ```
 
-Equivalent direct Dart/FVM commands:
+Equivalent direct Dart/FVM commands (from `dart_cli`):
 
 ```bash
-# from dart_cli
 cd dart_cli
 fvm dart pub get
 fvm dart format -l 120 --set-exit-if-changed bin lib test
@@ -57,9 +89,44 @@ fvm dart analyze
 fvm dart test
 ```
 
-## Test Organization
+Running specific test subsets:
 
-Tests are grouped by scope:
+```bash
+# Unit tests only
+fvm dart test test/unit
+
+# Feature tests only
+fvm dart test test/feature
+
+# Integration tests only
+fvm dart test test/integration
+
+# Single test file
+fvm dart test test/unit/some_test.dart
+```
+
+Generating a coverage report (LCOV):
+
+```bash
+cd dart_cli
+fvm dart test --coverage=coverage/
+fvm dart run coverage:format_coverage \
+  --lcov \
+  --in=coverage/ \
+  --out=coverage/lcov.info \
+  --report-on=lib
+```
+
+The resulting `coverage/lcov.info` can be consumed by any LCOV-compatible viewer (e.g., `genhtml`, VS Code Coverage Gutters, or CI coverage services).
+
+`./scripts/smoke-test.sh` runs a local end-to-end smoke test against the compiled binary (no external forge credentials required).
+
+Husky hooks:
+
+- `pre-commit`: `dart format -l 120 --set-exit-if-changed` + `dart analyze`
+- `pre-push`: `dart test`
+
+Test organization:
 
 - `test/unit/**`: granular unit tests for isolated functions and adapters
 - `test/feature/**`: command and feature-level behavior
@@ -74,10 +141,47 @@ cd dart_cli
 fvm dart compile exe bin/gfrm_dart.dart -o build/gfrm
 ```
 
-CI produces cross-platform binaries (`gfrm`) in:
+After compilation, run the binary directly:
 
-- `.github/workflows/dart-cli-build.yml`
-- macOS Intel artifact name: `gfrm-macos-intel` (binary `gfrm`)
-- macOS Apple Silicon artifact name: `gfrm-macos-silicon` (binary `gfrm`)
-- Linux artifact name: `gfrm-linux` (binary `gfrm`)
-- Windows artifact name: `gfrm-windows` (binary `gfrm.exe`)
+```bash
+./build/gfrm --help
+./build/gfrm migrate --source-provider gitlab ...
+```
+
+The compiled binary requires no Dart/FVM runtime on the target machine.
+
+## Troubleshooting
+
+**`dart` command not found after `fvm use`**
+Run `yarn fvm:global` to link the FVM-managed Dart to your PATH, or prefix commands with `fvm dart`.
+
+**Husky hooks not running**
+Run `yarn prepare` to reinstall hooks after a fresh clone or `node_modules` wipe.
+
+**Format check fails on CI but passes locally**
+Ensure your local Dart SDK matches the pinned version (`fvm use 3.41.0`). Different Dart versions may format identically-written code differently.
+
+**`pub get` fails with version conflicts**
+Delete `dart_cli/.dart_tool/` and `dart_cli/pubspec.lock`, then run `yarn get:dart` again.
+
+## Release
+
+CI/release is Dart-only and runs format/analyze/test gates.
+
+- CI: `.github/workflows/ci.yml`
+- Build artifacts workflow: `.github/workflows/dart-cli-build.yml`
+- Semantic release workflow: `.github/workflows/release.yml`
+- Semantic release config: `release.config.cjs`
+
+Release archive names:
+
+- `gfrm-macos-intel.zip`
+- `gfrm-macos-silicon.zip`
+- `gfrm-linux.zip`
+- `gfrm-windows.zip`
+- `checksums-sha256.txt` — SHA256 checksums for all zip artifacts
+
+macOS release security mode (`.github/workflows/release.yml`):
+
+- `MACOS_RELEASE_SECURITY_MODE=permissive` (default)
+- `MACOS_RELEASE_SECURITY_MODE=strict`

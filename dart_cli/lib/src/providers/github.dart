@@ -7,19 +7,23 @@ import '../core/adapters/dio_adapter.dart';
 import '../core/adapters/provider_adapter.dart';
 import '../core/checkpoint.dart';
 import '../core/concurrency.dart';
+import '../core/exceptions/authentication_error.dart';
 import '../core/exceptions/http_request_error.dart';
 import '../core/http.dart';
 import '../core/types/canonical_release.dart';
+import '../core/types/http_config.dart';
 import '../core/types/phase.dart';
 import 'provider_common.dart';
 
 class GitHubAdapter extends ProviderAdapter {
-  GitHubAdapter({HttpClientHelper? http, Dio? dio})
-      : _http = http ?? HttpClientHelper(),
-        _dio = dio ?? DioAdapter().instance;
+  GitHubAdapter({HttpClientHelper? http, Dio? dio, HttpConfig? config})
+      : _config = config ?? const HttpConfig(),
+        _http = http ?? HttpClientHelper(config: config),
+        _dio = dio ?? DioAdapter(config: config).instance;
 
   final HttpClientHelper _http;
   final Dio _dio;
+  final HttpConfig _config;
 
   @override
   String get name => 'github';
@@ -41,8 +45,8 @@ class GitHubAdapter extends ProviderAdapter {
       method: method,
       headers: _headers(token),
       jsonData: body,
-      retries: 3,
-      retryDelay: const Duration(seconds: 2),
+      retries: _config.maxRetries,
+      retryDelay: _config.retryDelay,
     );
   }
 
@@ -177,6 +181,8 @@ class GitHubAdapter extends ProviderAdapter {
       }
 
       return null;
+    } on AuthenticationError {
+      rethrow;
     } catch (_) {
       return null;
     }
@@ -187,6 +193,8 @@ class GitHubAdapter extends ProviderAdapter {
     try {
       await _apiJson(token, 'repos/${ref.resource}/git/ref/tags/$tag');
       return true;
+    } on AuthenticationError {
+      rethrow;
     } catch (_) {
       return false;
     }
@@ -334,8 +342,8 @@ class GitHubAdapter extends ProviderAdapter {
     return _http.downloadFile(
       url,
       destination,
-      retries: 3,
-      backoff: const Duration(milliseconds: 750),
+      retries: _config.maxRetries,
+      backoff: _config.retryDelay,
       headers: <String, String>{
         'Authorization': 'Bearer $token',
         'Accept': 'application/octet-stream',

@@ -55,6 +55,8 @@ class TagPhaseRunner {
   Future<bool> _targetTagExists(MigrationContext ctx, String tag) async {
     try {
       return await ctx.target.tagExists(ctx.targetRef, ctx.options.targetToken, tag);
+    } on AuthenticationError {
+      rethrow;
     } catch (_) {
       return false;
     }
@@ -148,6 +150,8 @@ class TagPhaseRunner {
         canonical,
       );
       return (canonical: canonical, commitSha: commitSha);
+    } on AuthenticationError {
+      rethrow;
     } catch (_) {
       return (canonical: canonical, commitSha: '');
     }

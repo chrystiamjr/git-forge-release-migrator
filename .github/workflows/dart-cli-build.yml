@@ -1,7 +1,9 @@
 name: Build CLI
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   build:
@@ -122,6 +124,13 @@ jobs:
         with:
           name: gfrm-${{ env.PLATFORM }}
           path: dart_cli/${{ env.OUT }}
+
+      - name: Run smoke test
+        if: runner.os != 'Windows'
+        working-directory: dart_cli
+        shell: bash
+        run: |
+          "${OUT}" --help
 
       - name: Cleanup temporary macOS keychain
         if: matrix.is_macos && env.KEYCHAIN_PATH != ''

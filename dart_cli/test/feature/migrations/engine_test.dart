@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:gfrm_dart/src/core/adapters/provider_adapter.dart';
+import 'package:gfrm_dart/src/core/exceptions/migration_phase_error.dart';
 import 'package:gfrm_dart/src/core/logging.dart';
 import 'package:gfrm_dart/src/core/types/canonical_release.dart';
 import 'package:gfrm_dart/src/migrations/engine.dart';
@@ -121,7 +122,7 @@ void main() {
           source.parseUrl(options.sourceUrl),
           target.parseUrl(options.targetUrl),
         ),
-        throwsA(isA<StateError>()),
+        throwsA(isA<MigrationPhaseError>()),
       );
 
       expect(File(logPath).parent.existsSync(), isTrue);

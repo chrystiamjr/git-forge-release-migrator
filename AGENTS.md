@@ -2,6 +2,14 @@
 
 High-signal context for coding agents working in this repository.
 
+## Quick Start
+
+1. Read `AGENTS.md` (this file) and `dart_cli/README.md` before touching code.
+2. Run `yarn lint:dart && yarn test:dart` from the repo root before submitting any change.
+3. All production code lives in `dart_cli/lib/src/`. Architecture map is below.
+4. Check "Documentation Sync Rules" if you change any user-facing behavior.
+5. Check "Known Pitfalls" and "Agent Constraints" before making structural decisions.
+
 ## Project
 
 - Name: `git-forge-release-migrator`
@@ -54,7 +62,8 @@ Important runtime behaviors:
 
 1. Tags-first order:
 - tags are migrated before releases
-- release flow expects destination tags to exist unless `--skip-tags`
+- release flow expects destination tags to exist unless `--skip-tags` is passed
+- `--skip-tags` is only valid when destination tags already exist by other means; do not use it as a general shortcut
 
 2. Semver-only release selection:
 - selection currently targets `vX.Y.Z`
@@ -167,6 +176,17 @@ Main code lives in `dart_cli/lib/src/`.
 
 Provider adapters must produce canonical release data consumed by the engine.
 
+## Safe Change Playbook
+
+1. Read impacted flow first (`config`, `engine`, provider adapter, tests).
+2. Identify all callsites and downstream consumers before changing a signature or type.
+3. Preserve behavior for unaffected provider pairs.
+4. Prefer additive/refactor-safe edits over broad rewrites.
+5. Extract logic into small, single-responsibility helpers rather than expanding existing methods.
+6. Run lint/analyze/tests before finalizing.
+7. Keep docs and tests aligned with implementation.
+8. Update `AGENTS.md` if the change affects CLI contract, invariants, or architecture.
+
 ## Engineering Rules for This Repo
 
 Apply these rules to new and modified code:
@@ -192,6 +212,24 @@ Apply these rules to new and modified code:
 5. Engine flow:
 - avoid main-flow dispatch by runtime type checks (`if (source is ...)` / `if (target is ...)`)
 - keep provider-specific rules in adapters
+
+6. Design principles:
+- follow Single Responsibility: each class/function does one thing
+- follow Open/Closed: extend behavior via new classes or abstractions, not by modifying existing ones
+- follow Liskov Substitution: subtypes must be substitutable for their base types
+- follow Interface Segregation: prefer narrow interfaces over fat ones
+- follow Dependency Inversion: depend on abstractions, not concrete implementations
+- apply DRY: extract shared logic as soon as it appears in 2+ real callsites; do not extract speculatively
+- follow Clean Architecture layer boundaries: core has no dependency on providers or CLI; providers depend only on core abstractions
+
+7. Anti-patterns to avoid:
+- no god classes (classes with unrelated responsibilities)
+- no deep nesting (max 3 levels of indentation)
+- no magic strings or numbers — use named constants
+- no premature abstraction — extract only when 2+ real callsites exist
+- no circular dependencies between layers (core ← migrations ← providers ← cli)
+- no multi-class files (one class/type per file)
+- no large files beyond complexity ceilings defined above
 
 ## Formatting and Tooling
 
@@ -237,23 +275,257 @@ Minimum coverage priorities:
 - retry generation and summary consistency
 - idempotency + failed-tags behavior
 
+Run a specific test file (inside `dart_cli`):
+
+```bash
+fvm dart test test/unit/path/to/test.dart
+```
+
 ## Documentation Sync Rules
 
 If command contract, auth model, support matrix, or output artifacts change, update all:
 
 - `README.md`
-- `README.pt-BR.md`
-- `docs/USAGE.md`
-- `docs/USAGE.pt-BR.md`
+- `docs/pt_br/README.md`
+- `docs/en_us/USAGE.md`
+- `docs/pt_br/USAGE.md`
 - `dart_cli/README.md`
 
-## Safe Change Playbook
+## Commit Message Conventions
 
-1. Read impacted flow first (`config`, `engine`, provider adapter, tests).
-2. Preserve behavior for unaffected provider pairs.
-3. Prefer additive/refactor-safe edits over broad rewrites.
-4. Run lint/analyze/tests before finalizing.
-5. Keep docs and tests aligned with implementation.
+All commits must follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
+
+### Format
+
+```
+<type>(<scope>): <short imperative summary>
+
+- Bullet describing what changed and why (not how)
+- One bullet per logical concern; group related changes under one bullet
+- Keep bullets focused: what was broken/missing, what was done, why it matters
+```
+
+### Types
+
+| Type | When to use |
+|------|-------------|
+| `feat` | New capability or behavior visible to users or downstream code |
+| `fix` | Corrects a bug or wrong behavior |
+| `test` | Adds or updates tests only (no production code change) |
+| `refactor` | Internal restructuring with no behavior change |
+| `docs` | Documentation, comments, or guide-only changes |
+| `chore` | Tooling, config, CI, dependency bumps, or housekeeping |
+| `perf` | Performance improvement with no behavior change |
+
+### Scopes
+
+| Scope | Covers |
+|-------|--------|
+| `dart` | Dart production source (`dart_cli/lib/`) |
+| `ci` | GitHub Actions workflows, quality gates, release pipeline |
+| `docs` | Markdown documentation, README, AGENTS, CHANGELOG |
+| `deps` | Dependency updates (`pubspec.yaml`, lock files, Dependabot) |
+| `release` | Semantic-release config, changelog generation, versioning |
+
+### Rules
+
+1. Use imperative mood in the summary line: "add retry logic", not "added" or "adds".
+2. Summary line must be 72 characters or fewer.
+3. Each bullet must describe **what** changed and **why**, not the implementation detail.
+4. Group tightly related changes into one bullet; avoid one bullet per file.
+5. Do not add a co-author trailer unless explicitly requested.
+6. Keep the subject line free of punctuation at the end.
+
+### Examples
+
+```
+feat(dart): improve HTTP resilience and diagnostic logging
+
+- Apply exponential backoff to requestJson() using existing helper
+- Add 1-retry with 500ms delay to requestStatus() before returning 0
+- Surface diagnostic warnings for corrupt checkpoint and malformed settings
+```
+
+```
+test(dart): add unit and integration tests for migration pipeline
+
+- Add 12 unit tests for TagPhaseRunner covering dry-run, auth errors, and checkpoints
+- Add 11 unit tests for ReleasePhaseRunner covering publish, skip, and concurrent workers
+- Add 5 integration tests for MigrationEngine covering full and failure flows
+```
+
+```
+fix(dart): rethrow AuthenticationError from tag phase without wrapping
+
+- MigrationPhaseError was incorrectly catching AuthenticationError
+- Auth failures must propagate immediately so callers can surface them to the user
+```
+
+---
+
+## Handling PR Review Comments
+
+When asked to address review comments on an open PR, follow these steps in order.
+
+### 1. Fetch all inline comments
+
+```bash
+GH_TOKEN=${GH_PERSONAL_TOKEN:-$GH_TOKEN} gh api \
+  repos/<owner>/<repo>/pulls/<pr_number>/comments
+```
+
+Read each comment carefully and classify it before touching code:
+
+| Class | Action |
+|-------|--------|
+| **Clear bug / correct suggestion** | Fix the code, then reply with what was changed and why. |
+| **Style / naming preference** | Apply if it aligns with engineering rules in this file; reply confirming. |
+| **Breaking change** | Do NOT apply in the same PR. Reply explaining the trade-off and state that it will be tracked as a follow-up issue. |
+| **Pre-existing issue flagged by the review** | Reply acknowledging the concern, explain what this PR already does to mitigate it (if anything), and propose a follow-up. |
+
+### 2. Apply code fixes
+
+Make all applicable fixes. Run lint and tests before committing:
+
+```bash
+yarn lint:dart && yarn test:dart
+```
+
+### 3. Commit and push
+
+Use a single commit that references the review:
+
+```
+fix: address PR review comments
+
+- <one bullet per fix, explaining what was wrong and what was changed>
+```
+
+Push to the same branch — the open PR picks it up automatically:
+
+```bash
+git push origin <branch>
+```
+
+### 4. Reply to each comment individually
+
+Use the GitHub API to reply inline (not as a top-level PR comment):
+
+```bash
+GH_TOKEN=${GH_PERSONAL_TOKEN:-$GH_TOKEN} gh api \
+  repos/<owner>/<repo>/pulls/<pr_number>/comments/<comment_id>/replies \
+  -f body="<your reply>"
+```
+
+Reply guidelines:
+- For **fixed** comments: confirm what was changed and in which commit.
+- For **deferred** comments: acknowledge the concern, explain why it is not addressed in this PR, and state the next step (follow-up issue, separate PR, etc.).
+- Keep replies factual and concise. Do not repeat the original comment — go straight to the resolution.
+
+### 5. Resolve all threads
+
+Get the GraphQL thread IDs:
+
+```bash
+GH_TOKEN=${GH_PERSONAL_TOKEN:-$GH_TOKEN} gh api graphql -f query='
+{
+  repository(owner: "<owner>", name: "<repo>") {
+    pullRequest(number: <pr_number>) {
+      reviewThreads(first: 20) {
+        nodes {
+          id
+          isResolved
+          comments(first: 1) { nodes { databaseId } }
+        }
+      }
+    }
+  }
+}'
+```
+
+Resolve each thread (replace `<thread_id>` with the `id` from the query above):
+
+```bash
+GH_TOKEN=${GH_PERSONAL_TOKEN:-$GH_TOKEN} gh api graphql -f query="
+  mutation {
+    resolveReviewThread(input: { threadId: \"<thread_id>\" }) {
+      thread { id isResolved }
+    }
+  }"
+```
+
+---
+
+## Pull Request Template
+
+Use this structure for every PR opened against `main`. All sections except "Additional Notes" are required.
+
+```markdown
+## Summary
+
+<!-- One to three sentences: what this PR does and why it exists. -->
+
+## Context
+
+<!-- What was the state before this PR?
+     Why is this change needed now?
+     Link related issues, tickets, or previous PRs if relevant. -->
+
+## What Changed
+
+<!-- Bullet list of the logical changes grouped by concern.
+     Focus on behavior and structure, not file names.
+     Each bullet should be readable without opening the diff. -->
+
+- **<Area or component>:** <description of change and rationale>
+
+## Why It Matters
+
+<!-- What problem does this solve?
+     What risk does it remove?
+     What capability does it add?
+     Keep it concrete — avoid vague statements like "improves quality". -->
+
+## Expected Results
+
+<!-- What should reviewers verify?
+     Include test commands, expected output, or behavioral checkpoints. -->
+
+```bash
+# Run tests
+yarn test:dart
+
+# Example output
+All tests passed.
+```
+
+## Additional Notes
+
+<!-- Optional. Use for:
+     - Known limitations or follow-up work
+     - Risky areas reviewers should pay extra attention to
+     - Migration or deployment notes
+     - Anything that doesn't fit above -->
+```
+
+---
+
+## Known Pitfalls
+
+- Do not call provider APIs directly from `engine.dart` — use provider adapters.
+- Do not add runtime type dispatch (`if (source is X)` / `if (target is X)`) in engine flow — keep it in adapters.
+- Bitbucket downloads and `.gfrm-release-<tag>.json` are part of the same atomic synthetic release — always treat them together.
+- `summary.json` schema version must stay at `2` unless an explicit versioning decision is made.
+- Missing Bitbucket manifest on a source tag must not cause a hard failure — this is a legacy compatibility rule.
+- Never log raw tokens anywhere in the codebase.
+
+## Agent Constraints
+
+- Do not introduce new top-level CLI commands without updating the CLI Contract section in this file.
+- Do not change token precedence order without updating both code and all documentation files listed in "Documentation Sync Rules".
+- Do not bypass or weaken the `--skip-tags` safety check in release phase logic.
+- Do not expand release selection beyond semver (`vX.Y.Z`) — this is an explicit non-goal for the current phase.
+- Do not add Bitbucket Data Center / Server support — out of scope.
 
 ## Non-Goals (Current Phase)
 

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import '../core/adapters/provider_adapter.dart';
 import '../core/checkpoint.dart';
+import '../core/exceptions/migration_phase_error.dart';
 import '../core/files.dart';
 import '../core/logging.dart';
 import '../core/types/phase.dart';
@@ -49,7 +50,7 @@ class MigrationEngine {
     List<String> selectedTags = SelectionService.collectSelectedTags(releases, options.fromTag, options.toTag);
     selectedTags = SelectionService.applyTagsFilter(selectedTags, options.tagsFile);
     if (selectedTags.isEmpty) {
-      throw StateError('No releases found in selected range');
+      throw MigrationPhaseError('No releases found in selected range');
     }
 
     if (options.fromTag.isNotEmpty || options.toTag.isNotEmpty) {
@@ -97,7 +98,7 @@ class MigrationEngine {
     );
 
     if (tagCounts.failed > 0 || releaseCounts.failed > 0) {
-      throw StateError('Migration finished with failures');
+      throw MigrationPhaseError('Migration finished with failures');
     }
   }
 }

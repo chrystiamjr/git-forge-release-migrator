@@ -1,20 +1,51 @@
 # Git Forge Release Migrator (gfrm)
 
-[![License](https://img.shields.io/badge/license-MIT-green)](#)
+[![License](https://img.shields.io/badge/license-MIT-green)](docs/LICENSE)
 [![Release](https://img.shields.io/badge/release-semantic--release-informational)](./release.config.cjs)
-[![Dart SDK](https://img.shields.io/badge/Dart%20SDK-3.41.0-0175C2?logo=dart&logoColor=white)](https://dart.dev/)
+[![Flutter SDK](https://img.shields.io/badge/Flutter%20SDK-3.41.0-02569B?logo=flutter&logoColor=white)](https://flutter.dev/)
+[![Dart SDK](https://img.shields.io/badge/Dart%20SDK-3.11.0-0175C2?logo=dart&logoColor=white)](https://dart.dev/)
 
-`gfrm` is a Dart CLI to migrate **tags + releases + release notes + assets** between Git forges.
+`gfrm` is a resilient cross-forge CLI that migrates **tags, releases, notes, and assets** across GitHub, GitLab, and
+Bitbucket with idempotent retries.
 
-The mainline runtime is now **100% Dart**. Python runtime and Python tests were removed from the default execution path.
+## How it Works
+
+`gfrm` migrates **tags first**, then **releases** (idempotent, checkpoint-based). Each run writes a timestamped artifact
+directory with a log, a summary, and a list of failed tags. Interrupted runs can be resumed with `gfrm resume` —
+completed items are skipped automatically.
+
+## Quick Start
+
+1. Download the artifact for your OS from the [releases page](/releases).
+2. Unzip and make executable (macOS/Linux: `chmod +x ./gfrm`).
+3. Bootstrap your settings once:
+   ```bash
+   ./gfrm setup
+   ```
+4. Run your first migration:
+   ```bash
+   ./gfrm migrate \
+     --source-provider gitlab \
+     --source-url "https://gitlab.com/group/project" \
+     --target-provider github \
+     --target-url "https://github.com/org/repo"
+   ```
+5. If the run is interrupted, resume with:
+   ```bash
+   ./gfrm resume
+   ```
 
 ## Documentation
 
-- Full CLI reference (EN): [docs/USAGE.md](docs/USAGE.md)
-- Full CLI reference (PT-BR): [docs/USAGE.pt-BR.md](docs/USAGE.pt-BR.md)
-- README in Portuguese: [README.pt-BR.md](README.pt-BR.md)
-- Dart runtime/package guide: [dart_cli/README.md](dart_cli/README.md)
-- Agent context for contributors: [AGENTS.md](AGENTS.md)
+For usage details and documentation in other languages, use the docs under [/docs](docs) with your desired language
+folder.
+
+- English docs: [docs/en_us](docs/en_us)
+- Portuguese docs: [docs/pt_br](docs/pt_br)
+- Development/runtime guide: [dart_cli/README.md](dart_cli/README.md)
+
+> The Dart SDK is managed via [FVM](https://fvm.app/) (`3.41.0` / Dart `3.11.0`). FVM also sets the stage for an
+> upcoming Flutter UI application.
 
 ## Support Matrix
 
@@ -32,38 +63,67 @@ Not supported in this phase:
 - same-provider migrations (`github->github`, `gitlab->gitlab`, `bitbucket->bitbucket`)
 - Bitbucket Data Center / Server
 
-## Requirements
+## Running The Compiled CLI
 
-- SDK pinned to `3.41.0` via `.fvmrc`
-- `fvm` available for SDK management
-- Valid tokens for source/target providers
+Release assets:
 
-## Quick Start
+- `gfrm-macos-intel.zip`
+- `gfrm-macos-silicon.zip`
+- `gfrm-linux.zip`
+- `gfrm-windows.zip`
+- `checksums-sha256.txt` — SHA256 checksums for all zip artifacts
 
-```bash
-# 1) Install local tooling and hooks
-yarn install
-yarn prepare
+`gfrm` compiled binaries run on clean machines without Dart/FVM/Node/Yarn.
 
-# 2) Activate project SDK via FVM
-fvm use 3.41.0
-
-# 3) Install Dart dependencies (yarn-first)
-yarn get:dart
-
-# 4) Run local checks (yarn-first workflow)
-yarn lint:dart
-yarn test:dart
-
-# 5) Show CLI help
-./bin/gfrm --help
-```
-
-If your shell `dart` is not bound to FVM globally, run directly with:
+To verify integrity before running:
 
 ```bash
-fvm dart run dart_cli/bin/gfrm_dart.dart --help
+# macOS / Linux
+sha256sum --check checksums-sha256.txt
+
+# macOS (shasum)
+shasum -a 256 --check checksums-sha256.txt
 ```
+
+macOS (Intel):
+
+```bash
+unzip gfrm-macos-intel.zip -d ./gfrm-macos-intel
+cd ./gfrm-macos-intel
+chmod +x ./gfrm
+./gfrm --help
+```
+
+macOS (Apple Silicon):
+
+```bash
+unzip gfrm-macos-silicon.zip -d ./gfrm-macos-silicon
+cd ./gfrm-macos-silicon
+chmod +x ./gfrm
+./gfrm --help
+```
+
+Linux:
+
+```bash
+unzip gfrm-linux.zip -d ./gfrm-linux
+cd ./gfrm-linux
+chmod +x ./gfrm
+./gfrm --help
+```
+
+Windows (PowerShell):
+
+```powershell
+Expand-Archive .\gfrm-windows.zip -DestinationPath .\gfrm-windows
+.\gfrm-windows\gfrm.exe --help
+```
+
+Notes:
+
+- macOS: choose `intel` or `silicon` artifact based on machine type.
+- macOS troubleshooting fallback: `xattr -d com.apple.quarantine ./gfrm`.
+- In `MACOS_RELEASE_SECURITY_MODE=strict`, release jobs fail when signing/notarization is not completed.
 
 ## Command Overview
 
@@ -73,44 +133,16 @@ fvm dart run dart_cli/bin/gfrm_dart.dart --help
 - `gfrm setup`: interactive bootstrap for settings profile
 - `gfrm settings`: token/profile settings management
 
-## Migration Examples
-
-Run migration with explicit tokens:
-
-```bash
-./bin/gfrm migrate \
-  --source-provider gitlab \
-  --source-url "https://gitlab.com/group/project" \
-  --source-token "<gitlab_token>" \
-  --target-provider github \
-  --target-url "https://github.com/org/repo" \
-  --target-token "<github_token>" \
-  --from-tag v1.0.0 \
-  --to-tag v2.0.0
-```
-
-Resume from session (default file is `./sessions/last-session.json` when omitted):
-
-```bash
-./bin/gfrm resume --session-file ./sessions/last-session.json
-```
-
-Bootstrap settings when starting from zero:
-
-```bash
-./bin/gfrm setup
-```
-
 ## Settings Profiles
 
 Settings commands:
 
 ```bash
-./bin/gfrm settings init [--profile <name>] [--local] [--yes]
-./bin/gfrm settings set-token-env --provider <github|gitlab|bitbucket> --env-name <ENV_NAME> [--profile <name>] [--local]
-./bin/gfrm settings set-token-plain --provider <github|gitlab|bitbucket> [--token <value>] [--profile <name>] [--local]
-./bin/gfrm settings unset-token --provider <github|gitlab|bitbucket> [--profile <name>] [--local]
-./bin/gfrm settings show [--profile <name>]
+gfrm settings init [--profile <name>] [--local] [--yes]
+gfrm settings set-token-env --provider <github|gitlab|bitbucket> --env-name <ENV_NAME> [--profile <name>] [--local]
+gfrm settings set-token-plain --provider <github|gitlab|bitbucket> [--token <value>] [--profile <name>] [--local]
+gfrm settings unset-token --provider <github|gitlab|bitbucket> [--profile <name>] [--local]
+gfrm settings show [--profile <name>]
 ```
 
 Settings files:
@@ -124,12 +156,52 @@ Profile resolution order:
 2. `defaults.profile` in settings
 3. `default`
 
-Token resolution order (`migrate` and `resume`):
+Default token resolution order:
 
-1. explicit CLI token (`--source-token`/`--target-token`)
-2. session token context (resume)
-3. settings provider token (`token_env`, then `token_plain`)
-4. env aliases (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, provider aliases)
+1. `migrate` and `resume`: `--source-token` / `--target-token` CLI flags (hidden, legacy — highest precedence when provided)
+2. `migrate`: settings provider token (`token_env`, then `token_plain`)
+3. `migrate`: env aliases (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, provider aliases)
+4. `resume`: session token context
+5. `resume`: settings provider token (`token_env`, then `token_plain`)
+6. `resume`: env aliases (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, provider aliases)
+
+## Migration Examples
+
+Bootstrap settings when starting from zero:
+
+```bash
+gfrm setup
+```
+
+Run migration with configured settings profile:
+
+```bash
+gfrm migrate \
+  --source-provider gitlab \
+  --source-url "https://gitlab.com/group/project" \
+  --target-provider github \
+  --target-url "https://github.com/org/repo" \
+  --settings-profile default \
+  --from-tag v1.0.0 \
+  --to-tag v2.0.0
+```
+
+Dry-run (validate and simulate without writing to the target):
+
+```bash
+gfrm migrate \
+  --source-provider gitlab \
+  --source-url "https://gitlab.com/group/project" \
+  --target-provider github \
+  --target-url "https://github.com/org/repo" \
+  --dry-run
+```
+
+Resume from session (default file is `./sessions/last-session.json` when omitted):
+
+```bash
+gfrm resume --session-file ./sessions/last-session.json
+```
 
 ## Artifacts and Retry
 
@@ -147,53 +219,20 @@ Artifacts:
 
 When failures exist, `summary.json` includes `retry_command` using `gfrm resume`.
 
-## Developer Workflow
+## Diagnostic Warnings
 
-```bash
-# local quality gates (recommended)
-yarn lint:dart
-yarn test:dart
+`gfrm` writes warnings to `stderr` in two situations without interrupting the migration:
 
-# optional smoke flow
-./scripts/smoke-test.sh
+- **Corrupt checkpoint entry** — if a `.jsonl` checkpoint line cannot be parsed, a warning is printed and that entry is skipped. Remaining entries are still loaded.
+- **Malformed settings file** — if a `settings.yaml` file fails YAML parsing, `gfrm` retries as JSON and warns. If both fail, defaults are used.
+
+In both cases the warning format is:
+
+```
+[gfrm] warning: <description>
 ```
 
-Direct Dart commands are supported, but prefer `yarn` scripts for day-to-day local development.
+## Exit Codes
 
-Husky hooks:
-
-- `pre-commit`: `dart format -l 120 --set-exit-if-changed` + `dart analyze`
-- `pre-push`: `dart test`
-
-Test organization:
-
-- `dart_cli/test/unit/**`
-- `dart_cli/test/feature/**`
-- `dart_cli/test/integration/**`
-
-## Release
-
-CI/release is Dart-only and runs format/analyze/test gates.
-
-- CI: [.github/workflows/ci.yml](.github/workflows/ci.yml)
-- Build artifacts (`gfrm` for macOS/Linux/Windows): [.github/workflows/dart-cli-build.yml](.github/workflows/dart-cli-build.yml)
-- Semantic release: [.github/workflows/release.yml](.github/workflows/release.yml)
-
-Build artifact names:
-
-- `gfrm-macos-intel.zip` containing binary `gfrm` (Intel Macs)
-- `gfrm-macos-silicon.zip` containing binary `gfrm` (Apple Silicon Macs)
-- `gfrm-linux.zip` containing binary `gfrm`
-- `gfrm-windows.zip` containing binary `gfrm.exe`
-
-Platform first-run notes:
-
-- macOS: choose `intel` or `silicon` artifact based on machine type; releases are designed for signed/notarized delivery
-- macOS troubleshooting fallback: if Gatekeeper still blocks execution, run `xattr -d com.apple.quarantine ./gfrm`
-- Linux: ensure executable bit is set with `chmod +x ./gfrm`
-- Windows: unsigned binaries can trigger SmartScreen warnings until code signing is configured
-
-macOS release security mode:
-
-- `MACOS_RELEASE_SECURITY_MODE=permissive` (default): release continues when Apple signing/notarization secrets are missing
-- `MACOS_RELEASE_SECURITY_MODE=strict`: macOS release jobs fail when signing/notarization credentials are missing or notarization fails
+- `0`: successful run (all items migrated or previously completed)
+- non-zero: validation or operational failure (check `summary.json` and `failed-tags.txt`)
