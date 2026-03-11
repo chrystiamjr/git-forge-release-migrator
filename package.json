@@ -8,7 +8,7 @@
     "get:dart": "fvm dart pub get",
     "get:flutter": "fvm flutter pub get",
     "prepare": "husky",
-    "lint:dart": "cd dart_cli && node ../scripts/run-dart.js format -l 120 --set-exit-if-changed bin lib test && node ../scripts/run-dart.js analyze",
+    "lint:dart": "cd dart_cli && node ../scripts/run-dart.js format -l 120 --set-exit-if-changed bin lib test && node ../scripts/run-dart.js analyze --fatal-infos",
     "test:dart": "cd dart_cli && node ../scripts/run-dart.js test",
     "release": "semantic-release",
     "release:dry": "semantic-release --dry-run"

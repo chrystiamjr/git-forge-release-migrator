@@ -124,7 +124,7 @@ The resulting `coverage/lcov.info` can be consumed by any LCOV-compatible viewer
 
 Husky hooks:
 
-- `pre-commit`: `dart format -l 120 --set-exit-if-changed` + `dart analyze`
+- `pre-commit`: `dart format -l 120 --set-exit-if-changed` + `dart analyze --fatal-infos`
 - `pre-push`: `dart test`
 
 Test organization:

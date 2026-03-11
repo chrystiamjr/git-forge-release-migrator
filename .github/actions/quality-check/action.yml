@@ -12,7 +12,7 @@ runs:
     - name: Static analysis
       shell: bash
       working-directory: dart_cli
-      run: dart analyze
+      run: dart analyze --fatal-infos
 
     - name: Run tests with coverage
       shell: bash
@@ -23,6 +23,22 @@ runs:
       shell: bash
       working-directory: dart_cli
       run: dart run coverage:format_coverage --lcov --in=coverage/ --out=coverage/lcov.info --report-on=lib
+
+    - name: Enforce coverage threshold
+      shell: bash
+      working-directory: dart_cli
+      run: |
+        set -euo pipefail
+        LCOV="coverage/lcov.info"
+        TOTAL=$(grep -c "^DA:" "$LCOV")
+        COVERED=$(grep -cP "^DA:[0-9]+,[^0]" "$LCOV")
+        PCT=$(( COVERED * 100 / TOTAL ))
+        MIN=80
+        echo "Coverage: ${PCT}% (${COVERED}/${TOTAL} lines, minimum ${MIN}%)"
+        if [ "$PCT" -lt "$MIN" ]; then
+          echo "::error::Coverage ${PCT}% is below the minimum threshold of ${MIN}%"
+          exit 1
+        fi
 
     - name: Upload coverage report
       uses: actions/upload-artifact@v4
