@@ -1,3 +1,10 @@
+## [0.4.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.3.2...v0.4.0) (2026-03-11)
+
+### Features
+
+* **docs:** configure custom domain gfrm.envolvosystems.com.br ([f705248](https://github.com/chrystiamjr/git-forge-release-migrator/commit/f705248ebf237318457fafa8dce5fcac3b9ef3e9))
+* **docs:** launch Docusaurus 3 website at gfrm.envolvosystems.com.br ([6ca0ba5](https://github.com/chrystiamjr/git-forge-release-migrator/commit/6ca0ba56a4e2461ec291117b62ea7e8d5c920252))
+
 ## [0.3.2](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.3.1...v0.3.2) (2026-03-11)
 
 ### Bug Fixes
