@@ -6,6 +6,7 @@ Dart runtime package for `git-forge-release-migrator`.
 
 - Flutter SDK `3.41.0` pinned via `.fvmrc` (ships Dart `3.11.0`)
 - `fvm` available for SDK management (`brew install fvm` or see [fvm.app](https://fvm.app/))
+- Node.js `20` pinned via `.nvmrc` (used by semantic-release and yarn tooling)
 - `yarn` available for the preferred local workflow
 
 ## Quick Start

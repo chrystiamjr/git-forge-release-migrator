@@ -234,7 +234,8 @@ Apply these rules to new and modified code:
 ## Formatting and Tooling
 
 - line width: `120`
-- project SDK pinned by `.fvmrc` (`3.41.0`)
+- Dart/Flutter SDK pinned by `.fvmrc` (`3.41.0`)
+- Node.js version pinned by `.nvmrc` (`20`) — use `nvm use` or match it manually
 - use Husky hooks for local quality gates
 
 Primary local commands (from repo root):
