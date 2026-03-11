@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="website/static/img/logo-dark.svg">
-    <img alt="gfrm logo" src="website/static/img/logo.svg" height="48">
+    <img alt="gfrm logo" src="website/static/img/logo.svg" height="150">
   </picture>
 </p>
 
@@ -23,7 +23,8 @@ Full documentation is available at **[gfrm.envolvosystems.com.br](https://gfrm.e
 
 ## Quick Start
 
-1. Download the artifact for your OS from [GitHub Releases](https://github.com/chrystiamjr/git-forge-release-migrator/releases).
+1. Download the artifact for your OS
+   from [GitHub Releases](https://github.com/chrystiamjr/git-forge-release-migrator/releases).
 2. Extract the archive and run `./gfrm --help` (or `./gfrm.exe --help` on Windows).
 3. Configure tokens once with `./gfrm setup`.
 4. Run a migration with explicit source and target URLs.
