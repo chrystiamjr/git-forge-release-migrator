@@ -168,8 +168,8 @@ Delete `dart_cli/.dart_tool/` and `dart_cli/pubspec.lock`, then run `yarn get:da
 
 CI/release is Dart-only and runs format/analyze/test gates.
 
-- CI: `.github/workflows/ci.yml`
-- Build artifacts workflow: `.github/workflows/dart-cli-build.yml`
+- CI: `.github/workflows/quality-checks.yml`
+- Build artifacts workflow: `.github/workflows/release.yml` (job `build-release-assets`)
 - Semantic release workflow: `.github/workflows/release.yml`
 - Semantic release config: `release.config.cjs`
 
