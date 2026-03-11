@@ -40,3 +40,6 @@ node_modules/
 
 # Python tooling relics
 .ruff_cache/
+
+# Docusaurus website
+website/.docusaurus/

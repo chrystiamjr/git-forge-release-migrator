@@ -1,0 +1,62 @@
+{
+  "link.title.Start Here": {
+    "message": "Comece Aqui",
+    "description": "Footer column title"
+  },
+  "link.title.Commands": {
+    "message": "Comandos",
+    "description": "Footer column title"
+  },
+  "link.title.Project": {
+    "message": "Projeto",
+    "description": "Footer column title"
+  },
+  "link.item.label.Overview": {
+    "message": "Visão Geral",
+    "description": "Footer link label"
+  },
+  "link.item.label.Quick Start": {
+    "message": "Quick Start",
+    "description": "Footer link label"
+  },
+  "link.item.label.Install and Verify": {
+    "message": "Instalar e Validar",
+    "description": "Footer link label"
+  },
+  "link.item.label.migrate": {
+    "message": "migrate",
+    "description": "Footer link label"
+  },
+  "link.item.label.resume": {
+    "message": "resume",
+    "description": "Footer link label"
+  },
+  "link.item.label.setup": {
+    "message": "setup",
+    "description": "Footer link label"
+  },
+  "link.item.label.settings": {
+    "message": "settings",
+    "description": "Footer link label"
+  },
+  "link.item.label.Development": {
+    "message": "Desenvolvimento",
+    "description": "Footer link label"
+  },
+  "link.item.label.Changelog": {
+    "message": "Changelog",
+    "description": "Footer link label"
+  },
+  "link.item.label.GitHub": {
+    "message": "GitHub",
+    "description": "Footer link label"
+  },
+  "link.item.label.Releases": {
+    "message": "Releases",
+    "description": "Footer link label"
+  },
+  "copyright": {
+    "message": "Copyright © {year} Git Forge Release Migrator. Feito com Docusaurus.",
+    "description": "Footer copyright"
+  }
+}

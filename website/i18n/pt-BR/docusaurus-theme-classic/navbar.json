@@ -1,0 +1,18 @@
+{
+  "title": {
+    "message": "gfrm",
+    "description": "Navbar title"
+  },
+  "item.label.Docs": {
+    "message": "Docs",
+    "description": "Navbar docs label"
+  },
+  "item.label.Releases": {
+    "message": "Releases",
+    "description": "Navbar releases label"
+  },
+  "item.label.GitHub": {
+    "message": "GitHub",
+    "description": "Navbar GitHub label"
+  }
+}

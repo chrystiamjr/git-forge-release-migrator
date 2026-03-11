@@ -1,0 +1,64 @@
+---
+sidebar_position: 1
+title: migrate
+---
+
+Start a migration from explicit source and target parameters.
+
+## Syntax
+
+```bash
+gfrm migrate \
+  --source-provider <github|gitlab|bitbucket> \
+  --source-url <url> \
+  --target-provider <github|gitlab|bitbucket> \
+  --target-url <url> \
+  [options]
+```
+
+## Required flags
+
+- `--source-provider`
+- `--source-url`
+- `--target-provider`
+- `--target-url`
+
+## Main options
+
+- `--settings-profile <name>`
+- `--skip-tags`
+- `--from-tag <tag>`
+- `--to-tag <tag>`
+- `--dry-run`
+- `--download-workers <1..16>`
+- `--release-workers <1..8>`
+- `--workdir <dir>`
+- `--session-file <path>`
+- `--no-banner`
+- `--quiet`
+- `--json`
+
+## Validation rules
+
+- source and target providers must differ
+- `--download-workers` must be `1..16`
+- `--release-workers` must be `1..8`
+- if both `--from-tag` and `--to-tag` are present, the semver order must be valid
+
+## Token sources
+
+1. Settings token (`token_env`, then `token_plain`)
+2. Environment aliases (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, provider aliases)
+
+## Example
+
+```bash
+gfrm migrate \
+  --source-provider gitlab \
+  --source-url "https://gitlab.com/group/project" \
+  --target-provider github \
+  --target-url "https://github.com/org/repo" \
+  --settings-profile default \
+  --from-tag v1.0.0 \
+  --to-tag v2.0.0
+```

@@ -308,13 +308,18 @@ fvm dart test test/unit/path/to/test.dart
 
 ## Documentation Sync Rules
 
-If command contract, auth model, support matrix, or output artifacts change, update all:
+`website/` is the source of truth for public documentation. If command contract, auth model, support matrix, or output artifacts change, update:
 
+- `website/docs/**`
+- `website/i18n/pt-BR/docusaurus-plugin-content-docs/current/**`
 - `README.md`
-- `docs/pt_br/README.md`
-- `docs/en_us/USAGE.md`
-- `docs/pt_br/USAGE.md`
-- `dart_cli/README.md`
+- `dart_cli/README.md` when development/runtime behavior changes
+
+## Public Documentation
+
+- `website/` is the primary source of truth for public docs
+- `README.md` and `dart_cli/README.md` outside `website/` should stay short and point back to the site
+- `dart_cli/README.md` remains the development/runtime guide, not the public product manual
 
 ## Repository Hygiene
 

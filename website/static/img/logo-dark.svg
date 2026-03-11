@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 115 48">
+    <g fill="none" stroke="#818cf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+
+        <!-- Left forge node -->
+        <rect x="8" y="22" width="8" height="8" rx="2"/>
+
+        <!-- Right forge node -->
+        <rect x="28" y="10" width="8" height="8" rx="2"/>
+
+        <!-- Git branch point -->
+        <circle cx="20" cy="24" r="2.2" fill="#818cf8" stroke="none"/>
+
+        <!-- Branch lines -->
+        <path d="M16 26H20"/>
+        <path d="M20 24V16"/>
+        <path d="M20 16H28"/>
+
+        <!-- Migration arrow -->
+        <path d="M16 26H27"/>
+        <path d="M24 23L27 26L24 29"/>
+
+    </g>
+
+    <!-- Wordmark -->
+    <text
+            x="54"
+            y="32"
+            font-family="Inter, Segoe UI, Arial, sans-serif"
+            font-size="24"
+            font-weight="700"
+            fill="#818cf8"
+            letter-spacing="0.5"
+    >
+        gfrm
+    </text>
+</svg>

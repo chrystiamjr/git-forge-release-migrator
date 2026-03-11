@@ -2,6 +2,9 @@
   "name": "git-forge-release-migrator",
   "private": true,
   "description": "Release automation tooling for git-forge-release-migrator",
+  "workspaces": [
+    "website"
+  ],
   "scripts": {
     "cm": "git cz",
     "fvm:global": "node scripts/fvm-global.js",
@@ -14,18 +17,35 @@
     "coverage:dart:html": "cd dart_cli && node ../scripts/run-dart.js run coverde --update-check disabled report --input coverage/lcov.info --output coverage/html",
     "coverage:dart:text": "cd dart_cli && node ../scripts/run-dart.js test --coverage=coverage/ && node ../scripts/run-dart.js run coverage:format_coverage --in=coverage/ --out=coverage/coverage.txt --report-on=lib --pretty-print",
     "release": "semantic-release",
-    "release:dry": "semantic-release --dry-run"
+    "release:dry": "semantic-release --dry-run",
+    "docs:dev": "docusaurus start website",
+    "docs:dev:pt-BR": "docusaurus start website --locale pt-BR",
+    "docs:build": "docusaurus build website",
+    "docs:serve": "docusaurus serve website"
   },
   "devDependencies": {
+    "@docusaurus/core": "^3.7.0",
+    "@docusaurus/module-type-aliases": "^3.7.0",
+    "@docusaurus/preset-classic": "^3.7.0",
+    "@docusaurus/tsconfig": "^3.7.0",
+    "@docusaurus/types": "^3.7.0",
+    "@mdx-js/react": "^3.0.0",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^13.0.1",
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^12.0.6",
     "@semantic-release/release-notes-generator": "^14.1.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "clsx": "^2.0.0",
     "commitizen": "^4.3.1",
     "conventional-changelog-conventionalcommits": "^9.3.0",
     "husky": "^9.1.7",
+    "prism-react-renderer": "^2.3.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
     "semantic-release": "^25.0.3",
+    "typescript": "~5.4.0",
     "yazl": "^3.3.1"
   },
   "engines": {
