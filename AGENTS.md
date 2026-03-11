@@ -363,6 +363,99 @@ fix(dart): rethrow AuthenticationError from tag phase without wrapping
 
 ---
 
+## Handling PR Review Comments
+
+When asked to address review comments on an open PR, follow these steps in order.
+
+### 1. Fetch all inline comments
+
+```bash
+GH_TOKEN=${GH_PERSONAL_TOKEN:-$GH_TOKEN} gh api \
+  repos/<owner>/<repo>/pulls/<pr_number>/comments
+```
+
+Read each comment carefully and classify it before touching code:
+
+| Class | Action |
+|-------|--------|
+| **Clear bug / correct suggestion** | Fix the code, then reply with what was changed and why. |
+| **Style / naming preference** | Apply if it aligns with engineering rules in this file; reply confirming. |
+| **Breaking change** | Do NOT apply in the same PR. Reply explaining the trade-off and state that it will be tracked as a follow-up issue. |
+| **Pre-existing issue flagged by the review** | Reply acknowledging the concern, explain what this PR already does to mitigate it (if anything), and propose a follow-up. |
+
+### 2. Apply code fixes
+
+Make all applicable fixes. Run lint and tests before committing:
+
+```bash
+yarn lint:dart && yarn test:dart
+```
+
+### 3. Commit and push
+
+Use a single commit that references the review:
+
+```
+fix: address PR review comments
+
+- <one bullet per fix, explaining what was wrong and what was changed>
+```
+
+Push to the same branch — the open PR picks it up automatically:
+
+```bash
+git push origin <branch>
+```
+
+### 4. Reply to each comment individually
+
+Use the GitHub API to reply inline (not as a top-level PR comment):
+
+```bash
+GH_TOKEN=${GH_PERSONAL_TOKEN:-$GH_TOKEN} gh api \
+  repos/<owner>/<repo>/pulls/<pr_number>/comments/<comment_id>/replies \
+  -f body="<your reply>"
+```
+
+Reply guidelines:
+- For **fixed** comments: confirm what was changed and in which commit.
+- For **deferred** comments: acknowledge the concern, explain why it is not addressed in this PR, and state the next step (follow-up issue, separate PR, etc.).
+- Keep replies factual and concise. Do not repeat the original comment — go straight to the resolution.
+
+### 5. Resolve all threads
+
+Get the GraphQL thread IDs:
+
+```bash
+GH_TOKEN=${GH_PERSONAL_TOKEN:-$GH_TOKEN} gh api graphql -f query='
+{
+  repository(owner: "<owner>", name: "<repo>") {
+    pullRequest(number: <pr_number>) {
+      reviewThreads(first: 20) {
+        nodes {
+          id
+          isResolved
+          comments(first: 1) { nodes { databaseId } }
+        }
+      }
+    }
+  }
+}'
+```
+
+Resolve each thread (replace `<thread_id>` with the `id` from the query above):
+
+```bash
+GH_TOKEN=${GH_PERSONAL_TOKEN:-$GH_TOKEN} gh api graphql -f query="
+  mutation {
+    resolveReviewThread(input: { threadId: \"<thread_id>\" }) {
+      thread { id isResolved }
+    }
+  }"
+```
+
+---
+
 ## Pull Request Template
 
 Use this structure for every PR opened against `main`. All sections except "Additional Notes" are required.
