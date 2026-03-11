@@ -127,8 +127,10 @@ jobs:
 
       - name: Run smoke test
         if: runner.os != 'Windows'
+        working-directory: dart_cli
         shell: bash
-        run: bash scripts/smoke-test.sh
+        run: |
+          "${OUT}" --help
 
       - name: Cleanup temporary macOS keychain
         if: matrix.is_macos && env.KEYCHAIN_PATH != ''

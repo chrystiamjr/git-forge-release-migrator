@@ -4,5 +4,5 @@ class MigrationPhaseError implements Exception {
   final String message;
 
   @override
-  String toString() => message;
+  String toString() => 'MigrationPhaseError: $message';
 }
