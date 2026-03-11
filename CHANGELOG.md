@@ -1,3 +1,10 @@
+## [0.3.2](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.3.1...v0.3.2) (2026-03-11)
+
+### Bug Fixes
+
+* **ci:** align release tooling and harden test infra ([a51629e](https://github.com/chrystiamjr/git-forge-release-migrator/commit/a51629eb0eab7a198ebbb949c3defbc6d525542f))
+* **ci:** enforce --fatal-infos, 80% coverage threshold, and trim release rules ([04213dd](https://github.com/chrystiamjr/git-forge-release-migrator/commit/04213dda33fbbfd395a639a7131e80fb474f00d8))
+
 ## [0.3.1](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.3.0...v0.3.1) (2026-03-11)
 
 ## [0.3.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.2.1...v0.3.0) (2026-03-11)
