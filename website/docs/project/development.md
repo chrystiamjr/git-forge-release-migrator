@@ -23,3 +23,14 @@ yarn coverage:dart
 - `dart_cli/coverage/coverage_html.zip`
 
 CI enforces a minimum line coverage of `80%`.
+
+## Website docs checks
+
+When a change touches `website/`, the public docs source of truth must still build cleanly:
+
+```bash
+yarn docs:build
+```
+
+Use `website/` as the public documentation source of truth. Keep `README.md` and `dart_cli/README.md` concise and
+aligned with the site.

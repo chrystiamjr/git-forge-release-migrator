@@ -23,6 +23,7 @@ yarn fvm:global
 yarn get:dart
 yarn lint:dart
 yarn test:dart
+yarn coverage:dart
 ```
 
 If your shell `dart` is not bound to FVM globally:
@@ -77,6 +78,7 @@ Preferred local workflow (from repository root):
 ```bash
 yarn lint:dart
 yarn test:dart
+yarn coverage:dart
 ./scripts/smoke-test.sh
 ```
 
