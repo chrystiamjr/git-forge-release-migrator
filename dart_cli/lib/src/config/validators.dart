@@ -48,13 +48,13 @@ final class ConfigValidators {
   static void validateTokenPresence(String sourceToken, String targetToken) {
     if (sourceToken.isEmpty) {
       throw ArgumentError(
-        'Missing source token. Configure it via settings profile token or relevant env variable.',
+        'Missing source token. Provide --source-token, settings profile token, or relevant env variable.',
       );
     }
 
     if (targetToken.isEmpty) {
       throw ArgumentError(
-        'Missing target token. Configure it via settings profile token or relevant env variable.',
+        'Missing target token. Provide --target-token, settings profile token, or relevant env variable.',
       );
     }
   }

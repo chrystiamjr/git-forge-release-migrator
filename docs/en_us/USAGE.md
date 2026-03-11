@@ -198,8 +198,9 @@ Required:
 
 Token sources (in order):
 
-1. settings token (`token_env`, then `token_plain`)
-2. env aliases (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, provider aliases)
+1. `--source-token` / `--target-token` CLI flags (hidden, legacy — highest precedence when provided)
+2. settings token (`token_env`, then `token_plain`)
+3. env aliases (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, provider aliases)
 
 Main options:
 

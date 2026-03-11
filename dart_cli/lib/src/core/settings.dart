@@ -102,8 +102,14 @@ Map<String, dynamic> _loadSettingsFile(String pathValue) {
     return _normalizeYamlPayload(payload, pathValue);
   } catch (e) {
     stderr.writeln('[gfrm] warning: $pathValue is not valid YAML ($e); retrying as JSON.');
-    final dynamic payload = jsonDecode(text);
-    return _normalizeYamlPayload(payload, pathValue);
+    try {
+      final dynamic payload = jsonDecode(text);
+      return _normalizeYamlPayload(payload, pathValue);
+    } on FormatException catch (jsonError) {
+      stderr.writeln(
+          '[gfrm] warning: $pathValue is not valid JSON ($jsonError); ignoring settings file and using defaults.');
+      return <String, dynamic>{};
+    }
   }
 }
 

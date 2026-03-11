@@ -16,7 +16,7 @@ completed items are skipped automatically.
 
 ## Quick Start
 
-1. Download the artifact for your OS from the [releases page](../../releases).
+1. Download the artifact for your OS from the [releases page](/releases).
 2. Unzip and make executable (macOS/Linux: `chmod +x ./gfrm`).
 3. Bootstrap your settings once:
    ```bash
@@ -158,11 +158,12 @@ Profile resolution order:
 
 Default token resolution order:
 
-1. `migrate`: settings provider token (`token_env`, then `token_plain`)
-2. `migrate`: env aliases (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, provider aliases)
-3. `resume`: session token context
-4. `resume`: settings provider token (`token_env`, then `token_plain`)
-5. `resume`: env aliases (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, provider aliases)
+1. `migrate` and `resume`: `--source-token` / `--target-token` CLI flags (hidden, legacy — highest precedence when provided)
+2. `migrate`: settings provider token (`token_env`, then `token_plain`)
+3. `migrate`: env aliases (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, provider aliases)
+4. `resume`: session token context
+5. `resume`: settings provider token (`token_env`, then `token_plain`)
+6. `resume`: env aliases (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, provider aliases)
 
 ## Migration Examples
 

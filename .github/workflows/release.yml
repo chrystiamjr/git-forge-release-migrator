@@ -370,9 +370,7 @@ jobs:
       - name: Generate SHA256 checksums
         run: |
           cd release-assets
-          for f in *.zip; do
-            sha256sum "$f" > "${f}.sha256"
-          done
+          sha256sum *.zip > checksums-sha256.txt
 
       - name: Upload archives and checksums to GitHub release
         env:

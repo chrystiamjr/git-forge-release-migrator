@@ -16,7 +16,7 @@ retomadas com `gfrm resume` — itens concluídos são ignorados automaticamente
 
 ## Quick Start
 
-1. Baixe o artefato para o seu sistema operacional na [página de releases](../../releases).
+1. Baixe o artefato para o seu sistema operacional na [página de releases](/releases).
 2. Descompacte e torne o binário executável (macOS/Linux: `chmod +x ./gfrm`).
 3. Configure suas credenciais uma única vez:
    ```bash
@@ -147,11 +147,12 @@ Ordem de resolução de perfil:
 
 Ordem padrão de resolução de token:
 
-1. `migrate`: token do provider em settings (`token_env`, depois `token_plain`)
-2. `migrate`: aliases de ambiente (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, aliases por provider)
-3. `resume`: contexto de token da sessão
-4. `resume`: token do provider em settings (`token_env`, depois `token_plain`)
-5. `resume`: aliases de ambiente (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, aliases por provider)
+1. `migrate` e `resume`: flags `--source-token` / `--target-token` (ocultos, legado — maior precedência quando fornecidos)
+2. `migrate`: token do provider em settings (`token_env`, depois `token_plain`)
+3. `migrate`: aliases de ambiente (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, aliases por provider)
+4. `resume`: contexto de token da sessão
+5. `resume`: token do provider em settings (`token_env`, depois `token_plain`)
+6. `resume`: aliases de ambiente (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, aliases por provider)
 
 ## Exemplos de Migração
 

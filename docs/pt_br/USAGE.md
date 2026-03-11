@@ -198,8 +198,9 @@ Obrigatórios:
 
 Fontes de token (em ordem):
 
-1. token de settings (`token_env`, depois `token_plain`)
-2. aliases de ambiente (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, aliases por provider)
+1. flags `--source-token` / `--target-token` (ocultos, legado — maior precedência quando fornecidos)
+2. token de settings (`token_env`, depois `token_plain`)
+3. aliases de ambiente (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, aliases por provider)
 
 Opções principais:
 
