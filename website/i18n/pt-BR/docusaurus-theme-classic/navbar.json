@@ -4,11 +4,11 @@
     "description": "Navbar title"
   },
   "item.label.Docs": {
-    "message": "Docs",
+    "message": "Documentação",
     "description": "Navbar docs label"
   },
   "item.label.Releases": {
-    "message": "Releases",
+    "message": "Versões",
     "description": "Navbar releases label"
   },
   "item.label.GitHub": {

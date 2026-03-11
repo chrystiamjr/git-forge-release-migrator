@@ -16,7 +16,7 @@
     "description": "Footer link label"
   },
   "link.item.label.Quick Start": {
-    "message": "Quick Start",
+    "message": "Início Rápido",
     "description": "Footer link label"
   },
   "link.item.label.Install and Verify": {
@@ -44,7 +44,7 @@
     "description": "Footer link label"
   },
   "link.item.label.Changelog": {
-    "message": "Changelog",
+    "message": "Histórico de Versões",
     "description": "Footer link label"
   },
   "link.item.label.GitHub": {
@@ -52,7 +52,7 @@
     "description": "Footer link label"
   },
   "link.item.label.Releases": {
-    "message": "Releases",
+    "message": "Versões",
     "description": "Footer link label"
   },
   "copyright": {
