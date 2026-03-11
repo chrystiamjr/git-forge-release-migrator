@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import Translate, { translate } from '@docusaurus/Translate';
 import styles from './index.module.css';
 
 interface ReleaseAsset {
@@ -94,14 +95,20 @@ export default function DownloadSection(): JSX.Element {
   if (error || !release) {
     return (
       <div className={styles.errorBox}>
-        <p>Could not load release information.</p>
+        <p>
+          <Translate id="downloadSection.error.message">
+            Could not load release information.
+          </Translate>
+        </p>
         <a
           href="https://github.com/chrystiamjr/git-forge-release-migrator/releases"
           target="_blank"
           rel="noopener noreferrer"
           className={styles.fallbackLink}
         >
-          View all releases on GitHub →
+          <Translate id="downloadSection.error.fallbackLink">
+            View all releases on GitHub →
+          </Translate>
         </a>
       </div>
     );
@@ -119,7 +126,9 @@ export default function DownloadSection(): JSX.Element {
           rel="noopener noreferrer"
           className={styles.releaseLink}
         >
-          Release notes →
+          <Translate id="downloadSection.releaseNotes">
+            Release notes →
+          </Translate>
         </a>
       </div>
       <div className={styles.grid}>
@@ -132,7 +141,11 @@ export default function DownloadSection(): JSX.Element {
               className={`${styles.platformCard} ${isDetected ? styles.detected : ''}`}
             >
               {isDetected && (
-                <span className={styles.detectedBadge}>Your platform</span>
+                <span className={styles.detectedBadge}>
+                  <Translate id="downloadSection.detectedBadge">
+                    Your platform
+                  </Translate>
+                </span>
               )}
               <div className={styles.platformIcon}>{platform.icon}</div>
               <div className={styles.platformInfo}>
@@ -144,11 +157,17 @@ export default function DownloadSection(): JSX.Element {
                   href={asset.browser_download_url}
                   className={`${styles.downloadBtn} ${isDetected ? styles.downloadBtnPrimary : ''}`}
                 >
-                  Download
+                  <Translate id="downloadSection.downloadButton">
+                    Download
+                  </Translate>
                   <span className={styles.fileSize}>{formatSize(asset.size)}</span>
                 </a>
               ) : (
-                <span className={styles.unavailable}>Unavailable</span>
+                <span className={styles.unavailable}>
+                  <Translate id="downloadSection.unavailable">
+                    Unavailable
+                  </Translate>
+                </span>
               )}
             </div>
           );
@@ -163,7 +182,9 @@ export default function DownloadSection(): JSX.Element {
             ↓ checksums-sha256.txt
           </a>
           <span className={styles.checksumHint}>
-            Verify your download with SHA256
+            <Translate id="downloadSection.checksumHint">
+              Verify your download with SHA256
+            </Translate>
           </span>
         </div>
       )}
