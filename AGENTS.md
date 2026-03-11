@@ -251,6 +251,15 @@ yarn lint:dart
 yarn test:dart
 ```
 
+Docs local commands (from repo root):
+
+```bash
+yarn docs:dev          # EN dev server at localhost:3000
+yarn docs:dev:pt-BR    # PT-BR dev server at localhost:3000
+yarn docs:build        # production build (must pass before merging website changes)
+yarn docs:serve        # serve production build locally
+```
+
 Coverage workflow:
 
 - `yarn coverage:dart` generates `dart_cli/coverage/lcov.info` and `dart_cli/coverage/html/`
@@ -308,13 +317,22 @@ fvm dart test test/unit/path/to/test.dart
 
 ## Documentation Sync Rules
 
-If command contract, auth model, support matrix, or output artifacts change, update all:
+`website/` is the source of truth for public documentation. If command contract, auth model, support matrix, or output artifacts change, update:
 
+- `website/docs/**` (EN)
+- `website/i18n/pt-BR/docusaurus-plugin-content-docs/current/**` (PT-BR)
 - `README.md`
-- `docs/pt_br/README.md`
-- `docs/en_us/USAGE.md`
-- `docs/pt_br/USAGE.md`
-- `dart_cli/README.md`
+- `dart_cli/README.md` when development/runtime behavior changes
+
+The docs site is deployed automatically to **[gfrm.envolvosystems.com.br](https://gfrm.envolvosystems.com.br/)** via `.github/workflows/docs.yml` on every push to `main` that touches `website/**` or related root files. Run `yarn docs:build` locally to validate before merging.
+
+## Public Documentation
+
+- Public docs site: **[gfrm.envolvosystems.com.br](https://gfrm.envolvosystems.com.br/)**
+- `website/` is the primary source of truth for public docs
+- `README.md` and `dart_cli/README.md` outside `website/` should stay short and point back to the site
+- `dart_cli/README.md` remains the development/runtime guide, not the public product manual
+- PT-BR translations live under `website/i18n/pt-BR/`; always update both locales when changing content
 
 ## Repository Hygiene
 
@@ -357,7 +375,7 @@ All commits must follow [Conventional Commits](https://www.conventionalcommits.o
 |-------|--------|
 | `dart` | Dart production source (`dart_cli/lib/`) |
 | `ci` | GitHub Actions workflows, quality gates, release pipeline |
-| `docs` | Markdown documentation, README, AGENTS, CHANGELOG |
+| `docs` | Markdown documentation, README, AGENTS, CHANGELOG, `website/` content |
 | `deps` | Dependency updates (`pubspec.yaml`, lock files, Dependabot) |
 | `release` | Semantic-release config, changelog generation, versioning |
 
