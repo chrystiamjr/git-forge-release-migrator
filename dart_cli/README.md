@@ -117,7 +117,7 @@ This command:
 - runs the Dart test suite with coverage collection
 - generates `coverage/lcov.info` for tooling compatibility
 - generates an HTML report under `coverage/html/`
-- packages the HTML report for CI publication as `coverage/coverage_html.zip`
+- packages the HTML report as `coverage/coverage_html.zip` using the same cross-platform Node flow used by CI
 - enforces the minimum line coverage threshold of `80%`
 
 Open the HTML report locally:
@@ -157,6 +157,7 @@ Test organization:
 - `test/unit/**`: granular unit tests for isolated functions and adapters
 - `test/feature/**`: command and feature-level behavior
 - `test/integration/**`: end-to-end migration flows and invariants
+- keep CLI/logging I/O at the adapter boundary; tests should capture output in memory instead of writing to the real terminal
 
 ## Build
 

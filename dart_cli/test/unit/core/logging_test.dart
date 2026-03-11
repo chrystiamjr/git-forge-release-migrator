@@ -1,105 +1,211 @@
 import 'package:gfrm_dart/src/core/logging.dart';
 import 'package:test/test.dart';
 
+import '../../support/buffer_console_output.dart';
+
 void main() {
   group('ConsoleLogger', () {
-    // Most logger instances in these tests use silent:true so they do not emit
-    // to stdout/stderr. This validates that methods complete without throwing
-    // and that state transitions (spinner) are correct regardless of output.
+    test('info does not emit in silent mode', () {
+      final BufferConsoleOutput output = BufferConsoleOutput();
+      final ConsoleLogger logger = ConsoleLogger(
+        quiet: false,
+        jsonOutput: false,
+        output: output,
+        silent: true,
+      );
 
-    test('info does not throw in silent mode', () {
-      final ConsoleLogger logger = ConsoleLogger(quiet: false, jsonOutput: false, silent: true);
-      expect(() => logger.info('hello'), returnsNormally);
+      logger.info('hello');
+
+      expect(output.stdoutLines, isEmpty);
+      expect(output.stderrLines, isEmpty);
+      expect(output.rawWrites, isEmpty);
     });
 
-    test('warn does not throw in silent mode', () {
-      final ConsoleLogger logger = ConsoleLogger(quiet: false, jsonOutput: false, silent: true);
-      expect(() => logger.warn('warning'), returnsNormally);
+    test('warn does not emit in silent mode', () {
+      final BufferConsoleOutput output = BufferConsoleOutput();
+      final ConsoleLogger logger = ConsoleLogger(
+        quiet: false,
+        jsonOutput: false,
+        output: output,
+        silent: true,
+      );
+
+      logger.warn('warning');
+
+      expect(output.stdoutLines, isEmpty);
+      expect(output.stderrLines, isEmpty);
     });
 
-    test('error does not throw in silent mode', () {
-      final ConsoleLogger logger = ConsoleLogger(quiet: false, jsonOutput: false, silent: true);
-      expect(() => logger.error('error'), returnsNormally);
+    test('error does not emit in silent mode', () {
+      final BufferConsoleOutput output = BufferConsoleOutput();
+      final ConsoleLogger logger = ConsoleLogger(
+        quiet: false,
+        jsonOutput: false,
+        output: output,
+        silent: true,
+      );
+
+      logger.error('error');
+
+      expect(output.stdoutLines, isEmpty);
+      expect(output.stderrLines, isEmpty);
     });
 
     test('info is suppressed when quiet is true and jsonOutput is false', () {
-      final ConsoleLogger logger = ConsoleLogger(quiet: true, jsonOutput: false, silent: false);
-      // Should complete without throwing; output is suppressed by quiet flag.
-      expect(() => logger.info('suppressed'), returnsNormally);
+      final BufferConsoleOutput output = BufferConsoleOutput();
+      final ConsoleLogger logger = ConsoleLogger(
+        quiet: true,
+        jsonOutput: false,
+        output: output,
+        silent: false,
+      );
+
+      logger.info('suppressed');
+
+      expect(output.stdoutLines, isEmpty);
+      expect(output.stderrLines, isEmpty);
     });
 
     test('warn is not suppressed by quiet flag', () {
-      final ConsoleLogger logger = ConsoleLogger(quiet: true, jsonOutput: false, silent: true);
-      expect(() => logger.warn('not suppressed'), returnsNormally);
+      final BufferConsoleOutput output = BufferConsoleOutput();
+      final ConsoleLogger logger = ConsoleLogger(
+        quiet: true,
+        jsonOutput: false,
+        output: output,
+        silent: false,
+      );
+
+      logger.warn('not suppressed');
+
+      expect(output.stderrLines, <String>['[WARN] not suppressed']);
     });
 
     test('startSpinner returns false in silent mode', () {
-      final ConsoleLogger logger = ConsoleLogger(quiet: false, jsonOutput: false, silent: true);
+      final BufferConsoleOutput output = BufferConsoleOutput(supportsAnsiEscapes: true);
+      final ConsoleLogger logger = ConsoleLogger(
+        quiet: false,
+        jsonOutput: false,
+        output: output,
+        silent: true,
+      );
+
       expect(logger.startSpinner('working...'), isFalse);
+      expect(output.rawWrites, isEmpty);
+      expect(output.stdoutLines, isEmpty);
     });
 
-    test('stopSpinner does not throw when spinner is not running', () {
-      final ConsoleLogger logger = ConsoleLogger(quiet: false, jsonOutput: false, silent: true);
-      expect(() => logger.stopSpinner(finalMessage: 'done'), returnsNormally);
+    test('stopSpinner does not emit when spinner is not running and final message is absent', () {
+      final BufferConsoleOutput output = BufferConsoleOutput();
+      final ConsoleLogger logger = ConsoleLogger(
+        quiet: false,
+        jsonOutput: false,
+        output: output,
+        silent: false,
+      );
+
+      logger.stopSpinner();
+
+      expect(output.stdoutLines, isEmpty);
+      expect(output.rawWrites, isEmpty);
     });
 
-    test('updateSpinner does not throw when spinner is not running', () {
-      final ConsoleLogger logger = ConsoleLogger(quiet: false, jsonOutput: false, silent: true);
-      expect(() => logger.updateSpinner('updated'), returnsNormally);
+    test('updateSpinner does nothing when spinner is not running', () {
+      final BufferConsoleOutput output = BufferConsoleOutput(supportsAnsiEscapes: true);
+      final ConsoleLogger logger = ConsoleLogger(
+        quiet: false,
+        jsonOutput: false,
+        output: output,
+        silent: false,
+      );
+
+      logger.updateSpinner('updated');
+
+      expect(output.rawWrites, isEmpty);
     });
 
-    test('tickSpinner does not throw when spinner is not running', () {
-      final ConsoleLogger logger = ConsoleLogger(quiet: false, jsonOutput: false, silent: true);
-      expect(() => logger.tickSpinner(), returnsNormally);
+    test('tickSpinner does nothing when spinner is not running', () {
+      final BufferConsoleOutput output = BufferConsoleOutput(supportsAnsiEscapes: true);
+      final ConsoleLogger logger = ConsoleLogger(
+        quiet: false,
+        jsonOutput: false,
+        output: output,
+        silent: false,
+      );
+
+      logger.tickSpinner();
+
+      expect(output.rawWrites, isEmpty);
     });
 
-    test('spinner lifecycle in silent mode: start, update, stop', () {
-      final ConsoleLogger logger = ConsoleLogger(quiet: false, jsonOutput: false, silent: true);
-      logger.startSpinner('step 1');
+    test('spinner lifecycle writes through the output adapter', () {
+      final BufferConsoleOutput output = BufferConsoleOutput(
+        hasTerminal: true,
+        supportsAnsiEscapes: true,
+      );
+      final ConsoleLogger logger = ConsoleLogger(
+        quiet: false,
+        jsonOutput: false,
+        output: output,
+        silent: false,
+      );
+
+      expect(logger.startSpinner('step 1'), isTrue);
       logger.updateSpinner('step 2');
       logger.tickSpinner();
-      expect(() => logger.stopSpinner(finalMessage: 'done'), returnsNormally);
+      logger.stopSpinner(finalMessage: 'done');
+
+      expect(output.rawWrites, isNotEmpty);
+      expect(output.stdoutLines, contains('[INFO] done'));
     });
 
-    test('jsonOutput mode does not throw for info, warn, error', () {
-      final ConsoleLogger logger = ConsoleLogger(quiet: false, jsonOutput: true, silent: true);
-      expect(() => logger.info('msg'), returnsNormally);
-      expect(() => logger.warn('msg'), returnsNormally);
-      expect(() => logger.error('msg'), returnsNormally);
+    test('jsonOutput mode writes JSON to the correct streams', () {
+      final BufferConsoleOutput output = BufferConsoleOutput();
+      final ConsoleLogger logger = ConsoleLogger(
+        quiet: false,
+        jsonOutput: true,
+        output: output,
+        silent: false,
+      );
+
+      logger.info('json info');
+      logger.warn('json warning');
+      logger.error('json error');
+
+      expect(output.stdoutLines.single, allOf(contains('"level":"info"'), contains('json info')));
+      expect(output.stderrLines[0], allOf(contains('"level":"warn"'), contains('json warning')));
+      expect(output.stderrLines[1], allOf(contains('"level":"error"'), contains('json error')));
     });
 
-    // The following tests use silent:false to exercise the actual emit paths.
-    // Output goes to stdout/stderr which is captured by the test runner.
+    test('startSpinner falls back to info output when ansi is unavailable', () {
+      final BufferConsoleOutput output = BufferConsoleOutput(supportsAnsiEscapes: false);
+      final ConsoleLogger logger = ConsoleLogger(
+        quiet: false,
+        jsonOutput: false,
+        output: output,
+        silent: false,
+      );
 
-    test('info emits plain text when not silent and not jsonOutput', () {
-      final ConsoleLogger logger = ConsoleLogger(quiet: false, jsonOutput: false, silent: false);
-      expect(() => logger.info('plain text message'), returnsNormally);
+      expect(logger.startSpinner('working...'), isFalse);
+
+      expect(output.stdoutLines, <String>['[INFO] working...']);
+      expect(output.rawWrites, isEmpty);
     });
 
-    test('warn emits plain text when not silent', () {
-      final ConsoleLogger logger = ConsoleLogger(quiet: false, jsonOutput: false, silent: false);
-      expect(() => logger.warn('plain warning'), returnsNormally);
-    });
+    test('plain text info, warn, and error use the expected streams', () {
+      final BufferConsoleOutput output = BufferConsoleOutput();
+      final ConsoleLogger logger = ConsoleLogger(
+        quiet: false,
+        jsonOutput: false,
+        output: output,
+        silent: false,
+      );
 
-    test('error emits plain text when not silent', () {
-      final ConsoleLogger logger = ConsoleLogger(quiet: false, jsonOutput: false, silent: false);
-      expect(() => logger.error('plain error'), returnsNormally);
-    });
+      logger.info('plain text message');
+      logger.warn('plain warning');
+      logger.error('plain error');
 
-    test('info emits JSON when jsonOutput is true and not silent', () {
-      final ConsoleLogger logger = ConsoleLogger(quiet: false, jsonOutput: true, silent: false);
-      expect(() => logger.info('json message'), returnsNormally);
-    });
-
-    test('warn emits JSON when jsonOutput is true and not silent', () {
-      final ConsoleLogger logger = ConsoleLogger(quiet: false, jsonOutput: true, silent: false);
-      expect(() => logger.warn('json warning'), returnsNormally);
-    });
-
-    test('startSpinner remains safe in non-silent mode regardless of tty environment', () {
-      final ConsoleLogger logger = ConsoleLogger(quiet: false, jsonOutput: false, silent: false);
-      expect(() => logger.startSpinner('working...'), returnsNormally);
-      expect(() => logger.stopSpinner(finalMessage: 'done'), returnsNormally);
+      expect(output.stdoutLines, <String>['[INFO] plain text message']);
+      expect(output.stderrLines, <String>['[WARN] plain warning', '[ERROR] plain error']);
     });
   });
 }

@@ -11,10 +11,6 @@ import '../../support/http_stubs.dart';
 import '../../support/temp_dir.dart';
 import 'package:test/test.dart';
 
-ScriptedHttpClientHelper _downloadStub() {
-  return ScriptedHttpClientHelper(downloadResult: true);
-}
-
 void main() {
   group('GitHubAdapter', () {
     test('parseUrl supports https repository URLs', () {
@@ -337,14 +333,14 @@ void main() {
       });
 
       test('downloadWithToken delegates to downloadFile', () async {
-        final ScriptedHttpClientHelper stub = _downloadStub();
+        final ScriptedHttpClientHelper stub = successfulDownloadStub();
         final GitHubAdapter adapter = GitHubAdapter(http: stub);
 
         expect(await adapter.downloadWithToken('token', 'https://example.com/f.zip', '/tmp/f.zip'), isTrue);
       });
 
       test('downloadWithAuth delegates to downloadWithToken', () async {
-        final ScriptedHttpClientHelper stub = _downloadStub();
+        final ScriptedHttpClientHelper stub = successfulDownloadStub();
         final GitHubAdapter adapter = GitHubAdapter(http: stub);
 
         expect(await adapter.downloadWithAuth('token', 'https://example.com/f.zip', '/tmp/f.zip'), isTrue);
@@ -460,7 +456,7 @@ void main() {
       });
 
       test('downloadCanonicalLink uses directUrl when available', () async {
-        final ScriptedHttpClientHelper stub = _downloadStub();
+        final ScriptedHttpClientHelper stub = successfulDownloadStub();
         final GitHubAdapter adapter = GitHubAdapter(http: stub);
         final ProviderRef ref = adapter.parseUrl('https://github.com/acme/repo');
         final DownloadLinkInput input = DownloadLinkInput(
@@ -475,7 +471,7 @@ void main() {
       });
 
       test('downloadCanonicalSource downloads source archive', () async {
-        final ScriptedHttpClientHelper stub = _downloadStub();
+        final ScriptedHttpClientHelper stub = successfulDownloadStub();
         final GitHubAdapter adapter = GitHubAdapter(http: stub);
         final ProviderRef ref = adapter.parseUrl('https://github.com/acme/repo');
 

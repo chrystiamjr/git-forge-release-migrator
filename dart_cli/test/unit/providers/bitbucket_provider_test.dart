@@ -55,10 +55,6 @@ Response<dynamic> _response(String path, int statusCode, {dynamic data}) {
   );
 }
 
-ScriptedHttpClientHelper _downloadStub() {
-  return ScriptedHttpClientHelper(downloadResult: true);
-}
-
 void main() {
   group('BitbucketAdapter', () {
     test('parseUrl supports bitbucket cloud https URLs', () {
@@ -1005,7 +1001,7 @@ void main() {
       });
 
       test('downloadWithAuth delegates to downloadFile', () async {
-        final ScriptedHttpClientHelper stub = _downloadStub();
+        final ScriptedHttpClientHelper stub = successfulDownloadStub();
         final BitbucketAdapter adapter = BitbucketAdapter(http: stub);
 
         expect(

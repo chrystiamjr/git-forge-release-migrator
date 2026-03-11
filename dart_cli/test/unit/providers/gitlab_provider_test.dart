@@ -7,10 +7,6 @@ import 'package:gfrm_dart/src/providers/gitlab.dart';
 import '../../support/http_stubs.dart';
 import 'package:test/test.dart';
 
-ScriptedHttpClientHelper _downloadStub() {
-  return ScriptedHttpClientHelper(downloadResult: true);
-}
-
 void main() {
   group('GitLabAdapter', () {
     test('parseUrl supports https project with subgroup', () {
@@ -336,14 +332,14 @@ void main() {
       });
 
       test('downloadWithAuth delegates to downloadFile', () async {
-        final ScriptedHttpClientHelper stub = _downloadStub();
+        final ScriptedHttpClientHelper stub = successfulDownloadStub();
         final GitLabAdapter adapter = GitLabAdapter(http: stub);
 
         expect(await adapter.downloadWithAuth('token', 'https://cdn.example.com/f.zip', '/tmp/f.zip'), isTrue);
       });
 
       test('downloadNoAuth delegates to downloadFile without headers', () async {
-        final ScriptedHttpClientHelper stub = _downloadStub();
+        final ScriptedHttpClientHelper stub = successfulDownloadStub();
         final GitLabAdapter adapter = GitLabAdapter(http: stub);
 
         expect(await adapter.downloadNoAuth('https://cdn.example.com/f.zip', '/tmp/f.zip'), isTrue);
@@ -405,7 +401,7 @@ void main() {
       });
 
       test('downloadCanonicalLink uses directUrl when available', () async {
-        final ScriptedHttpClientHelper stub = _downloadStub();
+        final ScriptedHttpClientHelper stub = successfulDownloadStub();
         final GitLabAdapter adapter = GitLabAdapter(http: stub);
         final ProviderRef ref = adapter.parseUrl('https://gitlab.com/acme/project');
         final DownloadLinkInput input = DownloadLinkInput(
@@ -425,7 +421,7 @@ void main() {
       });
 
       test('downloadCanonicalSource downloads with auth', () async {
-        final ScriptedHttpClientHelper stub = _downloadStub();
+        final ScriptedHttpClientHelper stub = successfulDownloadStub();
         final GitLabAdapter adapter = GitLabAdapter(http: stub);
         final ProviderRef ref = adapter.parseUrl('https://gitlab.com/acme/project');
 

@@ -3,6 +3,12 @@ import 'package:gfrm_dart/src/core/http.dart';
 
 const Object _missingJsonResponse = Object();
 
+ScriptedHttpClientHelper successfulDownloadStub({
+  Future<void> Function(String destination)? onDownload,
+}) {
+  return ScriptedHttpClientHelper(downloadResult: true, onDownload: onDownload);
+}
+
 final class ScriptedHttpClientHelper extends HttpClientHelper {
   ScriptedHttpClientHelper({
     Object? jsonResponse = _missingJsonResponse,

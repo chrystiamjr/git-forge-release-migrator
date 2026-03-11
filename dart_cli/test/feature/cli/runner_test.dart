@@ -6,6 +6,7 @@ import 'package:gfrm_dart/src/models/runtime_options.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import '../../support/buffer_console_output.dart';
 import '../../support/temp_dir.dart';
 
 File _findSingleFile(Directory root, String name) {
@@ -21,36 +22,41 @@ File _findSingleFile(Directory root, String name) {
 void main() {
   group('CliRunner', () {
     test('demo command writes summary and notes using tags file input', () async {
+      final BufferConsoleOutput output = BufferConsoleOutput();
       final Directory temp = createTempDir('gfrm-demo-run-');
       final Directory resultsRoot = Directory('${temp.path}/results');
       final File tagsFile = File('${temp.path}/tags.txt')..writeAsStringSync('# comment\nv1.0.0\n\nv1.1.0\nv1.2.0\n');
 
-      final int exitCode = await CliRunner.run(<String>[
-        commandDemo,
-        '--source-provider',
-        'github',
-        '--source-url',
-        'https://github.com/acme/source',
-        '--source-token',
-        'src-token',
-        '--target-provider',
-        'gitlab',
-        '--target-url',
-        'https://gitlab.com/acme/target',
-        '--target-token',
-        'dst-token',
-        '--workdir',
-        resultsRoot.path,
-        '--tags-file',
-        tagsFile.path,
-        '--demo-releases',
-        '2',
-        '--demo-sleep-seconds',
-        '0',
-        '--no-banner',
-      ]);
+      final int exitCode = await CliRunner.run(
+        <String>[
+          commandDemo,
+          '--source-provider',
+          'github',
+          '--source-url',
+          'https://github.com/acme/source',
+          '--source-token',
+          'src-token',
+          '--target-provider',
+          'gitlab',
+          '--target-url',
+          'https://gitlab.com/acme/target',
+          '--target-token',
+          'dst-token',
+          '--workdir',
+          resultsRoot.path,
+          '--tags-file',
+          tagsFile.path,
+          '--demo-releases',
+          '2',
+          '--demo-sleep-seconds',
+          '0',
+          '--no-banner',
+        ],
+        output: output,
+      );
 
       expect(exitCode, 0);
+      expect(output.stderrLines, isEmpty);
 
       final File summaryFile = _findSingleFile(resultsRoot, 'summary.json');
       final Map<String, dynamic> summary = jsonDecode(summaryFile.readAsStringSync()) as Map<String, dynamic>;
@@ -64,36 +70,41 @@ void main() {
     });
 
     test('demo command falls back to generated tags when tags file has no entries', () async {
+      final BufferConsoleOutput output = BufferConsoleOutput();
       final Directory temp = createTempDir('gfrm-demo-fallback-');
       final Directory resultsRoot = Directory('${temp.path}/results');
       final File tagsFile = File('${temp.path}/empty-tags.txt')..writeAsStringSync('# only comments\n\n');
 
-      final int exitCode = await CliRunner.run(<String>[
-        commandDemo,
-        '--source-provider',
-        'github',
-        '--source-url',
-        'https://github.com/acme/source',
-        '--source-token',
-        'src-token',
-        '--target-provider',
-        'gitlab',
-        '--target-url',
-        'https://gitlab.com/acme/target',
-        '--target-token',
-        'dst-token',
-        '--workdir',
-        resultsRoot.path,
-        '--tags-file',
-        tagsFile.path,
-        '--demo-releases',
-        '3',
-        '--demo-sleep-seconds',
-        '0',
-        '--no-banner',
-      ]);
+      final int exitCode = await CliRunner.run(
+        <String>[
+          commandDemo,
+          '--source-provider',
+          'github',
+          '--source-url',
+          'https://github.com/acme/source',
+          '--source-token',
+          'src-token',
+          '--target-provider',
+          'gitlab',
+          '--target-url',
+          'https://gitlab.com/acme/target',
+          '--target-token',
+          'dst-token',
+          '--workdir',
+          resultsRoot.path,
+          '--tags-file',
+          tagsFile.path,
+          '--demo-releases',
+          '3',
+          '--demo-sleep-seconds',
+          '0',
+          '--no-banner',
+        ],
+        output: output,
+      );
 
       expect(exitCode, 0);
+      expect(output.stderrLines, isEmpty);
 
       final File summaryFile = _findSingleFile(resultsRoot, 'summary.json');
       final Map<String, dynamic> summary = jsonDecode(summaryFile.readAsStringSync()) as Map<String, dynamic>;
@@ -102,13 +113,22 @@ void main() {
     });
 
     test('settings command without action returns help successfully', () async {
-      final int exitCode = await CliRunner.run(<String>[commandSettings]);
+      final BufferConsoleOutput output = BufferConsoleOutput();
+
+      final int exitCode = await CliRunner.run(<String>[commandSettings], output: output);
+
       expect(exitCode, 0);
+      expect(output.stdoutLines.single, contains('Usage: gfrm settings <action> [options]'));
+      expect(output.stderrLines, isEmpty);
     });
 
     test('invalid migrate invocation returns non-zero', () async {
-      final int exitCode = await CliRunner.run(<String>[commandMigrate]);
+      final BufferConsoleOutput output = BufferConsoleOutput();
+
+      final int exitCode = await CliRunner.run(<String>[commandMigrate], output: output);
+
       expect(exitCode, 1);
+      expect(output.stderrLines.single, contains('Missing required option --source-provider'));
     });
   });
 }

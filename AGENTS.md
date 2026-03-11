@@ -254,6 +254,7 @@ yarn test:dart
 Coverage workflow:
 
 - `yarn coverage:dart` generates `dart_cli/coverage/lcov.info` and `dart_cli/coverage/html/`
+- `yarn coverage:dart` also packages `dart_cli/coverage/coverage_html.zip` via a Node script shared with CI expectations
 - CI publishes `dart_cli/coverage/coverage_html.zip` alongside `dart_cli/coverage/lcov.info`
 - coverage threshold is `80%`, enforced with `coverde`
 - `yarn coverage:dart` is part of the expected local validation flow and should pass before finalizing changes
@@ -279,6 +280,8 @@ When changing behavior:
 - add/update unit tests for granular logic
 - add/update feature tests for CLI and flow-level behavior
 - add/update integration tests for end-to-end invariants
+- keep terminal I/O at the production edge; tests should prefer in-memory output/input adapters over real `stdout/stderr/stdin`
+- for CLI and logger tests, assert captured sink content instead of relying on terminal output side effects
 
 Minimum coverage priorities:
 

@@ -2,28 +2,32 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../config.dart';
+import '../core/console_output.dart';
+import '../core/input_reader.dart';
 import '../core/logging.dart';
 import '../core/settings.dart';
+import '../core/std_console_output.dart';
+import '../core/std_input_reader.dart';
 import '../core/test_helper.dart';
 import '../models/runtime_options.dart';
 
 class SettingsSetupCommandHandler {
   SettingsSetupCommandHandler({
     required this.logger,
-    String Function(String prompt)? promptLine,
-    void Function(String line)? outputLine,
+    ConsoleOutput? output,
+    InputReader? input,
     Map<String, String>? environment,
     Set<String> Function()? scanShellExportNames,
     bool Function()? isTestProcess,
-  })  : _promptLineOverride = promptLine,
-        _outputLineOverride = outputLine,
+  })  : output = output ?? const StdConsoleOutput(),
+        input = input ?? const StdInputReader(),
         _environmentOverride = environment,
         _scanShellExportNamesOverride = scanShellExportNames,
         _isTestProcessOverride = isTestProcess;
 
   final ConsoleLogger logger;
-  final String Function(String prompt)? _promptLineOverride;
-  final void Function(String line)? _outputLineOverride;
+  final ConsoleOutput output;
+  final InputReader input;
   final Map<String, String>? _environmentOverride;
   final Set<String> Function()? _scanShellExportNamesOverride;
   final bool Function()? _isTestProcessOverride;
@@ -91,14 +95,12 @@ class SettingsSetupCommandHandler {
       final Map<String, dynamic> effective = SettingsManager.loadEffectiveSettings();
       final String profile = SettingsManager.resolveProfileName(effective, options.profile);
       final Map<String, dynamic> masked = SettingsManager.maskSettingsSecrets(effective);
-      if (!_isTestProcess()) {
-        _writeLine(
-          const JsonEncoder.withIndent('  ').convert(<String, dynamic>{
-            'profile': profile,
-            'settings': masked,
-          }),
-        );
-      }
+      _writeLine(
+        const JsonEncoder.withIndent('  ').convert(<String, dynamic>{
+          'profile': profile,
+          'settings': masked,
+        }),
+      );
 
       return 0;
     }
@@ -162,21 +164,12 @@ class SettingsSetupCommandHandler {
   }
 
   String _promptLine(String prompt) {
-    if (_promptLineOverride != null) {
-      return _promptLineOverride(prompt).trim();
-    }
-
-    stdout.write(prompt);
-    return (stdin.readLineSync() ?? '').trim();
+    output.writeOut(prompt);
+    return input.readLine().trim();
   }
 
   void _writeLine(String line) {
-    if (_outputLineOverride != null) {
-      _outputLineOverride(line);
-      return;
-    }
-
-    stdout.writeln(line);
+    output.writeOutLine(line);
   }
 
   Map<String, String> get _environment => _environmentOverride ?? Platform.environment;

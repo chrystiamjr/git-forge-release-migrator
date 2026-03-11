@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:test/test.dart';
@@ -12,9 +13,13 @@ Directory createTempDir([String prefix = 'gfrm-test-']) {
   return temp;
 }
 
-String withCurrentDirectory(Directory directory) {
-  final String previous = Directory.current.path;
-  Directory.current = directory.path;
-  addTearDown(() => Directory.current = previous);
-  return previous;
+Future<T> runInCurrentDirectory<T>(Directory directory, FutureOr<T> Function() action) {
+  Directory currentDirectory = directory;
+  return IOOverrides.runZoned(
+    () async => await action(),
+    getCurrentDirectory: () => currentDirectory,
+    setCurrentDirectory: (String path) {
+      currentDirectory = Directory(path);
+    },
+  );
 }
