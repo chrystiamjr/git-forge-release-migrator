@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkgit_forge_release_migrator=self.webpackChunkgit_forge_release_migrator||[]).push([[235],{9590(e){e.exports=JSON.parse('{"name":"docusaurus-plugin-content-pages","id":"default"}')}}]);
