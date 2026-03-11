@@ -30,3 +30,4 @@ runs:
         name: coverage-report
         path: dart_cli/coverage/lcov.info
         if-no-files-found: warn
+        retention-days: 7
