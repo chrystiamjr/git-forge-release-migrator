@@ -1,0 +1,222 @@
+.wrapper {
+  margin: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.versionBadge {
+  display: inline-flex;
+  align-items: center;
+  background: var(--ifm-color-primary);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-family: var(--ifm-font-family-monospace);
+}
+
+.releaseLink {
+  font-size: 0.9rem;
+  color: var(--ifm-color-primary);
+  text-decoration: none;
+}
+
+.releaseLink:hover {
+  text-decoration: underline;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.platformCard {
+  border: 1px solid var(--gfrm-border);
+  border-radius: 16px;
+  padding: 1.5rem 1rem 1.25rem;
+  background: var(--gfrm-surface);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: center;
+  position: relative;
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+
+.platformCard:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.1);
+}
+
+.detected {
+  border-color: var(--ifm-color-primary);
+  background: var(--gfrm-surface-strong);
+}
+
+.detectedBadge {
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ifm-color-primary);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.15rem 0.65rem;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.platformIcon {
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.platformInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.platformHint {
+  font-size: 0.78rem;
+  opacity: 0.6;
+}
+
+.downloadBtn {
+  margin-top: 0.5rem;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.5rem 1.25rem;
+  border-radius: 10px;
+  border: 1px solid var(--gfrm-border);
+  background: var(--ifm-background-color);
+  color: var(--ifm-color-primary);
+  font-weight: 600;
+  font-size: 0.88rem;
+  text-decoration: none;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.downloadBtn:hover {
+  background: var(--gfrm-surface-strong);
+  text-decoration: none;
+  color: var(--ifm-color-primary);
+}
+
+.downloadBtnPrimary {
+  background: var(--ifm-color-primary);
+  color: #fff;
+  border-color: transparent;
+}
+
+.downloadBtnPrimary:hover {
+  background: var(--ifm-color-primary-dark);
+  color: #fff;
+}
+
+.fileSize {
+  font-size: 0.72rem;
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+.unavailable {
+  font-size: 0.85rem;
+  opacity: 0.45;
+  margin-top: 0.5rem;
+}
+
+/* Checksums row */
+.checksumRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--gfrm-border);
+  border-radius: 10px;
+  background: var(--gfrm-surface);
+}
+
+.checksumLink {
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.85rem;
+  color: var(--ifm-color-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.checksumLink:hover {
+  text-decoration: underline;
+}
+
+.checksumHint {
+  font-size: 0.82rem;
+  opacity: 0.6;
+}
+
+/* Skeleton */
+.skeleton {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.skeletonBadge {
+  height: 28px;
+  width: 80px;
+  border-radius: 999px;
+  background: var(--gfrm-surface-strong);
+  margin-bottom: 1.5rem;
+}
+
+.skeletonGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 1rem;
+}
+
+.skeletonCard {
+  height: 160px;
+  border-radius: 16px;
+  background: var(--gfrm-surface-strong);
+}
+
+/* Error */
+.errorBox {
+  text-align: center;
+  padding: 2rem;
+  border: 1px solid var(--gfrm-border);
+  border-radius: 16px;
+  background: var(--gfrm-surface);
+}
+
+.fallbackLink {
+  display: inline-block;
+  margin-top: 0.5rem;
+  color: var(--ifm-color-primary);
+  font-weight: 600;
+}
