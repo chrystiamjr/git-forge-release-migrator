@@ -1,5 +1,6 @@
 #!/bin/sh
 
+# ── Dart format + analyze ───────────────────────────────────────────────────
 cd dart_cli || exit 1
 
 if command -v fvm >/dev/null 2>&1; then
@@ -8,4 +9,16 @@ if command -v fvm >/dev/null 2>&1; then
 else
   dart format -l 120 --set-exit-if-changed bin lib test
   dart analyze --fatal-infos
+fi
+
+cd ..
+
+# ── PT-BR translation completeness check ───────────────────────────────────
+# Run only when website i18n files or React source are staged
+STAGED=$(git diff --cached --name-only)
+
+if echo "$STAGED" | grep -qE '^website/(i18n/|src/)'; then
+  echo ""
+  echo "Website i18n changes detected — running translation check..."
+  node scripts/check-translations.js || exit 1
 fi

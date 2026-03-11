@@ -1,0 +1,35 @@
+.switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border: 1.5px solid var(--ifm-color-primary);
+  border-radius: 999px;
+  overflow: hidden;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.localeBtn {
+  padding: 0.3rem 0.7rem;
+  color: var(--ifm-color-primary);
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+  line-height: 1;
+}
+
+.localeBtn:hover {
+  background: var(--gfrm-surface);
+  text-decoration: none;
+  color: var(--ifm-color-primary);
+}
+
+.active {
+  background: var(--ifm-color-primary);
+  color: #fff;
+}
+
+.active:hover {
+  background: var(--ifm-color-primary-dark);
+  color: #fff;
+}
