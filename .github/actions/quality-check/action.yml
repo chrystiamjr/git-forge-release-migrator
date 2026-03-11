@@ -24,26 +24,31 @@ runs:
       working-directory: dart_cli
       run: dart run coverage:format_coverage --lcov --in=coverage/ --out=coverage/lcov.info --report-on=lib
 
-    - name: Enforce coverage threshold
+    - name: Generate HTML coverage report
+      shell: bash
+      working-directory: dart_cli
+      run: dart run coverde --update-check disabled report --input coverage/lcov.info --output coverage/html
+
+    - name: Package HTML coverage report
       shell: bash
       working-directory: dart_cli
       run: |
-        set -euo pipefail
-        LCOV="coverage/lcov.info"
-        TOTAL=$(grep -c "^DA:" "$LCOV")
-        COVERED=$(grep -cP "^DA:[0-9]+,[^0]" "$LCOV")
-        PCT=$(( COVERED * 100 / TOTAL ))
-        MIN=80
-        echo "Coverage: ${PCT}% (${COVERED}/${TOTAL} lines, minimum ${MIN}%)"
-        if [ "$PCT" -lt "$MIN" ]; then
-          echo "::error::Coverage ${PCT}% is below the minimum threshold of ${MIN}%"
-          exit 1
-        fi
+        rm -f coverage/coverage_html.zip
+        cd coverage/html
+        zip -rq ../coverage_html.zip .
+
+    - name: Enforce coverage threshold
+      shell: bash
+      working-directory: dart_cli
+      run: dart run coverde --update-check disabled check 80 --input coverage/lcov.info --file-coverage-log-level overview
 
     - name: Upload coverage report
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: coverage-report
-        path: dart_cli/coverage/lcov.info
+        path: |
+          dart_cli/coverage/lcov.info
+          dart_cli/coverage/coverage_html.zip
         if-no-files-found: warn
         retention-days: 7

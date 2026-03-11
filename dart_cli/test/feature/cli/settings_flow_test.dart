@@ -3,17 +3,15 @@ import 'dart:io';
 import 'package:gfrm_dart/gfrm_dart.dart';
 import 'package:gfrm_dart/src/core/settings.dart';
 import 'package:gfrm_dart/src/models/runtime_options.dart';
+import '../../support/temp_dir.dart';
 import 'package:test/test.dart';
 
 void main() {
   group('settings flow', () {
     test('setup --yes --local bootstraps env token mappings', () async {
-      final Directory temp = Directory.systemTemp.createTempSync('gfrm-setup-flow-');
-      addTearDown(() => temp.deleteSync(recursive: true));
+      final Directory temp = createTempDir('gfrm-setup-flow-');
 
-      final String oldCwd = Directory.current.path;
-      Directory.current = temp.path;
-      addTearDown(() => Directory.current = oldCwd);
+      withCurrentDirectory(temp);
 
       final int setupExit = await CliRunner.run(<String>[
         commandSetup,
@@ -41,12 +39,9 @@ void main() {
     });
 
     test('set-token-env and unset-token update local settings file', () async {
-      final Directory temp = Directory.systemTemp.createTempSync('gfrm-settings-flow-');
-      addTearDown(() => temp.deleteSync(recursive: true));
+      final Directory temp = createTempDir('gfrm-settings-flow-');
 
-      final String oldCwd = Directory.current.path;
-      Directory.current = temp.path;
-      addTearDown(() => Directory.current = oldCwd);
+      withCurrentDirectory(temp);
 
       final int setExit = await CliRunner.run(<String>[
         commandSettings,
@@ -86,12 +81,9 @@ void main() {
     });
 
     test('settings show masks token_plain values', () async {
-      final Directory temp = Directory.systemTemp.createTempSync('gfrm-settings-show-');
-      addTearDown(() => temp.deleteSync(recursive: true));
+      final Directory temp = createTempDir('gfrm-settings-show-');
 
-      final String oldCwd = Directory.current.path;
-      Directory.current = temp.path;
-      addTearDown(() => Directory.current = oldCwd);
+      withCurrentDirectory(temp);
 
       final String localSettingsPath = SettingsManager.defaultLocalSettingsPath(cwd: temp.path);
       SettingsManager.writeSettingsFile(

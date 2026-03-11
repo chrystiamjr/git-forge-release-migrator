@@ -2,11 +2,13 @@ import 'dart:io';
 
 import 'package:gfrm_dart/src/core/adapters/provider_adapter.dart';
 import 'package:gfrm_dart/src/core/exceptions/migration_phase_error.dart';
-import 'package:gfrm_dart/src/core/logging.dart';
 import 'package:gfrm_dart/src/core/types/canonical_release.dart';
 import 'package:gfrm_dart/src/migrations/engine.dart';
 import 'package:gfrm_dart/src/models/runtime_options.dart';
 import 'package:gfrm_dart/src/providers/registry.dart';
+import '../../support/logging.dart';
+import '../../support/runtime_options_fixture.dart';
+import '../../support/temp_dir.dart';
 import 'package:test/test.dart';
 
 final class _EmptySourceAdapter extends ProviderAdapter {
@@ -56,54 +58,14 @@ final class _TargetAdapter extends ProviderAdapter {
   }
 }
 
-RuntimeOptions _buildOptions(String workdirPath, String logPath) {
-  return RuntimeOptions(
-    commandName: commandMigrate,
-    sourceProvider: 'github',
-    sourceUrl: 'https://github.com/acme/source',
-    sourceToken: 'src-token',
-    targetProvider: 'gitlab',
-    targetUrl: 'https://gitlab.com/acme/target',
-    targetToken: 'dst-token',
-    migrationOrder: 'github-to-gitlab',
-    skipTagMigration: false,
-    fromTag: '',
-    toTag: '',
-    dryRun: false,
-    nonInteractive: true,
-    workdir: workdirPath,
-    logFile: logPath,
-    loadSession: false,
-    saveSession: false,
-    resumeSession: false,
-    sessionFile: '',
-    sessionTokenMode: 'env',
-    sessionSourceTokenEnv: defaultSourceTokenEnv,
-    sessionTargetTokenEnv: defaultTargetTokenEnv,
-    settingsProfile: '',
-    downloadWorkers: 4,
-    releaseWorkers: 1,
-    checkpointFile: '',
-    tagsFile: '',
-    noBanner: true,
-    quiet: true,
-    jsonOutput: false,
-    progressBar: false,
-    demoMode: false,
-    demoReleases: 5,
-    demoSleepSeconds: 1.0,
-  );
-}
-
 void main() {
   group('engine', () {
     test('creates parent directory for custom --log-file before truncating file', () async {
-      final Directory temp = Directory.systemTemp.createTempSync('gfrm-engine-log-path-');
-      addTearDown(() => temp.deleteSync(recursive: true));
+      final Directory temp = createTempDir('gfrm-engine-log-path-');
 
       final String workdirPath = '${temp.path}/results';
       final String logPath = '${temp.path}/logs/nested/migration-log.jsonl';
-      final RuntimeOptions options = _buildOptions(workdirPath, logPath);
+      final RuntimeOptions options = buildRuntimeOptions(workdir: workdirPath, logFile: logPath);
 
       final _EmptySourceAdapter source = _EmptySourceAdapter();
       final _TargetAdapter target = _TargetAdapter();
@@ -113,7 +75,7 @@ void main() {
       });
       final MigrationEngine engine = MigrationEngine(
         registry: registry,
-        logger: ConsoleLogger(quiet: true, jsonOutput: false),
+        logger: createSilentLogger(),
       );
 
       await expectLater(

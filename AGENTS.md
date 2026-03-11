@@ -149,7 +149,13 @@ Settings behavior to preserve:
   1. explicit `--settings-profile`
   2. `defaults.profile`
   3. `default`
-- token precedence (`migrate`/`resume`) must remain deterministic and documented
+- token precedence (`migrate`/`resume`) must remain deterministic and documented:
+  - `migrate`: settings (`token_env`, then `token_plain`) -> env aliases
+  - `resume`: session token context -> settings (`token_env`, then `token_plain`) -> env aliases
+- hidden legacy overrides:
+  - `--source-token`
+  - `--target-token`
+  - These flags still override token resolution when explicitly provided, but they are not part of the recommended public workflow.
 
 ## Architecture Map (Dart)
 
@@ -245,6 +251,13 @@ yarn lint:dart
 yarn test:dart
 ```
 
+Coverage workflow:
+
+- `yarn coverage:dart` generates `dart_cli/coverage/lcov.info` and `dart_cli/coverage/html/`
+- CI publishes `dart_cli/coverage/coverage_html.zip` alongside `dart_cli/coverage/lcov.info`
+- coverage threshold is `80%`, enforced with `coverde`
+- `yarn coverage:dart` is currently useful for diagnostics/reporting, but it is expected to fail until repository-wide coverage reaches the threshold
+
 Equivalent direct commands (inside `dart_cli`, use as fallback/debug):
 
 ```bash
@@ -275,6 +288,13 @@ Minimum coverage priorities:
 - checkpoint terminal-state semantics
 - retry generation and summary consistency
 - idempotency + failed-tags behavior
+
+Current quality gate implementation:
+
+- main quality gate logic lives in `.github/actions/quality-check/action.yml`
+- primary workflows are `.github/workflows/quality-checks.yml` and `.github/workflows/release.yml`
+- these workflows run on `push` to `main`
+- there is no manual `workflow_dispatch` path for the main quality-check or release pipelines
 
 Run a specific test file (inside `dart_cli`):
 

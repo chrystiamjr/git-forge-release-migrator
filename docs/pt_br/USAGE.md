@@ -21,10 +21,17 @@ Verificações locais recomendadas a partir da raiz do repositório:
 ```bash
 yarn lint:dart
 yarn test:dart
+yarn coverage:dart
 ./scripts/smoke-test.sh
 ```
 
 Comandos Dart diretos ainda funcionam, mas a documentação prioriza os scripts `yarn` para o desenvolvimento local do dia a dia.
+
+Saídas de coverage:
+
+- `dart_cli/coverage/lcov.info` para ferramentas compatíveis com LCOV
+- `dart_cli/coverage/coverage_html.zip` como artefato HTML publicado no CI
+- `dart_cli/coverage/html/index.html` para navegação local após `yarn coverage:dart`
 
 ## Executando Artefatos de CI
 
@@ -198,9 +205,12 @@ Obrigatórios:
 
 Fontes de token (em ordem):
 
-1. flags `--source-token` / `--target-token` (ocultos, legado — maior precedência quando fornecidos)
-2. token de settings (`token_env`, depois `token_plain`)
-3. aliases de ambiente (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, aliases por provider)
+1. token de settings (`token_env`, depois `token_plain`)
+2. aliases de ambiente (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, aliases por provider)
+
+Nota de compatibilidade legada:
+
+- As flags ocultas `--source-token` e `--target-token` ainda sobrepõem a resolução quando fornecidas explicitamente, mas não fazem parte do fluxo público recomendado.
 
 Opções principais:
 
@@ -337,6 +347,7 @@ Comportamento:
 - settings efetivas = deep-merge(global, local)
 - `settings show` mascara `token_plain`
 - `settings init` escaneia arquivos de shell em modo somente leitura (`.zshrc`, `.zprofile`, `.bashrc`, `.bash_profile`)
+- `migrate` e `resume` foram desenhados para resolver tokens via settings, contexto de sessão ou aliases de ambiente sem exigir flags explícitas de token
 
 Resolução de perfil:
 

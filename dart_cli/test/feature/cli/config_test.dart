@@ -6,6 +6,7 @@ import 'package:gfrm_dart/src/config/arg_parsers.dart';
 import 'package:gfrm_dart/src/core/session_store.dart';
 import 'package:gfrm_dart/src/core/settings.dart';
 import 'package:gfrm_dart/src/models/runtime_options.dart';
+import '../../support/temp_dir.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -125,8 +126,7 @@ void main() {
     });
 
     test('parseCliRequest loads resume session', () {
-      final Directory temp = Directory.systemTemp.createTempSync('gfrm-dart-config-');
-      addTearDown(() => temp.deleteSync(recursive: true));
+      final Directory temp = createTempDir('gfrm-dart-config-');
 
       final String sessionPath = '${temp.path}/session.json';
       SessionStore.saveSession(
@@ -183,8 +183,7 @@ void main() {
       ]);
       expect(migrateRequest.options!.saveSession, isFalse);
 
-      final Directory temp = Directory.systemTemp.createTempSync('gfrm-dart-config-save-session-');
-      addTearDown(() => temp.deleteSync(recursive: true));
+      final Directory temp = createTempDir('gfrm-dart-config-save-session-');
 
       final String sessionPath = '${temp.path}/session.json';
       SessionStore.saveSession(
@@ -210,8 +209,7 @@ void main() {
     });
 
     test('parseCliRequest migrate resolves token from settings profile', () {
-      final Directory tempWorkdir = Directory.systemTemp.createTempSync('gfrm-dart-settings-workdir-');
-      addTearDown(() => tempWorkdir.deleteSync(recursive: true));
+      final Directory tempWorkdir = createTempDir('gfrm-dart-settings-workdir-');
 
       final String settingsPath = '${tempWorkdir.path}/.gfrm/settings.yaml';
       SettingsManager.writeSettingsFile(
@@ -251,6 +249,47 @@ void main() {
       expect(options.sourceToken, 'source-from-settings');
       expect(options.targetToken, 'target-from-settings');
       expect(options.settingsProfile, 'work');
+    });
+
+    test('parseCliRequest builds demo runtime with defaults', () {
+      final CliRequest request = CliRequestParser.parseCliRequest(<String>[
+        commandDemo,
+        '--source-provider',
+        'gh',
+        '--target-provider',
+        'gl',
+      ]);
+
+      final RuntimeOptions options = request.options!;
+      expect(request.command, commandDemo);
+      expect(options.commandName, commandDemo);
+      expect(options.sourceProvider, 'github');
+      expect(options.targetProvider, 'gitlab');
+      expect(options.demoMode, isTrue);
+      expect(options.demoReleases, 5);
+      expect(options.demoSleepSeconds, 1.0);
+    });
+
+    test('parseCliRequest builds demo runtime with explicit release count', () {
+      final CliRequest request = CliRequestParser.parseCliRequest(<String>[
+        commandDemo,
+        '--source-provider',
+        'github',
+        '--target-provider',
+        'gitlab',
+        '--demo-releases',
+        '10',
+        '--demo-sleep-seconds',
+        '0.5',
+        '--download-workers',
+        '2',
+      ]);
+
+      final RuntimeOptions options = request.options!;
+      expect(options.demoMode, isTrue);
+      expect(options.demoReleases, 10);
+      expect(options.demoSleepSeconds, closeTo(0.5, 0.001));
+      expect(options.downloadWorkers, 2);
     });
   });
 }

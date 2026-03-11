@@ -17,12 +17,12 @@ completed items are skipped automatically.
 ## Quick Start
 
 1. Download the artifact for your OS from the [releases page](/releases).
-2. Unzip and make executable (macOS/Linux: `chmod +x ./gfrm`).
-3. Bootstrap your settings once:
+2. Unzip it and make the binary executable on macOS/Linux with `chmod +x ./gfrm`.
+3. Configure tokens once with:
    ```bash
    ./gfrm setup
    ```
-4. Run your first migration:
+4. Run your first migration using your configured settings profile or environment aliases:
    ```bash
    ./gfrm migrate \
      --source-provider gitlab \
@@ -158,12 +158,15 @@ Profile resolution order:
 
 Default token resolution order:
 
-1. `migrate` and `resume`: `--source-token` / `--target-token` CLI flags (hidden, legacy — highest precedence when provided)
-2. `migrate`: settings provider token (`token_env`, then `token_plain`)
-3. `migrate`: env aliases (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, provider aliases)
-4. `resume`: session token context
-5. `resume`: settings provider token (`token_env`, then `token_plain`)
-6. `resume`: env aliases (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, provider aliases)
+1. `migrate`: settings provider token (`token_env`, then `token_plain`)
+2. `migrate`: env aliases (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, provider aliases)
+3. `resume`: session token context
+4. `resume`: settings provider token (`token_env`, then `token_plain`)
+5. `resume`: env aliases (`GFRM_SOURCE_TOKEN`, `GFRM_TARGET_TOKEN`, provider aliases)
+
+Hidden legacy overrides:
+
+- `--source-token` and `--target-token` still exist for internal or compatibility use, but they are not part of the recommended public workflow.
 
 ## Migration Examples
 

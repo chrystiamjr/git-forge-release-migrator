@@ -3,6 +3,31 @@ import 'dart:io';
 final class FileOps {
   const FileOps._();
 
+  static ProcessResult Function(String executable, List<String> arguments) _runProcess =
+      (String executable, List<String> arguments) => Process.runSync(executable, arguments);
+  static void Function(File file, String newPath) _renameFile = (File file, String newPath) => file.renameSync(newPath);
+  static File Function(File file, String newPath) _copyFile = (File file, String newPath) => file.copySync(newPath);
+  static void Function(File file) _deleteFile = (File file) => file.deleteSync();
+
+  static void configureForTests({
+    ProcessResult Function(String executable, List<String> arguments)? runProcess,
+    void Function(File file, String newPath)? renameFile,
+    File Function(File file, String newPath)? copyFile,
+    void Function(File file)? deleteFile,
+  }) {
+    _runProcess = runProcess ?? _runProcess;
+    _renameFile = renameFile ?? _renameFile;
+    _copyFile = copyFile ?? _copyFile;
+    _deleteFile = deleteFile ?? _deleteFile;
+  }
+
+  static void resetTestConfiguration() {
+    _runProcess = (String executable, List<String> arguments) => Process.runSync(executable, arguments);
+    _renameFile = (File file, String newPath) => file.renameSync(newPath);
+    _copyFile = (File file, String newPath) => file.copySync(newPath);
+    _deleteFile = (File file) => file.deleteSync();
+  }
+
   static void ensureParentSecurity(Directory directory) {
     directory.createSync(recursive: true);
     if (Platform.isWindows) {
@@ -10,7 +35,7 @@ final class FileOps {
     }
 
     try {
-      Process.runSync('chmod', <String>['700', directory.path]);
+      _runProcess('chmod', <String>['700', directory.path]);
     } catch (_) {
       // Ignore permission hardening failures.
     }
@@ -22,7 +47,7 @@ final class FileOps {
     }
 
     try {
-      Process.runSync('chmod', <String>['600', pathValue]);
+      _runProcess('chmod', <String>['600', pathValue]);
     } catch (_) {
       // Ignore permission hardening failures.
     }
@@ -30,7 +55,7 @@ final class FileOps {
 
   static void replaceFile(File tmpFile, File targetFile) {
     try {
-      tmpFile.renameSync(targetFile.path);
+      _renameFile(tmpFile, targetFile.path);
       return;
     } on FileSystemException {
       // Continue to overwrite-safe fallback.
@@ -40,7 +65,7 @@ final class FileOps {
     if (targetFile.existsSync()) {
       backupFile = File('${targetFile.path}.bak-${DateTime.now().microsecondsSinceEpoch}');
       try {
-        targetFile.renameSync(backupFile.path);
+        _renameFile(targetFile, backupFile.path);
       } on FileSystemException {
         backupFile = null;
       }
@@ -48,12 +73,12 @@ final class FileOps {
 
     bool replaced = false;
     try {
-      tmpFile.renameSync(targetFile.path);
+      _renameFile(tmpFile, targetFile.path);
       replaced = true;
     } on FileSystemException {
       try {
-        tmpFile.copySync(targetFile.path);
-        tmpFile.deleteSync();
+        _copyFile(tmpFile, targetFile.path);
+        _deleteFile(tmpFile);
         replaced = true;
       } on FileSystemException {
         replaced = false;
@@ -62,7 +87,7 @@ final class FileOps {
 
     if (replaced) {
       if (backupFile != null && backupFile.existsSync()) {
-        backupFile.deleteSync();
+        _deleteFile(backupFile);
       }
 
       return;
@@ -70,11 +95,11 @@ final class FileOps {
 
     if (backupFile != null && backupFile.existsSync() && !targetFile.existsSync()) {
       try {
-        backupFile.renameSync(targetFile.path);
+        _renameFile(backupFile, targetFile.path);
         return;
       } on FileSystemException {
-        backupFile.copySync(targetFile.path);
-        backupFile.deleteSync();
+        _copyFile(backupFile, targetFile.path);
+        _deleteFile(backupFile);
         return;
       }
     }

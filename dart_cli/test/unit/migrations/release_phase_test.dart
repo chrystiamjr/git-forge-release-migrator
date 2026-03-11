@@ -7,24 +7,15 @@ import 'package:gfrm_dart/src/core/types/canonical_release.dart';
 import 'package:gfrm_dart/src/core/types/phase.dart';
 import 'package:gfrm_dart/src/migrations/release_phase.dart';
 import 'package:gfrm_dart/src/models/migration_context.dart';
-import 'package:gfrm_dart/src/models/runtime_options.dart';
+import '../../support/logging.dart';
+import '../../support/migration_context_fixture.dart';
+import '../../support/provider_fixtures.dart';
+import '../../support/temp_dir.dart';
 import 'package:test/test.dart';
 
 // ---------------------------------------------------------------------------
 // Stub adapters
 // ---------------------------------------------------------------------------
-
-/// A minimal release payload with no assets.
-Map<String, dynamic> _minimalRelease(String tag) => <String, dynamic>{
-      'tag_name': tag,
-      'name': tag,
-      'description_markdown': '# $tag',
-      'commit_sha': 'abc123',
-      'assets': <String, dynamic>{
-        'links': <dynamic>[],
-        'sources': <dynamic>[],
-      },
-    };
 
 final class _StubSourceAdapter extends ProviderAdapter {
   @override
@@ -102,79 +93,6 @@ final class _StubTargetAdapter extends ProviderAdapter {
 }
 
 // ---------------------------------------------------------------------------
-// Helper
-// ---------------------------------------------------------------------------
-
-MigrationContext _buildContext(
-  Directory temp,
-  ProviderAdapter source,
-  ProviderAdapter target, {
-  List<String> selectedTags = const <String>[],
-  Set<String> targetTags = const <String>{},
-  List<Map<String, dynamic>> releases = const <Map<String, dynamic>>[],
-  Map<String, String> checkpointState = const <String, String>{},
-  bool dryRun = false,
-  int releaseWorkers = 1,
-}) {
-  final ProviderRef sourceRef = source.parseUrl('https://github.com/acme/source');
-  final ProviderRef targetRef = target.parseUrl('https://gitlab.com/acme/target');
-  final RuntimeOptions options = RuntimeOptions(
-    commandName: commandMigrate,
-    sourceProvider: 'github',
-    sourceUrl: 'https://github.com/acme/source',
-    sourceToken: 'src-token',
-    targetProvider: 'gitlab',
-    targetUrl: 'https://gitlab.com/acme/target',
-    targetToken: 'dst-token',
-    migrationOrder: 'github-to-gitlab',
-    skipTagMigration: false,
-    fromTag: '',
-    toTag: '',
-    dryRun: dryRun,
-    nonInteractive: true,
-    workdir: temp.path,
-    logFile: '${temp.path}/migration.jsonl',
-    loadSession: false,
-    saveSession: false,
-    resumeSession: false,
-    sessionFile: '',
-    sessionTokenMode: 'env',
-    sessionSourceTokenEnv: defaultSourceTokenEnv,
-    sessionTargetTokenEnv: defaultTargetTokenEnv,
-    settingsProfile: '',
-    downloadWorkers: 4,
-    releaseWorkers: releaseWorkers,
-    checkpointFile: '',
-    tagsFile: '',
-    noBanner: true,
-    quiet: true,
-    jsonOutput: false,
-    progressBar: false,
-    demoMode: false,
-    demoReleases: 5,
-    demoSleepSeconds: 1.0,
-  );
-
-  return MigrationContext(
-    sourceRef: sourceRef,
-    targetRef: targetRef,
-    source: source,
-    target: target,
-    options: options,
-    logPath: '${temp.path}/migration.jsonl',
-    workdir: temp,
-    checkpointPath: '${temp.path}/checkpoint.jsonl',
-    checkpointSignature: 'test-sig',
-    checkpointState: Map<String, String>.from(checkpointState),
-    selectedTags: List<String>.from(selectedTags),
-    targetTags: Set<String>.from(targetTags),
-    targetReleaseTags: <String>{},
-    failedTags: <String>{},
-    releases: List<Map<String, dynamic>>.from(releases),
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -182,15 +100,14 @@ void main() {
   late ConsoleLogger logger;
 
   setUp(() {
-    logger = ConsoleLogger(quiet: true, jsonOutput: false);
+    logger = createSilentLogger();
   });
 
   group('ReleasePhaseRunner', () {
     test('returns empty counts when selectedTags is empty', () async {
-      final Directory temp = Directory.systemTemp.createTempSync('gfrm-rel-phase-');
-      addTearDown(() => temp.deleteSync(recursive: true));
+      final Directory temp = createTempDir('gfrm-rel-phase-');
 
-      final MigrationContext ctx = _buildContext(temp, _StubSourceAdapter(), _StubTargetAdapter());
+      final MigrationContext ctx = buildMigrationContext(temp, _StubSourceAdapter(), _StubTargetAdapter());
 
       final ReleaseMigrationCounts counts = await ReleasePhaseRunner(logger: logger).run(ctx);
 
@@ -200,8 +117,7 @@ void main() {
     });
 
     test('creates release with no assets successfully', () async {
-      final Directory temp = Directory.systemTemp.createTempSync('gfrm-rel-phase-');
-      addTearDown(() => temp.deleteSync(recursive: true));
+      final Directory temp = createTempDir('gfrm-rel-phase-');
 
       bool publishCalled = false;
       final _StubTargetAdapter target = _StubTargetAdapter(
@@ -211,13 +127,13 @@ void main() {
           return 'created';
         },
       );
-      final MigrationContext ctx = _buildContext(
+      final MigrationContext ctx = buildMigrationContext(
         temp,
         _StubSourceAdapter(),
         target,
         selectedTags: <String>['v1.0.0'],
         targetTags: <String>{'v1.0.0'}, // tag already exists in target
-        releases: <Map<String, dynamic>>[_minimalRelease('v1.0.0')],
+        releases: <Map<String, dynamic>>[buildMinimalReleasePayload('v1.0.0')],
       );
 
       final ReleaseMigrationCounts counts = await ReleasePhaseRunner(logger: logger).run(ctx);
@@ -227,8 +143,7 @@ void main() {
     });
 
     test('skips release that is already processed via checkpoint', () async {
-      final Directory temp = Directory.systemTemp.createTempSync('gfrm-rel-phase-');
-      addTearDown(() => temp.deleteSync(recursive: true));
+      final Directory temp = createTempDir('gfrm-rel-phase-');
 
       bool publishCalled = false;
       final _StubTargetAdapter target = _StubTargetAdapter(
@@ -238,14 +153,14 @@ void main() {
           return 'created';
         },
       );
-      final MigrationContext ctx = _buildContext(
+      final MigrationContext ctx = buildMigrationContext(
         temp,
         _StubSourceAdapter(),
         target,
         selectedTags: <String>['v1.0.0'],
         targetTags: <String>{'v1.0.0'},
         checkpointState: <String, String>{'release:v1.0.0': 'created'}, // terminal status
-        releases: <Map<String, dynamic>>[_minimalRelease('v1.0.0')],
+        releases: <Map<String, dynamic>>[buildMinimalReleasePayload('v1.0.0')],
       );
 
       final ReleaseMigrationCounts counts = await ReleasePhaseRunner(logger: logger).run(ctx);
@@ -255,19 +170,18 @@ void main() {
     });
 
     test('fails release when tag is missing in target after tag phase', () async {
-      final Directory temp = Directory.systemTemp.createTempSync('gfrm-rel-phase-');
-      addTearDown(() => temp.deleteSync(recursive: true));
+      final Directory temp = createTempDir('gfrm-rel-phase-');
 
       final _StubTargetAdapter target = _StubTargetAdapter(
         tagExistsResult: false, // tag not on remote
       );
-      final MigrationContext ctx = _buildContext(
+      final MigrationContext ctx = buildMigrationContext(
         temp,
         _StubSourceAdapter(),
         target,
         selectedTags: <String>['v1.0.0'],
         // targetTags is empty — tag never migrated
-        releases: <Map<String, dynamic>>[_minimalRelease('v1.0.0')],
+        releases: <Map<String, dynamic>>[buildMinimalReleasePayload('v1.0.0')],
       );
 
       final ReleaseMigrationCounts counts = await ReleasePhaseRunner(logger: logger).run(ctx);
@@ -277,8 +191,7 @@ void main() {
     });
 
     test('dry-run increments wouldCreate without publishing', () async {
-      final Directory temp = Directory.systemTemp.createTempSync('gfrm-rel-phase-');
-      addTearDown(() => temp.deleteSync(recursive: true));
+      final Directory temp = createTempDir('gfrm-rel-phase-');
 
       bool publishCalled = false;
       final _StubTargetAdapter target = _StubTargetAdapter(
@@ -288,13 +201,13 @@ void main() {
           return 'created';
         },
       );
-      final MigrationContext ctx = _buildContext(
+      final MigrationContext ctx = buildMigrationContext(
         temp,
         _StubSourceAdapter(),
         target,
         selectedTags: <String>['v1.0.0'],
         targetTags: <String>{'v1.0.0'},
-        releases: <Map<String, dynamic>>[_minimalRelease('v1.0.0')],
+        releases: <Map<String, dynamic>>[buildMinimalReleasePayload('v1.0.0')],
         dryRun: true,
       );
 
@@ -305,20 +218,19 @@ void main() {
     });
 
     test('fails release when publishRelease returns "failed"', () async {
-      final Directory temp = Directory.systemTemp.createTempSync('gfrm-rel-phase-');
-      addTearDown(() => temp.deleteSync(recursive: true));
+      final Directory temp = createTempDir('gfrm-rel-phase-');
 
       final _StubTargetAdapter target = _StubTargetAdapter(
         tagExistsResult: true,
         publishResult: 'failed',
       );
-      final MigrationContext ctx = _buildContext(
+      final MigrationContext ctx = buildMigrationContext(
         temp,
         _StubSourceAdapter(),
         target,
         selectedTags: <String>['v1.0.0'],
         targetTags: <String>{'v1.0.0'},
-        releases: <Map<String, dynamic>>[_minimalRelease('v1.0.0')],
+        releases: <Map<String, dynamic>>[buildMinimalReleasePayload('v1.0.0')],
       );
 
       final ReleaseMigrationCounts counts = await ReleasePhaseRunner(logger: logger).run(ctx);
@@ -328,20 +240,19 @@ void main() {
     });
 
     test('rethrows AuthenticationError from publishRelease', () async {
-      final Directory temp = Directory.systemTemp.createTempSync('gfrm-rel-phase-');
-      addTearDown(() => temp.deleteSync(recursive: true));
+      final Directory temp = createTempDir('gfrm-rel-phase-');
 
       final _StubTargetAdapter target = _StubTargetAdapter(
         tagExistsResult: true,
         onPublish: (_) async => throw AuthenticationError('401 from publishRelease'),
       );
-      final MigrationContext ctx = _buildContext(
+      final MigrationContext ctx = buildMigrationContext(
         temp,
         _StubSourceAdapter(),
         target,
         selectedTags: <String>['v1.0.0'],
         targetTags: <String>{'v1.0.0'},
-        releases: <Map<String, dynamic>>[_minimalRelease('v1.0.0')],
+        releases: <Map<String, dynamic>>[buildMinimalReleasePayload('v1.0.0')],
       );
 
       await expectLater(
@@ -351,8 +262,7 @@ void main() {
     });
 
     test('skips release that exists and is complete on remote', () async {
-      final Directory temp = Directory.systemTemp.createTempSync('gfrm-rel-phase-');
-      addTearDown(() => temp.deleteSync(recursive: true));
+      final Directory temp = createTempDir('gfrm-rel-phase-');
 
       bool publishCalled = false;
       final _StubTargetAdapter target = _StubTargetAdapter(
@@ -363,13 +273,13 @@ void main() {
           return 'created';
         },
       );
-      final MigrationContext ctx = _buildContext(
+      final MigrationContext ctx = buildMigrationContext(
         temp,
         _StubSourceAdapter(),
         target,
         selectedTags: <String>['v1.0.0'],
         targetTags: <String>{'v1.0.0'},
-        releases: <Map<String, dynamic>>[_minimalRelease('v1.0.0')],
+        releases: <Map<String, dynamic>>[buildMinimalReleasePayload('v1.0.0')],
       );
 
       final ReleaseMigrationCounts counts = await ReleasePhaseRunner(logger: logger).run(ctx);
@@ -379,10 +289,9 @@ void main() {
     });
 
     test('fails release when payload is missing from releases list', () async {
-      final Directory temp = Directory.systemTemp.createTempSync('gfrm-rel-phase-');
-      addTearDown(() => temp.deleteSync(recursive: true));
+      final Directory temp = createTempDir('gfrm-rel-phase-');
 
-      final MigrationContext ctx = _buildContext(
+      final MigrationContext ctx = buildMigrationContext(
         temp,
         _StubSourceAdapter(),
         _StubTargetAdapter(tagExistsResult: true),
@@ -397,16 +306,15 @@ void main() {
     });
 
     test('updates checkpointState after successful release creation', () async {
-      final Directory temp = Directory.systemTemp.createTempSync('gfrm-rel-phase-');
-      addTearDown(() => temp.deleteSync(recursive: true));
+      final Directory temp = createTempDir('gfrm-rel-phase-');
 
-      final MigrationContext ctx = _buildContext(
+      final MigrationContext ctx = buildMigrationContext(
         temp,
         _StubSourceAdapter(),
         _StubTargetAdapter(tagExistsResult: true, publishResult: 'created'),
         selectedTags: <String>['v1.0.0'],
         targetTags: <String>{'v1.0.0'},
-        releases: <Map<String, dynamic>>[_minimalRelease('v1.0.0')],
+        releases: <Map<String, dynamic>>[buildMinimalReleasePayload('v1.0.0')],
       );
 
       await ReleasePhaseRunner(logger: logger).run(ctx);
@@ -415,18 +323,17 @@ void main() {
     });
 
     test('processes multiple tags concurrently with 2 workers', () async {
-      final Directory temp = Directory.systemTemp.createTempSync('gfrm-rel-phase-');
-      addTearDown(() => temp.deleteSync(recursive: true));
+      final Directory temp = createTempDir('gfrm-rel-phase-');
 
-      final MigrationContext ctx = _buildContext(
+      final MigrationContext ctx = buildMigrationContext(
         temp,
         _StubSourceAdapter(),
         _StubTargetAdapter(tagExistsResult: true, publishResult: 'created'),
         selectedTags: <String>['v1.0.0', 'v1.1.0'],
         targetTags: <String>{'v1.0.0', 'v1.1.0'},
         releases: <Map<String, dynamic>>[
-          _minimalRelease('v1.0.0'),
-          _minimalRelease('v1.1.0'),
+          buildMinimalReleasePayload('v1.0.0'),
+          buildMinimalReleasePayload('v1.1.0'),
         ],
         releaseWorkers: 2,
       );

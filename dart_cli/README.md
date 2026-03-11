@@ -106,21 +106,45 @@ fvm dart test test/integration
 fvm dart test test/unit/some_test.dart
 ```
 
-Generating a coverage report (LCOV):
+Generating coverage reports with `coverde`:
 
 ```bash
-cd dart_cli
-fvm dart test --coverage=coverage/
-fvm dart run coverage:format_coverage \
-  --lcov \
-  --in=coverage/ \
-  --out=coverage/lcov.info \
-  --report-on=lib
+yarn coverage:dart
 ```
 
-The resulting `coverage/lcov.info` can be consumed by any LCOV-compatible viewer (e.g., `genhtml`, VS Code Coverage Gutters, or CI coverage services).
+This command:
 
-CI enforces a minimum line coverage of **80%**. Builds fail if coverage drops below this threshold.
+- runs the Dart test suite with coverage collection
+- generates `coverage/lcov.info` for tooling compatibility
+- generates an HTML report under `coverage/html/`
+- packages the HTML report for CI publication as `coverage/coverage_html.zip`
+- enforces the minimum line coverage threshold of `80%`
+
+Open the HTML report locally:
+
+```bash
+open coverage/html/index.html
+```
+
+If you already have `coverage/lcov.info` and only want to rebuild the HTML report:
+
+```bash
+yarn coverage:dart:html
+```
+
+If you want a terminal-friendly text report:
+
+```bash
+yarn coverage:dart:text
+```
+
+The `coverage/lcov.info` file remains available as the technical artifact for LCOV-compatible tools and CI integrations.
+
+CI enforces a minimum line coverage of **80%**, uploads both `coverage/lcov.info` and `coverage/coverage_html.zip`, and
+no longer depends on `genhtml`.
+
+At the moment, the repository-wide coverage is still below the configured threshold, so `yarn coverage:dart` will generate
+the reports and then fail until the codebase reaches the minimum percentage.
 
 `./scripts/smoke-test.sh` runs a local end-to-end smoke test against the compiled binary (no external forge credentials required).
 
@@ -175,6 +199,9 @@ CI/release is Dart-only and runs format/analyze/test gates.
 - Build artifacts workflow: `.github/workflows/release.yml` (job `build-release-assets`)
 - Semantic release workflow: `.github/workflows/release.yml`
 - Semantic release config: `release.config.cjs`
+
+Both the quality-check and release workflows run automatically from `push` events on `main`; there is no manual
+`workflow_dispatch` path for these pipelines.
 
 Release archive names:
 

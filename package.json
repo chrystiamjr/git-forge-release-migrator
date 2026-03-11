@@ -10,6 +10,9 @@
     "prepare": "husky",
     "lint:dart": "cd dart_cli && node ../scripts/run-dart.js format -l 120 --set-exit-if-changed bin lib test && node ../scripts/run-dart.js analyze --fatal-infos",
     "test:dart": "cd dart_cli && node ../scripts/run-dart.js test",
+    "coverage:dart": "cd dart_cli && node ../scripts/run-dart.js test --coverage=coverage/ && node ../scripts/run-dart.js run coverage:format_coverage --lcov --in=coverage/ --out=coverage/lcov.info --report-on=lib && node ../scripts/run-dart.js run coverde --update-check disabled report --input coverage/lcov.info --output coverage/html && node ../scripts/run-dart.js run coverde --update-check disabled check 80 --input coverage/lcov.info --file-coverage-log-level overview",
+    "coverage:dart:html": "cd dart_cli && node ../scripts/run-dart.js run coverde --update-check disabled report --input coverage/lcov.info --output coverage/html",
+    "coverage:dart:text": "cd dart_cli && node ../scripts/run-dart.js test --coverage=coverage/ && node ../scripts/run-dart.js run coverage:format_coverage --in=coverage/ --out=coverage/coverage.txt --report-on=lib --pretty-print",
     "release": "semantic-release",
     "release:dry": "semantic-release --dry-run"
   },

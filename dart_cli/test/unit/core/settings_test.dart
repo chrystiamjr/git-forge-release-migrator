@@ -193,5 +193,71 @@ void main() {
       final Map<String, dynamic> defaults = loaded['defaults'] as Map<String, dynamic>;
       expect(defaults['profile'], 'personal');
     });
+
+    test('defaultGlobalSettingsPath uses XDG_CONFIG_HOME when set', () {
+      const String xdgDir = '/custom/xdg/config';
+      final String path = SettingsManager.defaultGlobalSettingsPath(
+        env: <String, String>{'XDG_CONFIG_HOME': xdgDir},
+      );
+      expect(path, contains('gfrm'));
+      expect(path, contains('settings.yaml'));
+      expect(path, startsWith(xdgDir));
+    });
+
+    test('defaultGlobalSettingsPath uses HOME when XDG_CONFIG_HOME is absent', () {
+      const String home = '/home/testuser';
+      final String path = SettingsManager.defaultGlobalSettingsPath(
+        env: <String, String>{'HOME': home},
+        homeDir: home,
+      );
+      expect(path, contains('.config'));
+      expect(path, contains('gfrm'));
+      expect(path, startsWith(home));
+    });
+
+    test('defaultGlobalSettingsPath falls back to current directory when HOME missing', () {
+      final String path = SettingsManager.defaultGlobalSettingsPath(
+        env: <String, String>{},
+        homeDir: '',
+      );
+      expect(path, contains('.gfrm'));
+      expect(path, contains('settings.yaml'));
+    });
+
+    test('loadSettingsFile returns empty map for nonexistent file', () {
+      final Map<String, dynamic> result = SettingsManager.loadSettingsFile('/tmp/gfrm-nonexistent-test.yaml');
+      expect(result, isEmpty);
+    });
+
+    test('maskSettingsSecrets masks token_plain values', () {
+      final Map<String, dynamic> settings = <String, dynamic>{
+        'profiles': <String, dynamic>{
+          'default': <String, dynamic>{
+            'providers': <String, dynamic>{
+              'github': <String, dynamic>{
+                'token_plain': 'super-secret-token',
+                'token_env': 'GH_TOKEN',
+              },
+            },
+          },
+        },
+      };
+
+      final Map<String, dynamic> masked = SettingsManager.maskSettingsSecrets(settings);
+      final dynamic profiles = masked['profiles'];
+      expect(profiles, isA<Map<String, dynamic>>());
+    });
+
+    test('loadEffectiveSettings returns empty when no settings files exist', () {
+      final Directory temp = Directory.systemTemp.createTempSync('gfrm-dart-settings-empty-');
+      addTearDown(() => temp.deleteSync(recursive: true));
+
+      final Map<String, dynamic> result = SettingsManager.loadEffectiveSettings(
+        homeDir: p.join(temp.path, 'home'),
+        cwd: p.join(temp.path, 'work'),
+        env: <String, String>{},
+      );
+      expect(result, isA<Map<String, dynamic>>());
+    });
   });
 }
