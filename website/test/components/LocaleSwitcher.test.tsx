@@ -1,6 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const assignMock = vi.fn();
 
@@ -25,8 +25,11 @@ vi.mock('@docusaurus/router', () => ({
 import LocaleSwitcher from '../../src/components/LocaleSwitcher';
 
 describe('LocaleSwitcher', () => {
+  let originalLocationDescriptor: PropertyDescriptor | undefined;
+
   beforeEach(() => {
     assignMock.mockReset();
+    originalLocationDescriptor = Object.getOwnPropertyDescriptor(window, 'location');
     Object.defineProperty(window, 'location', {
       configurable: true,
       value: {
@@ -34,6 +37,14 @@ describe('LocaleSwitcher', () => {
         assign: assignMock,
       },
     });
+  });
+
+  afterEach(() => {
+    if (originalLocationDescriptor) {
+      Object.defineProperty(window, 'location', originalLocationDescriptor);
+    } else {
+      delete (window as Window & { location?: Location }).location;
+    }
   });
 
   it('renders floating button and navigates to alternate locale', () => {
