@@ -50,7 +50,7 @@ export default function Home(): JSX.Element {
   ];
 
   return (
-    <Layout title={siteConfig.title} description={siteConfig.tagline}>
+    <Layout title={siteConfig.title} description={siteConfig.tagline} wrapperClassName="gfrm-landing">
       {/* Hero */}
       <section className={styles.hero}>
         <div className={styles.heroGlow} />

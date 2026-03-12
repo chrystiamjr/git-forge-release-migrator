@@ -9,29 +9,51 @@ function buildLocaleUrl(
   currentLocale: string,
   pathname: string,
 ): string {
-  // Strip current locale prefix from path (non-default locales are prefixed)
   let path = pathname;
   if (currentLocale !== defaultLocale) {
     path = pathname.replace(new RegExp(`^/${currentLocale}`), '') || '/';
   }
-  // Prefix target locale (unless it's the default)
   if (targetLocale === defaultLocale) {
     return path;
   }
   return `/${targetLocale}${path}`;
 }
 
-export default function LocaleSwitcher(): JSX.Element {
+type Props = {
+  /** "inline" — EN|PT pill for the landing page hero (default)
+   *  "floating" — single button showing only the alternate locale */
+  variant?: 'inline' | 'floating';
+};
+
+export default function LocaleSwitcher({ variant = 'inline' }: Props): JSX.Element {
   const {
     i18n: { currentLocale, locales, defaultLocale, localeConfigs },
   } = useDocusaurusContext();
   const { pathname } = useLocation();
 
+  if (variant === 'floating') {
+    const target = locales.find((l) => l !== currentLocale);
+    if (!target) return <></>;
+    const shortLabel = target === 'pt-BR' ? 'PT' : target.toUpperCase();
+    const targetLabel = localeConfigs[target]?.label ?? target;
+    return (
+      <a
+        href={buildLocaleUrl(target, defaultLocale, currentLocale, pathname)}
+        className={styles.floatingBtn}
+        aria-label={`Switch to ${targetLabel}`}
+        title={targetLabel}
+        hrefLang={localeConfigs[target]?.htmlLang ?? target}
+      >
+        <span className={styles.floatingIcon}>🌐</span>
+        {shortLabel}
+      </a>
+    );
+  }
+
   return (
     <div className={styles.switcher}>
       {locales.map((locale) => {
         const isActive = locale === currentLocale;
-        const label = localeConfigs[locale]?.htmlLang ?? locale;
         const shortLabel = locale === 'pt-BR' ? 'PT' : locale.toUpperCase();
         return (
           <a
@@ -41,7 +63,7 @@ export default function LocaleSwitcher(): JSX.Element {
             aria-label={`Switch to ${localeConfigs[locale]?.label ?? locale}`}
             aria-current={isActive ? 'true' : undefined}
             title={localeConfigs[locale]?.label ?? locale}
-            hrefLang={label}
+            hrefLang={localeConfigs[locale]?.htmlLang ?? locale}
           >
             {shortLabel}
           </a>

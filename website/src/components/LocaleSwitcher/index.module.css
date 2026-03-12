@@ -1,3 +1,4 @@
+/* ── Inline variant (EN | PT pill) ─────────────────────────────────────── */
 .switcher {
   display: inline-flex;
   align-items: center;
@@ -32,4 +33,34 @@
 .active:hover {
   background: var(--ifm-color-primary-dark);
   color: #fff;
+}
+
+/* ── Floating variant (single target-locale button) ─────────────────────── */
+.floatingBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.45rem 0.85rem 0.45rem 0.65rem;
+  background: var(--ifm-color-primary);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  transition: background 0.15s, transform 0.15s;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.floatingBtn:hover {
+  background: var(--ifm-color-primary-dark);
+  color: #fff;
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+
+.floatingIcon {
+  font-size: 0.85rem;
+  line-height: 1;
 }
