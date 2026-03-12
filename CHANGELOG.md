@@ -1,3 +1,17 @@
+## [0.6.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.5.0...v0.6.0) (2026-03-12)
+
+### Features
+
+* **i18n:** add PT-BR translations for landing page and download component ([6b5571e](https://github.com/chrystiamjr/git-forge-release-migrator/commit/6b5571e8acc1e42607974e45754c2a737fb33ea2))
+* **website:** add floating locale switcher for mobile doc pages ([d0cef14](https://github.com/chrystiamjr/git-forge-release-migrator/commit/d0cef14efeb6043e25f99ae5801e91eddcbaaed8))
+* **website:** add locale switcher to landing page and PT-BR translation pre-commit check ([84b4f71](https://github.com/chrystiamjr/git-forge-release-migrator/commit/84b4f719c60cc06aae7c7c6ab2f25c38430c49d1))
+
+### Bug Fixes
+
+* **website:** address code review findings ([1daef54](https://github.com/chrystiamjr/git-forge-release-migrator/commit/1daef54b5f02b91c367440058c190af15e8494ff))
+* **website:** address remaining PR review comments ([6b01457](https://github.com/chrystiamjr/git-forge-release-migrator/commit/6b01457ab520ee173a06e5bd5560cec9ba9ebc58))
+* **website:** fix navbar logo flash and add trademark notice ([6a4427b](https://github.com/chrystiamjr/git-forge-release-migrator/commit/6a4427b837d22b0585fb7af667f7eb99da561abe))
+
 ## [0.5.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.4.0...v0.5.0) (2026-03-11)
 
 ### Features
