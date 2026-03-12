@@ -1,4 +1,8 @@
 {
   "name": "gfrm-website",
-  "private": true
+  "private": true,
+  "scripts": {
+    "test": "vitest --config ./vitest.config.ts run",
+    "test:watch": "vitest --config ./vitest.config.ts"
+  }
 }
