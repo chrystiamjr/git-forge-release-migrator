@@ -1,66 +1,68 @@
 /* ── Inline variant (EN | PT pill) ─────────────────────────────────────── */
 .switcher {
-  display: inline-flex;
-  align-items: center;
-  gap: 0;
-  border: 1.5px solid var(--ifm-color-primary);
-  border-radius: 999px;
-  overflow: hidden;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    border: 1.5px solid var(--ifm-color-primary);
+    border-radius: 999px;
+    overflow: hidden;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
 }
 
 .localeBtn {
-  padding: 0.3rem 0.7rem;
-  color: var(--ifm-color-primary);
-  text-decoration: none;
-  transition: background 0.15s, color 0.15s;
-  line-height: 1;
+    padding: 0.3rem 0.7rem;
+    color: var(--ifm-color-primary);
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s;
+    line-height: 1;
 }
 
 .localeBtn:hover {
-  background: var(--gfrm-surface);
-  text-decoration: none;
-  color: var(--ifm-color-primary);
+    background: var(--gfrm-surface);
+    text-decoration: none;
+    color: var(--ifm-color-primary);
 }
 
 .active {
-  background: var(--ifm-color-primary);
-  color: #fff;
+    background: var(--ifm-color-primary);
+    color: #fff;
 }
 
 .active:hover {
-  background: var(--ifm-color-primary-dark);
-  color: #fff;
+    background: var(--ifm-color-primary-dark);
+    color: #fff;
 }
 
 /* ── Floating variant (single target-locale button) ─────────────────────── */
 .floatingBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.45rem 0.85rem 0.45rem 0.65rem;
-  background: var(--ifm-color-primary);
-  color: #fff;
-  border-radius: 999px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-decoration: none;
-  transition: background 0.15s, transform 0.15s;
-  line-height: 1;
-  white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.45rem 0.85rem 0.45rem 0.65rem;
+    background: var(--ifm-color-primary);
+    color: #fff;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-decoration: none;
+    transition: background 0.15s, transform 0.15s;
+    line-height: 1;
+    white-space: nowrap;
 }
 
 .floatingBtn:hover {
-  background: var(--ifm-color-primary-dark);
-  color: #fff;
-  text-decoration: none;
-  transform: translateY(-1px);
+    background: var(--ifm-color-primary-dark);
+    color: #fff;
+    text-decoration: none;
+    transform: translateY(-1px);
 }
 
 .floatingIcon {
-  font-size: 0.85rem;
-  line-height: 1;
+    font-size: 0.85rem;
+    line-height: 1;
+    position: relative;
+    top: 1px;
 }

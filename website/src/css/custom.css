@@ -35,7 +35,8 @@
     --gfrm-border: rgba(148, 163, 184, 0.22);
 }
 
-.navbar__logo img {
+.navbar__logo img,
+.navbar__logo svg {
     display: block;
 }
 

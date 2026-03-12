@@ -21,6 +21,13 @@ Full documentation is available at **[gfrm.envolvosystems.com.br](https://gfrm.e
 
 - Development/runtime guide: [dart_cli/README.md](dart_cli/README.md)
 
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
+The source code license does not grant rights to use the `gfrm`, Git Forge Release Migrator, or Envolvo Systems
+names, logos, or other brand assets beyond truthful referential use. See [TRADEMARKS.md](TRADEMARKS.md).
+
 ## Quick Start
 
 1. Download the artifact for your OS
