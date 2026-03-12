@@ -118,8 +118,3 @@
     }
 }
 
-/* Hide the floating button on the landing page — LocaleSwitcher is already
-   in the hero CTA row on that page. */
-.gfrm-landing .gfrm-locale-float {
-    display: none !important;
-}

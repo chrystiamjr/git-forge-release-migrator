@@ -1,6 +1,5 @@
 import React from 'react';
-import { useHistory, useLocation } from '@docusaurus/router';
-import { translate } from '@docusaurus/Translate';
+import { useLocation } from '@docusaurus/router';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import styles from './index.module.css';
 
@@ -18,7 +17,8 @@ function buildLocaleUrl(
   if (targetLocale === defaultLocale) {
     return path;
   }
-  return `/${targetLocale}${path}`;
+  // Avoid trailing slash on locale root (e.g. /pt-BR not /pt-BR/)
+  return `/${targetLocale}${path === '/' ? '' : path}`;
 }
 
 type Props = {
@@ -31,8 +31,15 @@ export default function LocaleSwitcher({ variant = 'inline' }: Props): JSX.Eleme
   const {
     i18n: { currentLocale, locales, defaultLocale, localeConfigs },
   } = useDocusaurusContext();
-  const history = useHistory();
   const { pathname } = useLocation();
+
+  // Hard navigation is required for locale switches: the SPA router for the
+  // current locale has no knowledge of the other locale's routes, so
+  // history.push() would silently 404. window.location.assign() forces a full
+  // page reload, which is what Docusaurus's built-in localeDropdown does too.
+  function switchTo(targetLocale: string): void {
+    window.location.assign(buildLocaleUrl(targetLocale, defaultLocale, currentLocale, pathname));
+  }
 
   if (variant === 'floating') {
     const target = locales.find((l) => l !== currentLocale);
@@ -43,17 +50,10 @@ export default function LocaleSwitcher({ variant = 'inline' }: Props): JSX.Eleme
       <button
         type="button"
         className={styles.floatingBtn}
-        onClick={() =>
-          history.push(buildLocaleUrl(target, defaultLocale, currentLocale, pathname))
-        }
-        aria-label={translate(
-          {
-            id: 'localeSwitcher.switchTo',
-            message: 'Switch to {targetLabel}',
-          },
-          { targetLabel },
-        )}
+        onClick={() => switchTo(target)}
+        aria-label={`Switch to ${targetLabel}`}
         title={targetLabel}
+        lang={localeConfigs[target]?.htmlLang ?? target}
       >
         <span className={styles.floatingIcon}>🌐</span>
         {shortLabel}
@@ -71,21 +71,12 @@ export default function LocaleSwitcher({ variant = 'inline' }: Props): JSX.Eleme
             type="button"
             key={locale}
             className={`${styles.localeBtn} ${isActive ? styles.active : ''}`}
-            onClick={() => {
-              if (!isActive) {
-                history.push(buildLocaleUrl(locale, defaultLocale, currentLocale, pathname));
-              }
-            }}
-            aria-label={translate(
-              {
-                id: 'localeSwitcher.switchTo',
-                message: 'Switch to {targetLabel}',
-              },
-              { targetLabel: localeConfigs[locale]?.label ?? locale },
-            )}
+            onClick={() => { if (!isActive) switchTo(locale); }}
+            aria-label={`Switch to ${localeConfigs[locale]?.label ?? locale}`}
             aria-current={isActive ? 'page' : undefined}
             title={localeConfigs[locale]?.label ?? locale}
             disabled={isActive}
+            lang={localeConfigs[locale]?.htmlLang ?? locale}
           >
             {shortLabel}
           </button>
