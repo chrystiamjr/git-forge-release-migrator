@@ -47,16 +47,6 @@ const PLATFORMS = [
   },
 ];
 
-function detectPlatform(): PlatformId | null {
-  if (typeof navigator === 'undefined') return 'linux';
-  const ua = navigator.userAgent;
-  if (ua.includes('Win')) return 'windows';
-  // Browsers on Apple Silicon often report an Intel-flavored macOS user agent,
-  // so avoid auto-selecting a macOS architecture unless we have a trustworthy signal.
-  if (ua.includes('Mac')) return null;
-  return 'linux';
-}
-
 function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
@@ -65,7 +55,30 @@ export default function DownloadSection(): JSX.Element {
   const [release, setRelease] = useState<Release | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const detectedPlatform = detectPlatform();
+  // null on SSR and initial hydration — avoids showing wrong platform during the flash.
+  // Resolved client-side only, after mount, to guarantee navigator is available.
+  const [detectedPlatform, setDetectedPlatform] = useState<PlatformId | null>(null);
+
+  useEffect(() => {
+    const ua = navigator.userAgent;
+    if (ua.includes('Win')) {
+      setDetectedPlatform('windows');
+    } else if (ua.includes('Mac')) {
+      // Use WebGL renderer string to distinguish Apple Silicon from Intel.
+      // Fallback to silicon (majority of Macs since late 2020) if WebGL is unavailable.
+      try {
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl') ?? canvas.getContext('experimental-webgl') as WebGLRenderingContext | null;
+        const ext = gl?.getExtension('WEBGL_debug_renderer_info');
+        const renderer = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) as string : '';
+        setDetectedPlatform(renderer.includes('Intel') ? 'macos-intel' : 'macos-silicon');
+      } catch {
+        setDetectedPlatform('macos-silicon');
+      }
+    } else if (!/Android|iPhone|iPad/i.test(ua)) {
+      setDetectedPlatform('linux');
+    }
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();

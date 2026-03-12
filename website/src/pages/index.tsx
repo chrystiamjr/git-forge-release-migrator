@@ -4,7 +4,6 @@ import Link from '@docusaurus/Link';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import Translate, { translate } from '@docusaurus/Translate';
 import DownloadSection from '../components/DownloadSection';
-import LocaleSwitcher from '../components/LocaleSwitcher';
 import styles from './index.module.css';
 
 export default function Home(): JSX.Element {
@@ -76,7 +75,6 @@ export default function Home(): JSX.Element {
             <a href="#download" className={styles.ctaSecondary}>
               <Translate id="homepage.cta.download">Download</Translate>
             </a>
-            <LocaleSwitcher />
           </div>
         </div>
       </section>
