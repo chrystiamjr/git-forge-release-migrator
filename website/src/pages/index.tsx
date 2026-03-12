@@ -2,52 +2,81 @@ import React from 'react';
 import Layout from '@theme/Layout';
 import Link from '@docusaurus/Link';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
+import Translate, { translate } from '@docusaurus/Translate';
 import DownloadSection from '../components/DownloadSection';
+import LocaleSwitcher from '../components/LocaleSwitcher';
 import styles from './index.module.css';
-
-const FEATURES = [
-  {
-    icon: '🔀',
-    title: 'Cross-forge migrations',
-    description:
-      'Migrate between GitHub, GitLab, and Bitbucket Cloud in any direction. One command covers tags, releases, notes, and binary assets.',
-  },
-  {
-    icon: '🔄',
-    title: 'Resilient by design',
-    description:
-      'Checkpoint state is written to disk on every step. Interrupted runs resume exactly where they left off with gfrm resume.',
-  },
-  {
-    icon: '📦',
-    title: 'Zero runtime dependencies',
-    description:
-      'Ships as a single compiled binary. No Dart, Node, FVM, or Yarn required on the target machine.',
-  },
-];
 
 export default function Home(): JSX.Element {
   const { siteConfig } = useDocusaurusContext();
 
+  const features = [
+    {
+      icon: '🔀',
+      title: translate({
+        id: 'homepage.feature.crossForge.title',
+        message: 'Cross-forge migrations',
+      }),
+      description: translate({
+        id: 'homepage.feature.crossForge.description',
+        message:
+          'Migrate between GitHub, GitLab, and Bitbucket Cloud in any direction. One command covers tags, releases, notes, and binary assets.',
+      }),
+    },
+    {
+      icon: '🔄',
+      title: translate({
+        id: 'homepage.feature.resilient.title',
+        message: 'Resilient by design',
+      }),
+      description: translate({
+        id: 'homepage.feature.resilient.description',
+        message:
+          'Checkpoint state is written to disk on every step. Interrupted runs resume exactly where they left off with gfrm resume.',
+      }),
+    },
+    {
+      icon: '📦',
+      title: translate({
+        id: 'homepage.feature.zeroDeps.title',
+        message: 'Zero runtime dependencies',
+      }),
+      description: translate({
+        id: 'homepage.feature.zeroDeps.description',
+        message:
+          'Ships as a single compiled binary. No Dart, Node, FVM, or Yarn required on the target machine.',
+      }),
+    },
+  ];
+
   return (
-    <Layout title={siteConfig.title} description={siteConfig.tagline}>
+    <Layout title={siteConfig.title} description={siteConfig.tagline} wrapperClassName="gfrm-landing">
       {/* Hero */}
       <section className={styles.hero}>
         <div className={styles.heroGlow} />
         <div className={styles.heroInner}>
-          <span className={styles.kicker}>Open Source CLI</span>
+          <span className={styles.kicker}>
+            <Translate id="homepage.kicker">Open Source CLI</Translate>
+          </span>
           <h1 className={styles.heroTitle}>
-            Move releases across Git forges{' '}
-            <span className={styles.heroAccent}>without redoing work</span>
+            <Translate id="homepage.hero.title">
+              {'Move releases across Git forges '}
+            </Translate>
+            <span className={styles.heroAccent}>
+              <Translate id="homepage.hero.titleAccent">
+                without redoing work
+              </Translate>
+            </span>
           </h1>
           <p className={styles.heroSubtitle}>{siteConfig.tagline}</p>
           <div className={styles.heroCtas}>
             <Link to="/intro" className={styles.ctaPrimary}>
-              Get Started
+              <Translate id="homepage.cta.getStarted">Get Started</Translate>
             </Link>
             <a href="#download" className={styles.ctaSecondary}>
-              Download
+              <Translate id="homepage.cta.download">Download</Translate>
             </a>
+            <LocaleSwitcher />
           </div>
         </div>
       </section>
@@ -56,7 +85,7 @@ export default function Home(): JSX.Element {
       <section className={styles.features}>
         <div className={styles.container}>
           <div className={styles.featureGrid}>
-            {FEATURES.map((f, i) => (
+            {features.map((f, i) => (
               <div
                 key={f.title}
                 className={styles.featureCard}
@@ -74,9 +103,13 @@ export default function Home(): JSX.Element {
       {/* Download */}
       <section id="download" className={styles.downloadSection}>
         <div className={styles.container}>
-          <h2 className={styles.sectionTitle}>Download</h2>
+          <h2 className={styles.sectionTitle}>
+            <Translate id="homepage.download.title">Download</Translate>
+          </h2>
           <p className={styles.sectionSubtitle}>
-            Pre-compiled binaries for all platforms. No runtime required.
+            <Translate id="homepage.download.subtitle">
+              Pre-compiled binaries for all platforms. No runtime required.
+            </Translate>
           </p>
           <DownloadSection />
         </div>
@@ -85,9 +118,13 @@ export default function Home(): JSX.Element {
       {/* Quick start terminal */}
       <section className={styles.quickStart}>
         <div className={styles.container}>
-          <h2 className={styles.sectionTitle}>Quick start</h2>
+          <h2 className={styles.sectionTitle}>
+            <Translate id="homepage.quickStart.title">Quick start</Translate>
+          </h2>
           <p className={styles.sectionSubtitle}>
-            Download, extract, and run your first migration in minutes.
+            <Translate id="homepage.quickStart.subtitle">
+              Download, extract, and run your first migration in minutes.
+            </Translate>
           </p>
           <div className={styles.terminal}>
             <div className={styles.terminalBar}>
@@ -96,7 +133,9 @@ export default function Home(): JSX.Element {
               <span className={styles.dot} />
               <span className={styles.terminalTitle}>bash</span>
             </div>
-            <pre className={styles.terminalCode}>{`# macOS — extract and allow execution
+            <pre className={styles.terminalCode}>{translate({
+              id: 'homepage.quickStart.terminalCode',
+              message: `# macOS — extract and allow execution
 unzip gfrm-macos-silicon.zip
 chmod +x gfrm
 xattr -d com.apple.quarantine gfrm
@@ -107,23 +146,30 @@ xattr -d com.apple.quarantine gfrm
 # Run a migration
 ./gfrm migrate \\
   --source github:org/old-repo \\
-  --target gitlab:group/new-repo`}</pre>
+  --target gitlab:group/new-repo`,
+            })}</pre>
           </div>
           <div className={styles.readNext}>
             <Link
               to="/getting-started/install-and-verify"
               className={styles.readNextLink}
             >
-              Install and Verify →
+              <Translate id="homepage.readNext.installAndVerify">
+                Install and Verify →
+              </Translate>
             </Link>
             <Link
               to="/getting-started/first-migration"
               className={styles.readNextLink}
             >
-              First Migration →
+              <Translate id="homepage.readNext.firstMigration">
+                First Migration →
+              </Translate>
             </Link>
             <Link to="/intro" className={styles.readNextLink}>
-              Full Documentation →
+              <Translate id="homepage.readNext.fullDocs">
+                Full Documentation →
+              </Translate>
             </Link>
           </div>
         </div>

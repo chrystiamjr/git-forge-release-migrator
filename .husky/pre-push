@@ -1,9 +1,55 @@
 #!/bin/sh
 
+# ── Dart tests ───────────────────────────────────────────────────────────────
 cd dart_cli || exit 1
 
 if command -v fvm >/dev/null 2>&1; then
   fvm dart test
 else
   dart test
+fi
+
+cd ..
+
+# ── Validate commit messages for all commits being pushed ────────────────────
+# Collect subjects into a temp file so subshell exit codes don't get swallowed
+tmpfile=$(mktemp)
+trap 'rm -f "$tmpfile"' EXIT
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  # Deleted branch — nothing to validate
+  [ "$local_sha" = "0000000000000000000000000000000000000000" ] && continue
+
+  # New branch with no upstream yet — compare against merge-base with main
+  if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+    base=$(git merge-base "origin/main" "$local_sha" 2>/dev/null || true)
+    if [ -z "$base" ]; then
+      range="$local_sha"
+    else
+      range="$base..$local_sha"
+    fi
+  else
+    range="$remote_sha..$local_sha"
+  fi
+
+  git log --format="%s" "$range" | while IFS= read -r subject; do
+    if ! node scripts/validate-commit-msg.mjs "$subject"; then
+      echo "$subject" >>"$tmpfile"
+    fi
+  done
+done
+
+if [ -s "$tmpfile" ]; then
+  echo ""
+  echo "❌  Push blocked — the following commits have invalid messages:"
+  echo ""
+  while IFS= read -r subject; do
+    echo "  • $subject"
+  done <"$tmpfile"
+  echo ""
+  echo "  Fix: amend or rebase the commits above to follow the format:"
+  echo "       type(scope): short description"
+  echo "       Types: feat, fix, chore, docs, refactor, test, ci, style, perf, build, revert"
+  echo ""
+  exit 1
 fi

@@ -334,6 +334,49 @@ The docs site is deployed automatically to **[gfrm.envolvosystems.com.br](https:
 - `dart_cli/README.md` remains the development/runtime guide, not the public product manual
 - PT-BR translations live under `website/i18n/pt-BR/`; always update both locales when changing content
 
+## Website Development
+
+The `website/` directory is a Docusaurus 3 site (TypeScript, React) with EN and PT-BR locales.
+
+### Key source paths
+
+| Path | Purpose |
+|------|---------|
+| `website/src/pages/index.tsx` | Landing page (hero, features, download, quick-start) |
+| `website/src/components/DownloadSection/` | Fetches latest GitHub release via API, detects OS, renders download cards |
+| `website/src/components/LocaleSwitcher/` | `variant="inline"` (EN\|PT pill) and `variant="floating"` (single globe button for mobile) |
+| `website/src/theme/Root.tsx` | Swizzled Root — injects floating locale switcher on all pages except landing |
+| `website/src/theme/Navbar/Logo/` | Swizzled NavbarLogo — renders an inline SVG using `var(--ifm-color-primary)`; eliminates dual-image FOUC |
+| `website/src/css/custom.css` | Global CSS vars, hero/card layouts, floating locale switcher CSS |
+| `website/i18n/pt-BR/` | PT-BR translations: `code.json` (React strings), `current.json` (sidebar categories), `navbar.json`, `footer.json` |
+
+### i18n rules
+
+- All user-visible strings in React pages/components must be wrapped with `<Translate id="...">` or `translate({id, message})`.
+- Keys follow the pattern `<area>.<component>.<description>` (e.g. `homepage.cta.getStarted`, `downloadSection.loading`).
+- PT-BR translations live in `website/i18n/pt-BR/code.json`.
+- Both EN and PT-BR must be updated together; never add a key without its translation.
+- `scripts/check-translations.mjs` validates that all required keys exist and are non-empty — run it before committing website changes.
+
+### Scripts (website quality gates)
+
+| Script | Purpose | When it runs |
+|--------|---------|-------------|
+| `scripts/check-translations.mjs` | Validates PT-BR `code.json`, `current.json`, `navbar.json`, `footer.json` | Pre-commit (if i18n/src files staged) and CI quality-check |
+| `scripts/validate-commit-msg.mjs` | Validates Conventional Commit format | `commit-msg` hook and `pre-push` hook |
+
+### Husky hooks
+
+| Hook | What it does |
+|------|-------------|
+| `pre-commit` | Dart format + analyze; runs `check-translations.mjs` when website/i18n files are staged |
+| `commit-msg` | Validates the commit message with `validate-commit-msg.mjs` |
+| `pre-push` | Runs Dart tests; validates all pushed commits against Conventional Commits format |
+
+### NavbarLogo swizzle — why it exists
+
+Docusaurus's default `ThemedImage` renders **both** light and dark `<img>` elements during SSR/hydration, controlled by CSS module (hashed) class names. This causes a brief double-logo flash on full page reloads (locale switch). The swizzle at `website/src/theme/Navbar/Logo/index.tsx` renders a **single inline SVG** that uses `var(--ifm-color-primary)`, which Docusaurus's synchronous color-mode script sets in `<head>` before any paint — no flash possible.
+
 ## Internal Planning Docs
 
 - `roadmap/` is a local planning workspace and is gitignored by default
@@ -382,19 +425,22 @@ All commits must follow [Conventional Commits](https://www.conventionalcommits.o
 |-------|--------|
 | `dart` | Dart production source (`dart_cli/lib/`) |
 | `ci` | GitHub Actions workflows, quality gates, release pipeline |
-| `docs` | Markdown documentation, README, AGENTS, CHANGELOG, `website/` content |
+| `docs` | Markdown content, README, AGENTS, CHANGELOG |
+| `website` | Docusaurus site code — React components, CSS, config, i18n |
 | `deps` | Dependency updates (`pubspec.yaml`, lock files, Dependabot) |
 | `release` | Semantic-release config, changelog generation, versioning |
 
 ### Rules
 
 1. Use imperative mood in the summary line: "add retry logic", not "added" or "adds".
-2. Summary line must be 72 characters or fewer.
-3. Each bullet must describe **what** changed and **why**, not the implementation detail.
-4. Group tightly related changes into one bullet; avoid one bullet per file.
-5. Do not add a co-author trailer unless explicitly requested.
-6. Keep the subject line free of punctuation at the end.
-7. `docs` and `ci` commits do **not** trigger a release. For a `chore` that should also not release (e.g. adding a tooling file with no product impact), append `[skip ci]` to the commit message.
+2. Scope is required for every new commit subject; use `type(scope): summary`, not `type: summary`.
+3. Prefer one of the repository scopes listed above; add a new scope only when the existing list would be misleading.
+4. Summary line must be 72 characters or fewer.
+5. Each bullet must describe **what** changed and **why**, not the implementation detail.
+6. Group tightly related changes into one bullet; avoid one bullet per file.
+7. Do not add a co-author trailer unless explicitly requested.
+8. Keep the subject line free of punctuation at the end.
+9. `docs` and `ci` commits do **not** trigger a release. For a `chore` that should also not release (e.g. adding a tooling file with no product impact), append `[skip ci]` to the commit message.
 
 ### Examples
 
