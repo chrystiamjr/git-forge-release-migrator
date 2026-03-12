@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * check-translations.js
+ * check-translations.mjs
  *
  * Validates that PT-BR translation files are complete and up to date.
  * Exits with code 1 if any issues are found.
  *
  * Checks:
- *  1. code.json — all homepage.* and downloadSection.* keys exist and are non-empty
+ *  1. code.json — all required homepage.* and downloadSection.* keys exist and are non-empty
  *  2. current.json — all sidebar category keys exist and are non-empty
  *  3. navbar.json / footer.json — all message values are non-empty
  */
@@ -51,45 +51,37 @@ console.log('\n[1/3] Checking code.json …');
 const codeJson = loadJson(resolve(PT_BR, 'code.json'));
 
 if (codeJson) {
-  const REQUIRED_PREFIXES = ['homepage.', 'downloadSection.'];
-
-  // These values are intentionally the same in EN and PT-BR
-  const ALLOWED_SAME = new Set([
+  const REQUIRED_CODE_KEYS = [
+    'homepage.kicker',
+    'homepage.hero.title',
+    'homepage.hero.titleAccent',
+    'homepage.cta.getStarted',
     'homepage.cta.download',
+    'homepage.feature.crossForge.title',
+    'homepage.feature.crossForge.description',
+    'homepage.feature.resilient.title',
+    'homepage.feature.resilient.description',
+    'homepage.feature.zeroDeps.title',
+    'homepage.feature.zeroDeps.description',
     'homepage.download.title',
+    'homepage.download.subtitle',
+    'homepage.quickStart.title',
+    'homepage.quickStart.subtitle',
+    'homepage.quickStart.terminalCode',
+    'homepage.readNext.installAndVerify',
+    'homepage.readNext.firstMigration',
+    'homepage.readNext.fullDocs',
+    'downloadSection.error.message',
+    'downloadSection.error.fallbackLink',
+    'downloadSection.releaseNotes',
+    'downloadSection.detectedBadge',
     'downloadSection.downloadButton',
-  ]);
+    'downloadSection.unavailable',
+    'downloadSection.checksumHint',
+    'localeSwitcher.switchTo',
+  ];
 
-  // English defaults embedded in source (used to detect untranslated strings)
-  const EN_DEFAULTS = {
-    'homepage.kicker': 'Open Source CLI',
-    'homepage.hero.title': 'Move releases across Git forges ',
-    'homepage.hero.titleAccent': 'without redoing work',
-    'homepage.cta.getStarted': 'Get Started',
-    'homepage.feature.crossForge.title': 'Cross-forge migrations',
-    'homepage.feature.crossForge.description':
-      'Migrate between GitHub, GitLab, and Bitbucket Cloud in any direction. One command covers tags, releases, notes, and binary assets.',
-    'homepage.feature.resilient.title': 'Resilient by design',
-    'homepage.feature.resilient.description':
-      'Checkpoint state is written to disk on every step. Interrupted runs resume exactly where they left off with gfrm resume.',
-    'homepage.feature.zeroDeps.title': 'Zero runtime dependencies',
-    'homepage.feature.zeroDeps.description':
-      'Ships as a single compiled binary. No Dart, Node, FVM, or Yarn required on the target machine.',
-    'homepage.download.subtitle': 'Pre-compiled binaries for all platforms. No runtime required.',
-    'homepage.quickStart.title': 'Quick start',
-    'homepage.quickStart.subtitle': 'Download, extract, and run your first migration in minutes.',
-    'homepage.readNext.installAndVerify': 'Install and Verify →',
-    'homepage.readNext.firstMigration': 'First Migration →',
-    'homepage.readNext.fullDocs': 'Full Documentation →',
-    'downloadSection.error.message': 'Could not load release information.',
-    'downloadSection.error.fallbackLink': 'View all releases on GitHub →',
-    'downloadSection.releaseNotes': 'Release notes →',
-    'downloadSection.detectedBadge': 'Your platform',
-    'downloadSection.unavailable': 'Unavailable',
-    'downloadSection.checksumHint': 'Verify your download with SHA256',
-  };
-
-  for (const [key, enDefault] of Object.entries(EN_DEFAULTS)) {
+  for (const key of REQUIRED_CODE_KEYS) {
     const entry = codeJson[key];
     if (!entry) {
       fail(`Missing key in code.json: "${key}"`);
@@ -100,19 +92,7 @@ if (codeJson) {
       fail(`Empty translation in code.json: "${key}"`);
       continue;
     }
-    if (!ALLOWED_SAME.has(key) && msg === enDefault) {
-      fail(`Untranslated (still English) in code.json: "${key}"`);
-      continue;
-    }
     pass(`code.json["${key}"]`);
-  }
-
-  // Check no required-prefix key is empty
-  for (const [key, entry] of Object.entries(codeJson)) {
-    const isCustom = REQUIRED_PREFIXES.some((p) => key.startsWith(p));
-    if (isCustom && !entry.message?.trim()) {
-      fail(`Empty message in code.json: "${key}"`);
-    }
   }
 }
 

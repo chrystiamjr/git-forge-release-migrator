@@ -346,7 +346,7 @@ The `website/` directory is a Docusaurus 3 site (TypeScript, React) with EN and 
 | `website/src/components/DownloadSection/` | Fetches latest GitHub release via API, detects OS, renders download cards |
 | `website/src/components/LocaleSwitcher/` | `variant="inline"` (EN\|PT pill) and `variant="floating"` (single globe button for mobile) |
 | `website/src/theme/Root.tsx` | Swizzled Root — injects floating locale switcher on all pages except landing |
-| `website/src/theme/NavbarLogo/` | Swizzled NavbarLogo — renders an inline SVG using `var(--ifm-color-primary)`; eliminates dual-image FOUC |
+| `website/src/theme/Navbar/Logo/` | Swizzled NavbarLogo — renders an inline SVG using `var(--ifm-color-primary)`; eliminates dual-image FOUC |
 | `website/src/css/custom.css` | Global CSS vars, hero/card layouts, floating locale switcher CSS |
 | `website/i18n/pt-BR/` | PT-BR translations: `code.json` (React strings), `current.json` (sidebar categories), `navbar.json`, `footer.json` |
 
@@ -375,7 +375,7 @@ The `website/` directory is a Docusaurus 3 site (TypeScript, React) with EN and 
 
 ### NavbarLogo swizzle — why it exists
 
-Docusaurus's default `ThemedImage` renders **both** light and dark `<img>` elements during SSR/hydration, controlled by CSS module (hashed) class names. This causes a brief double-logo flash on full page reloads (locale switch). The swizzle at `website/src/theme/NavbarLogo/index.tsx` renders a **single inline SVG** that uses `var(--ifm-color-primary)`, which Docusaurus's synchronous color-mode script sets in `<head>` before any paint — no flash possible.
+Docusaurus's default `ThemedImage` renders **both** light and dark `<img>` elements during SSR/hydration, controlled by CSS module (hashed) class names. This causes a brief double-logo flash on full page reloads (locale switch). The swizzle at `website/src/theme/Navbar/Logo/index.tsx` renders a **single inline SVG** that uses `var(--ifm-color-primary)`, which Docusaurus's synchronous color-mode script sets in `<head>` before any paint — no flash possible.
 
 ## Internal Planning Docs
 
@@ -433,12 +433,14 @@ All commits must follow [Conventional Commits](https://www.conventionalcommits.o
 ### Rules
 
 1. Use imperative mood in the summary line: "add retry logic", not "added" or "adds".
-2. Summary line must be 72 characters or fewer.
-3. Each bullet must describe **what** changed and **why**, not the implementation detail.
-4. Group tightly related changes into one bullet; avoid one bullet per file.
-5. Do not add a co-author trailer unless explicitly requested.
-6. Keep the subject line free of punctuation at the end.
-7. `docs` and `ci` commits do **not** trigger a release. For a `chore` that should also not release (e.g. adding a tooling file with no product impact), append `[skip ci]` to the commit message.
+2. Scope is required for every new commit subject; use `type(scope): summary`, not `type: summary`.
+3. Prefer one of the repository scopes listed above; add a new scope only when the existing list would be misleading.
+4. Summary line must be 72 characters or fewer.
+5. Each bullet must describe **what** changed and **why**, not the implementation detail.
+6. Group tightly related changes into one bullet; avoid one bullet per file.
+7. Do not add a co-author trailer unless explicitly requested.
+8. Keep the subject line free of punctuation at the end.
+9. `docs` and `ci` commits do **not** trigger a release. For a `chore` that should also not release (e.g. adding a tooling file with no product impact), append `[skip ci]` to the commit message.
 
 ### Examples
 

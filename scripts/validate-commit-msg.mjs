@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * validate-commit-msg.js
+ * validate-commit-msg.mjs
  *
  * Validates a single commit message against the Conventional Commits spec:
  *   type(scope): short description
@@ -8,8 +8,8 @@
  *   [optional body]
  *
  * Usage:
- *   node scripts/validate-commit-msg.js --file <path>   # commit-msg hook
- *   node scripts/validate-commit-msg.js "<message>"     # ad-hoc / pre-push
+ *   node scripts/validate-commit-msg.mjs --file <path>   # commit-msg hook
+ *   node scripts/validate-commit-msg.mjs "<message>"     # ad-hoc / pre-push
  */
 
 import { readFileSync } from 'fs';
@@ -28,9 +28,11 @@ const TYPES = [
   'revert',
 ];
 
-// type(optional-scope)optional-!: description (1–100 chars)
+const SUBJECT_MAX_LENGTH = 72;
+
+// type(required-scope)optional-!: description (1–72 chars)
 const SUBJECT_RE = new RegExp(
-  `^(${TYPES.join('|')})(\\([^)]+\\))?!?: .{1,100}$`,
+  `^(${TYPES.join('|')})(\\([^)]+\\))!?: .{1,${SUBJECT_MAX_LENGTH}}$`,
 );
 
 // Commit subjects to skip validation (auto-generated / tooling)
@@ -53,6 +55,8 @@ function validate(raw) {
       `  Subject : "${subject}"`,
       '',
       `  Expected : type(scope): short description`,
+      `  Scope    : required`,
+      `  Max len  : ${SUBJECT_MAX_LENGTH} characters`,
       `  Types    : ${TYPES.join(', ')}`,
       '',
       '  Examples :',
@@ -86,8 +90,8 @@ if (args[0] === '--file' && args[1]) {
 } else if (args.length >= 1) {
   message = args.join(' ');
 } else {
-  console.error('Usage: node scripts/validate-commit-msg.js --file <path>');
-  console.error('       node scripts/validate-commit-msg.js "<message>"');
+  console.error('Usage: node scripts/validate-commit-msg.mjs --file <path>');
+  console.error('       node scripts/validate-commit-msg.mjs "<message>"');
   process.exit(1);
 }
 

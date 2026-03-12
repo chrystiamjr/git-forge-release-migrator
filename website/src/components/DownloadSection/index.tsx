@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import Translate, { translate } from '@docusaurus/Translate';
+import Translate from '@docusaurus/Translate';
 import styles from './index.module.css';
 
 interface ReleaseAsset {
@@ -13,6 +13,8 @@ interface Release {
   html_url: string;
   assets: ReleaseAsset[];
 }
+
+type PlatformId = (typeof PLATFORMS)[number]['id'];
 
 const PLATFORMS = [
   {
@@ -45,11 +47,13 @@ const PLATFORMS = [
   },
 ];
 
-function detectPlatform(): string {
+function detectPlatform(): PlatformId | null {
   if (typeof navigator === 'undefined') return 'linux';
   const ua = navigator.userAgent;
   if (ua.includes('Win')) return 'windows';
-  if (ua.includes('Mac')) return /arm|aarch64/i.test(ua) ? 'macos-silicon' : 'macos-intel';
+  // Browsers on Apple Silicon often report an Intel-flavored macOS user agent,
+  // so avoid auto-selecting a macOS architecture unless we have a trustworthy signal.
+  if (ua.includes('Mac')) return null;
   return 'linux';
 }
 

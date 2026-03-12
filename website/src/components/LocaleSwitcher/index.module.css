@@ -12,6 +12,10 @@
 }
 
 .localeBtn {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    font: inherit;
     padding: 0.3rem 0.7rem;
     color: var(--ifm-color-primary);
     text-decoration: none;
@@ -37,6 +41,9 @@
 
 /* ── Floating variant (single target-locale button) ─────────────────────── */
 .floatingBtn {
+    border: 0;
+    cursor: pointer;
+    font: inherit;
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
@@ -70,6 +77,10 @@
 .localeBtn:focus-visible {
     outline: 2px solid var(--ifm-color-primary);
     outline-offset: 2px;
+}
+
+.localeBtn:disabled {
+    cursor: default;
 }
 
 .floatingBtn:focus-visible {

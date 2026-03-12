@@ -77,6 +77,9 @@
   "downloadSection.checksumHint": {
     "message": "Verifique seu download com SHA256"
   },
+  "localeSwitcher.switchTo": {
+    "message": "Alternar para {targetLabel}"
+  },
   "theme.ErrorPageContent.title": {
     "message": "Esta página deu erro.",
     "description": "The title of the fallback page when the page crashed"

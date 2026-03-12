@@ -1,5 +1,6 @@
 import React from 'react';
-import { useLocation } from '@docusaurus/router';
+import { useHistory, useLocation } from '@docusaurus/router';
+import { translate } from '@docusaurus/Translate';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import styles from './index.module.css';
 
@@ -30,6 +31,7 @@ export default function LocaleSwitcher({ variant = 'inline' }: Props): JSX.Eleme
   const {
     i18n: { currentLocale, locales, defaultLocale, localeConfigs },
   } = useDocusaurusContext();
+  const history = useHistory();
   const { pathname } = useLocation();
 
   if (variant === 'floating') {
@@ -38,16 +40,24 @@ export default function LocaleSwitcher({ variant = 'inline' }: Props): JSX.Eleme
     const shortLabel = target === 'pt-BR' ? 'PT' : target.toUpperCase();
     const targetLabel = localeConfigs[target]?.label ?? target;
     return (
-      <a
-        href={buildLocaleUrl(target, defaultLocale, currentLocale, pathname)}
+      <button
+        type="button"
         className={styles.floatingBtn}
-        aria-label={`Switch to ${targetLabel}`}
+        onClick={() =>
+          history.push(buildLocaleUrl(target, defaultLocale, currentLocale, pathname))
+        }
+        aria-label={translate(
+          {
+            id: 'localeSwitcher.switchTo',
+            message: 'Switch to {targetLabel}',
+          },
+          { targetLabel },
+        )}
         title={targetLabel}
-        hrefLang={localeConfigs[target]?.htmlLang ?? target}
       >
         <span className={styles.floatingIcon}>🌐</span>
         {shortLabel}
-      </a>
+      </button>
     );
   }
 
@@ -57,17 +67,28 @@ export default function LocaleSwitcher({ variant = 'inline' }: Props): JSX.Eleme
         const isActive = locale === currentLocale;
         const shortLabel = locale === 'pt-BR' ? 'PT' : locale.toUpperCase();
         return (
-          <a
+          <button
+            type="button"
             key={locale}
-            href={buildLocaleUrl(locale, defaultLocale, currentLocale, pathname)}
             className={`${styles.localeBtn} ${isActive ? styles.active : ''}`}
-            aria-label={`Switch to ${localeConfigs[locale]?.label ?? locale}`}
+            onClick={() => {
+              if (!isActive) {
+                history.push(buildLocaleUrl(locale, defaultLocale, currentLocale, pathname));
+              }
+            }}
+            aria-label={translate(
+              {
+                id: 'localeSwitcher.switchTo',
+                message: 'Switch to {targetLabel}',
+              },
+              { targetLabel: localeConfigs[locale]?.label ?? locale },
+            )}
             aria-current={isActive ? 'page' : undefined}
             title={localeConfigs[locale]?.label ?? locale}
-            hrefLang={localeConfigs[locale]?.htmlLang ?? locale}
+            disabled={isActive}
           >
             {shortLabel}
-          </a>
+          </button>
         );
       })}
     </div>

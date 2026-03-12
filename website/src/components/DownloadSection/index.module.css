@@ -220,18 +220,3 @@
   color: var(--ifm-color-primary);
   font-weight: 600;
 }
-
-/* Terminal block */
-.terminal {
-  background: var(--gfrm-terminal-bg);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.terminalBar {
-  background: var(--gfrm-terminal-bar-bg);
-}
-
-.terminalCode {
-  color: var(--gfrm-terminal-fg);
-}
