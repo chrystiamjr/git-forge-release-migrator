@@ -1,3 +1,29 @@
+## [0.2.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.1.0...v0.2.0) (2026-03-12)
+
+### Features
+
+* **ci:** add coverage reporting, smoke tests, SHA256 checksums, and Dependabot ([a585e22](https://github.com/chrystiamjr/git-forge-release-migrator/commit/a585e22aef79be547a941664718bbfe9f044ad40))
+* **ci:** improve workflow efficiency and Dependabot configuration ([81cdd2e](https://github.com/chrystiamjr/git-forge-release-migrator/commit/81cdd2e581523edd38ccf5363090df75e1d74918))
+* **dart:** improve HTTP resilience, error handling, and diagnostic logging ([43e76d2](https://github.com/chrystiamjr/git-forge-release-migrator/commit/43e76d26703f366cb133fd74ef07b51c2d15abad))
+* **docs:** configure custom domain gfrm.envolvosystems.com.br ([f705248](https://github.com/chrystiamjr/git-forge-release-migrator/commit/f705248ebf237318457fafa8dce5fcac3b9ef3e9))
+* **docs:** launch Docusaurus 3 website at gfrm.envolvosystems.com.br ([6ca0ba5](https://github.com/chrystiamjr/git-forge-release-migrator/commit/6ca0ba56a4e2461ec291117b62ea7e8d5c920252))
+* **i18n:** add PT-BR translations for landing page and download component ([6b5571e](https://github.com/chrystiamjr/git-forge-release-migrator/commit/6b5571e8acc1e42607974e45754c2a737fb33ea2))
+* **website:** add floating locale switcher for mobile doc pages ([d0cef14](https://github.com/chrystiamjr/git-forge-release-migrator/commit/d0cef14efeb6043e25f99ae5801e91eddcbaaed8))
+* **website:** add locale switcher to landing page and PT-BR translation pre-commit check ([84b4f71](https://github.com/chrystiamjr/git-forge-release-migrator/commit/84b4f719c60cc06aae7c7c6ab2f25c38430c49d1))
+* **website:** add modern landing page with dynamic download component ([18b95ec](https://github.com/chrystiamjr/git-forge-release-migrator/commit/18b95ec33d81bbc64d437cfe7ef4a280a0cd2b83))
+
+### Bug Fixes
+
+* address PR review comments from Copilot ([63c6050](https://github.com/chrystiamjr/git-forge-release-migrator/commit/63c60502c783cad25f3cb20670826bd656c64d49))
+* address second round of PR review comments ([d215701](https://github.com/chrystiamjr/git-forge-release-migrator/commit/d215701ab4f68153d4ca05d9c5898d85dfdbda85))
+* **ci:** align release tooling and harden test infra ([a51629e](https://github.com/chrystiamjr/git-forge-release-migrator/commit/a51629eb0eab7a198ebbb949c3defbc6d525542f))
+* **ci:** enforce --fatal-infos, 80% coverage threshold, and trim release rules ([04213dd](https://github.com/chrystiamjr/git-forge-release-migrator/commit/04213dda33fbbfd395a639a7131e80fb474f00d8))
+* **i18n:** translate all PT-BR page titles and sidebar categories ([d05e911](https://github.com/chrystiamjr/git-forge-release-migrator/commit/d05e911c840ecf01994230c9e629926b9f5db739))
+* **website:** address code review findings ([1daef54](https://github.com/chrystiamjr/git-forge-release-migrator/commit/1daef54b5f02b91c367440058c190af15e8494ff))
+* **website:** address remaining PR review comments ([6b01457](https://github.com/chrystiamjr/git-forge-release-migrator/commit/6b01457ab520ee173a06e5bd5560cec9ba9ebc58))
+* **website:** fix locale switching, platform detection, and footer year ([67a3a3c](https://github.com/chrystiamjr/git-forge-release-migrator/commit/67a3a3cf6ffc0f7f2af8294da73e39263a5b1d95))
+* **website:** fix navbar logo flash and add trademark notice ([6a4427b](https://github.com/chrystiamjr/git-forge-release-migrator/commit/6a4427b837d22b0585fb7af667f7eb99da561abe))
+
 ## [0.1.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.0.0...v0.1.0) (2026-03-10)
 
 ### ⚠ BREAKING CHANGES
