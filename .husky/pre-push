@@ -33,7 +33,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   fi
 
   git log --format="%s" "$range" | while IFS= read -r subject; do
-    if ! node scripts/validate-commit-msg.mjs "$subject" 2>/dev/null; then
+    if ! node scripts/validate-commit-msg.mjs "$subject"; then
       echo "$subject" >>"$tmpfile"
     fi
   done

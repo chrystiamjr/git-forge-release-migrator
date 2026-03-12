@@ -24,6 +24,9 @@
     --gfrm-surface: #fff6e9;
     --gfrm-surface-strong: #f6e4c9;
     --gfrm-border: rgba(16, 42, 67, 0.12);
+    --gfrm-terminal-bg: #0d1117;
+    --gfrm-terminal-bar-bg: #161b22;
+    --gfrm-terminal-fg: #e6edf3;
 }
 
 [data-theme='dark'] {
@@ -33,6 +36,9 @@
     --gfrm-surface: rgba(30, 41, 59, 0.9);
     --gfrm-surface-strong: rgba(51, 65, 85, 0.95);
     --gfrm-border: rgba(148, 163, 184, 0.22);
+    --gfrm-terminal-bg: #0d1117;
+    --gfrm-terminal-bar-bg: #161b22;
+    --gfrm-terminal-fg: #e6edf3;
 }
 
 .navbar__logo img,

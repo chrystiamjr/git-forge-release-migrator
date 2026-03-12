@@ -11,7 +11,8 @@ function buildLocaleUrl(
 ): string {
   let path = pathname;
   if (currentLocale !== defaultLocale) {
-    path = pathname.replace(new RegExp(`^/${currentLocale}`), '') || '/';
+    const prefix = `/${currentLocale}`;
+    path = pathname.startsWith(prefix) ? pathname.slice(prefix.length) || '/' : pathname;
   }
   if (targetLocale === defaultLocale) {
     return path;
@@ -61,7 +62,7 @@ export default function LocaleSwitcher({ variant = 'inline' }: Props): JSX.Eleme
             href={buildLocaleUrl(locale, defaultLocale, currentLocale, pathname)}
             className={`${styles.localeBtn} ${isActive ? styles.active : ''}`}
             aria-label={`Switch to ${localeConfigs[locale]?.label ?? locale}`}
-            aria-current={isActive ? 'true' : undefined}
+            aria-current={isActive ? 'page' : undefined}
             title={localeConfigs[locale]?.label ?? locale}
             hrefLang={localeConfigs[locale]?.htmlLang ?? locale}
           >

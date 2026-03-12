@@ -66,3 +66,13 @@
     position: relative;
     top: 1px;
 }
+
+.localeBtn:focus-visible {
+    outline: 2px solid var(--ifm-color-primary);
+    outline-offset: 2px;
+}
+
+.floatingBtn:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}

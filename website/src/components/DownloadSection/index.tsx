@@ -49,7 +49,7 @@ function detectPlatform(): string {
   if (typeof navigator === 'undefined') return 'linux';
   const ua = navigator.userAgent;
   if (ua.includes('Win')) return 'windows';
-  if (ua.includes('Mac')) return 'macos-silicon';
+  if (ua.includes('Mac')) return /arm|aarch64/i.test(ua) ? 'macos-silicon' : 'macos-intel';
   return 'linux';
 }
 
@@ -64,16 +64,27 @@ export default function DownloadSection(): JSX.Element {
   const detectedPlatform = detectPlatform();
 
   useEffect(() => {
-    fetch('https://api.github.com/repos/chrystiamjr/git-forge-release-migrator/releases/latest')
-      .then((r) => r.json())
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    fetch(
+      'https://api.github.com/repos/chrystiamjr/git-forge-release-migrator/releases/latest',
+      { signal: controller.signal },
+    )
+      .then((r) => {
+        if (!r.ok) throw new Error(`GitHub API error: ${r.status}`);
+        return r.json();
+      })
       .then((data: Release) => {
+        if (!Array.isArray(data?.assets)) throw new Error('Unexpected API shape');
         setRelease(data);
         setLoading(false);
       })
       .catch(() => {
         setError(true);
         setLoading(false);
-      });
+      })
+      .finally(() => clearTimeout(timer));
+    return () => controller.abort();
   }, []);
 
   const getAsset = (assetName: string) =>
