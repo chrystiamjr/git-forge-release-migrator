@@ -5,14 +5,18 @@
   },
   "item.label.Docs": {
     "message": "Documentação",
-    "description": "Navbar docs label"
+    "description": "Navbar item with label Docs"
   },
   "item.label.Releases": {
     "message": "Versões",
-    "description": "Navbar releases label"
+    "description": "Navbar item with label Releases"
   },
   "item.label.GitHub": {
     "message": "GitHub",
-    "description": "Navbar GitHub label"
+    "description": "Navbar item with label GitHub"
+  },
+  "logo.alt": {
+    "message": "gfrm logo",
+    "description": "The alt text of navbar logo"
   }
 }

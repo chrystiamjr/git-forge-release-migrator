@@ -12,6 +12,10 @@ runs:
       shell: bash
       run: yarn install --immutable
 
+    - name: Check PT-BR translations
+      shell: bash
+      run: node scripts/check-translations.mjs
+
     - name: Lint Dart sources
       shell: bash
       run: yarn lint:dart

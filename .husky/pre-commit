@@ -20,5 +20,5 @@ STAGED=$(git diff --cached --name-only)
 if echo "$STAGED" | grep -qE '^website/(i18n/|src/)'; then
   echo ""
   echo "Website i18n changes detected — running translation check..."
-  node scripts/check-translations.js || exit 1
+  node scripts/check-translations.mjs || exit 1
 fi
