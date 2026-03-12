@@ -131,5 +131,11 @@
         border-radius: 999px;
         box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
     }
+    .navbar.navbar-sidebar--show ~ .gfrm-locale-float,
+    .navbar-sidebar--show ~ .gfrm-locale-float,
+    body:has(.navbar-sidebar--show) .gfrm-locale-float {
+        display: none;
+    }
+
 }
 
