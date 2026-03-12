@@ -53,12 +53,12 @@
 
 
 .navbar {
-    z-index: var(--gfrm-z-navbar) !important;
+    z-index: var(--gfrm-z-navbar);
 }
 
 .navbar-sidebar,
 .navbar-sidebar__backdrop {
-    z-index: var(--gfrm-z-sidebar) !important;
+    z-index: var(--gfrm-z-sidebar);
 }
 
 .markdown .hero-panel {
