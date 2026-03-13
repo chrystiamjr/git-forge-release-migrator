@@ -211,9 +211,9 @@ void main() {
       );
 
       final File summaryFile = File('${options.effectiveWorkdir()}/summary.json');
+      expect(summaryFile.existsSync(), isTrue);
       final Map<String, dynamic> summary = jsonDecode(summaryFile.readAsStringSync()) as Map<String, dynamic>;
 
-      expect(summaryFile.existsSync(), isTrue);
       expect(summary['schema_version'], 2);
       expect((summary['counts'] as Map<String, dynamic>)['releases_created'], 1);
       expect((summary['failed_tags'] as List<dynamic>), isEmpty);
@@ -254,9 +254,9 @@ void main() {
       );
 
       final File summaryFile = File('${options.effectiveWorkdir()}/summary.json');
+      expect(summaryFile.existsSync(), isTrue);
       final Map<String, dynamic> summary = jsonDecode(summaryFile.readAsStringSync()) as Map<String, dynamic>;
 
-      expect(summaryFile.existsSync(), isTrue);
       expect((summary['counts'] as Map<String, dynamic>)['tags_failed'], 1);
       expect(summary['retry_command'], contains('gfrm resume --tags-file'));
       expect(File('${options.effectiveWorkdir()}/failed-tags.txt').readAsStringSync(), 'v1.0.0\n');

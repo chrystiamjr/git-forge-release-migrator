@@ -2,12 +2,16 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:gfrm_dart/gfrm_dart.dart';
-import 'package:gfrm_dart/src/core/logging.dart';
+import 'package:gfrm_dart/src/application/run_failure.dart';
+import 'package:gfrm_dart/src/application/run_request.dart';
+import 'package:gfrm_dart/src/application/run_result.dart';
+import 'package:gfrm_dart/src/application/run_service.dart';
 import 'package:gfrm_dart/src/models/runtime_options.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../../support/buffer_console_output.dart';
+import '../../support/logging.dart';
 import '../../support/temp_dir.dart';
 
 File _findSingleFile(Directory root, String name) {
@@ -23,8 +27,7 @@ File _findSingleFile(Directory root, String name) {
 final class _FakeRunService extends RunService {
   _FakeRunService({
     required this.result,
-    required super.logger,
-  });
+  }) : super(logger: createSilentLogger());
 
   final RunResult result;
 
@@ -209,8 +212,7 @@ void main() {
           '--no-banner',
         ],
         output: output,
-        runServiceFactory: (ConsoleLogger logger) => _FakeRunService(
-          logger: logger,
+        runServiceFactory: () => _FakeRunService(
           result: const RunResult(
             status: RunStatus.runtimeFailure,
             exitCode: 1,
@@ -258,7 +260,7 @@ void main() {
           '--no-banner',
         ],
         output: output,
-        runServiceFactory: (_) => throw StateError('factory boom'),
+        runServiceFactory: () => throw StateError('factory boom'),
       );
 
       expect(exitCode, 1);

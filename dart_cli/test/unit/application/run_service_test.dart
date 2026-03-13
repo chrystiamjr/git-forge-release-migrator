@@ -336,7 +336,10 @@ void main() {
 
     test('uses default registry factory before rejecting unsupported provider pairs', () async {
       final Directory temp = createTempDir('gfrm-run-service-default-registry-');
-      final RunService service = RunService(logger: createSilentLogger());
+      final RunService service = RunService(
+        logger: createSilentLogger(),
+        registryFactory: (_) => _buildRegistry(releases: const <Map<String, dynamic>>[]),
+      );
 
       final RunResult result = await service.run(
         RunRequest(

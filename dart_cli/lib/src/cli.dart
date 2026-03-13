@@ -198,7 +198,7 @@ Future<int> _runCli(
   List<String> argv, {
   ConsoleOutput? output,
   InputReader? input,
-  RunService Function(ConsoleLogger logger)? runServiceFactory,
+  RunService Function()? runServiceFactory,
 }) async {
   final ConsoleOutput resolvedOutput = output ?? const StdConsoleOutput();
   final InputReader resolvedInput = input ?? const StdInputReader();
@@ -257,7 +257,7 @@ Future<int> _runCli(
       );
     }
 
-    final RunService runService = runServiceFactory != null ? runServiceFactory(logger) : RunService(logger: logger);
+    final RunService runService = runServiceFactory != null ? runServiceFactory() : RunService(logger: logger);
     final RunResult result = await runService.run(RunRequest(options: initialOptions));
     if (!result.isSuccess && result.failures.isNotEmpty) {
       logger.error(result.failures.first.message);
@@ -286,7 +286,7 @@ final class CliRunner {
     List<String> argv, {
     ConsoleOutput? output,
     InputReader? input,
-    RunService Function(ConsoleLogger logger)? runServiceFactory,
+    RunService Function()? runServiceFactory,
   }) async {
     return _runCli(
       argv,
