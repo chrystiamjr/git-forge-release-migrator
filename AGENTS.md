@@ -315,8 +315,9 @@ Minimum coverage priorities:
 Current quality gate implementation:
 
 - main quality gate logic lives in `.github/actions/quality-check/action.yml`
-- primary workflows are `.github/workflows/quality-checks.yml` and `.github/workflows/release.yml`
+- primary workflows are `.github/workflows/quality-checks.yml`, `.github/workflows/auto-pr-review.yml`, and `.github/workflows/release.yml`
 - `.github/workflows/quality-checks.yml` runs on `pull_request`
+- `.github/workflows/auto-pr-review.yml` runs after `Quality Checks` completes to publish automated review verdicts when bot credentials are configured
 - `.github/workflows/release.yml` runs on `push` to `main`
 - there is no manual `workflow_dispatch` path for the main quality-check or release pipelines
 
