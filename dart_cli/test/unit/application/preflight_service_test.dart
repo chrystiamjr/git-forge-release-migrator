@@ -57,10 +57,32 @@ final class _TargetAdapter extends ProviderAdapter {
   }
 }
 
+final class _BuggyTargetAdapter extends ProviderAdapter {
+  @override
+  String get name => 'buggy-target';
+
+  @override
+  ProviderRef parseUrl(String url) {
+    throw StateError('unexpected parser failure');
+  }
+
+  @override
+  CanonicalRelease toCanonicalRelease(Map<String, dynamic> payload) {
+    throw UnimplementedError();
+  }
+}
+
 ProviderRegistry _buildRegistry() {
   return ProviderRegistry(<String, ProviderAdapter>{
     'github': _SourceAdapter(),
     'gitlab': _TargetAdapter(),
+  });
+}
+
+ProviderRegistry _buildBuggyRegistry() {
+  return ProviderRegistry(<String, ProviderAdapter>{
+    'github': _SourceAdapter(),
+    'gitlab': _BuggyTargetAdapter(),
   });
 }
 
@@ -114,6 +136,18 @@ void main() {
 
       expect(PreflightService.hasBlockingErrors(checks), isTrue);
       expect(checks.where((PreflightCheck check) => check.isBlocking), hasLength(2));
+    });
+
+    test('rethrows unexpected URL parsing failures', () {
+      final PreflightService service = PreflightService();
+
+      expect(
+        () => service.evaluateStartup(
+          buildRuntimeOptions(),
+          _buildBuggyRegistry(),
+        ),
+        throwsA(isA<StateError>()),
+      );
     });
   });
 }

@@ -8,15 +8,23 @@ import './types/http_config.dart';
 import 'exceptions/authentication_error.dart';
 import 'exceptions/http_request_error.dart';
 
+typedef DelayCallback = Future<void> Function(Duration duration);
+
 class HttpClientHelper {
-  HttpClientHelper({Dio? dio, HttpConfig? config})
+  HttpClientHelper({Dio? dio, HttpConfig? config, DelayCallback? delay})
       : _config = config ?? const HttpConfig(),
-        _dio = dio ?? DioAdapter(followRedirects: true, config: config).instance;
+        _dio = dio ?? DioAdapter(followRedirects: true, config: config).instance,
+        _delay = delay ?? _defaultDelay;
 
   final Dio _dio;
   final HttpConfig _config;
+  final DelayCallback _delay;
 
   HttpConfig get config => _config;
+
+  static Future<void> _defaultDelay(Duration duration) {
+    return Future<void>.delayed(duration);
+  }
 
   bool _isRateLimitedForbidden({
     required Headers? headers,
@@ -151,7 +159,7 @@ class HttpClientHelper {
         }
 
         if (attempt < retries) {
-          await Future<void>.delayed(wait);
+          await _delay(wait);
           wait = Duration(milliseconds: _nextBackoffMillis(wait));
         }
       } on AuthenticationError {
@@ -173,7 +181,7 @@ class HttpClientHelper {
         }
 
         if (attempt < retries) {
-          await Future<void>.delayed(wait);
+          await _delay(wait);
           wait = Duration(milliseconds: _nextBackoffMillis(wait));
         }
       }
@@ -197,7 +205,7 @@ class HttpClientHelper {
         return response.statusCode ?? 0;
       } catch (_) {
         if (attempt < 2) {
-          await Future<void>.delayed(const Duration(milliseconds: 500));
+          await _delay(const Duration(milliseconds: 500));
         }
       }
     }
@@ -258,7 +266,7 @@ class HttpClientHelper {
         }
 
         if (attempt < retries) {
-          await Future<void>.delayed(nextWait);
+          await _delay(nextWait);
           wait = Duration(milliseconds: _nextBackoffMillis(nextWait));
         }
       } on DioException catch (exc) {
@@ -286,7 +294,7 @@ class HttpClientHelper {
         }
 
         if (attempt < retries) {
-          await Future<void>.delayed(nextWait);
+          await _delay(nextWait);
           wait = Duration(milliseconds: _nextBackoffMillis(nextWait));
         }
       }

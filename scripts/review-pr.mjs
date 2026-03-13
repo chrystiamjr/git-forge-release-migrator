@@ -273,6 +273,11 @@ async function githubGraphql(query, variables) {
   return result.data;
 }
 
+export function isBranchProtectionAccessDeniedError(error) {
+  const message = String(error?.message || '');
+  return message.includes('branchProtectionRules') && message.includes('Resource not accessible');
+}
+
 async function paginate(path) {
   const items = [];
   let page = 1;
@@ -675,8 +680,23 @@ async function fetchReviewRound(owner, repo) {
   );
 }
 
+export function selectRequiredContexts(baseRefName, branchProtectionRules, { branchProtectionAvailable = true } = {}) {
+  if (!branchProtectionAvailable) {
+    return {
+      requiredContexts: [],
+      requiredContextSource: 'branch_protection_unavailable',
+    };
+  }
+
+  const selectedRule = selectApplicableRule(baseRefName, branchProtectionRules);
+  return {
+    requiredContexts: selectedRule?.requiredStatusCheckContexts ?? [],
+    requiredContextSource: selectedRule ? 'branch_protection' : 'no_required_checks_detected',
+  };
+}
+
 async function fetchRequiredCheckContexts(owner, repo, prNumber) {
-  const query = `
+  const pullRequestQuery = `
     query($owner: String!, $repo: String!, $number: Int!) {
       repository(owner: $owner, name: $repo) {
         pullRequest(number: $number) {
@@ -707,6 +727,13 @@ async function fetchRequiredCheckContexts(owner, repo, prNumber) {
             }
           }
         }
+      }
+    }
+  `;
+
+  const branchProtectionQuery = `
+    query($owner: String!, $repo: String!) {
+      repository(owner: $owner, name: $repo) {
         branchProtectionRules(first: 100) {
           nodes {
             pattern
@@ -718,18 +745,36 @@ async function fetchRequiredCheckContexts(owner, repo, prNumber) {
     }
   `;
 
-  const data = await githubGraphql(query, { owner, repo, number: prNumber });
-  const pullRequest = data.repository.pullRequest;
-  const branchProtectionRules = data.repository.branchProtectionRules.nodes.filter(
-    (rule) => rule.requiresStatusChecks,
-  );
-  const selectedRule = selectApplicableRule(pullRequest.baseRefName, branchProtectionRules);
+  const pullRequestData = await githubGraphql(pullRequestQuery, { owner, repo, number: prNumber });
+  const pullRequest = pullRequestData.repository.pullRequest;
 
-  return {
-    pullRequest,
-    requiredContexts: selectedRule?.requiredStatusCheckContexts ?? [],
-    requiredContextSource: selectedRule ? 'branch_protection' : 'no_required_checks_detected',
-  };
+  try {
+    const branchProtectionData = await githubGraphql(branchProtectionQuery, { owner, repo });
+    const branchProtectionRules = branchProtectionData.repository.branchProtectionRules.nodes.filter(
+      (rule) => rule.requiresStatusChecks,
+    );
+    const selectedContexts = selectRequiredContexts(pullRequest.baseRefName, branchProtectionRules);
+
+    return {
+      pullRequest,
+      requiredContexts: selectedContexts.requiredContexts,
+      requiredContextSource: selectedContexts.requiredContextSource,
+    };
+  } catch (error) {
+    if (!isBranchProtectionAccessDeniedError(error)) {
+      throw error;
+    }
+
+    const selectedContexts = selectRequiredContexts(pullRequest.baseRefName, [], {
+      branchProtectionAvailable: false,
+    });
+
+    return {
+      pullRequest,
+      requiredContexts: selectedContexts.requiredContexts,
+      requiredContextSource: selectedContexts.requiredContextSource,
+    };
+  }
 }
 
 export function summarizeCheckState(contexts, requiredContexts, runId) {

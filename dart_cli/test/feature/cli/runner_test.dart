@@ -457,7 +457,7 @@ void main() {
       expect(output.stderrLines, isEmpty);
     });
 
-    test('cli preserves non-zero exit when the real run service blocks on preflight errors', () async {
+    test('cli preserves non-zero exit when run service returns preflight validation failure', () async {
       final BufferConsoleOutput output = BufferConsoleOutput();
 
       final int exitCode = await CliRunner.run(
@@ -474,6 +474,37 @@ void main() {
           '--no-banner',
         ],
         output: output,
+        runServiceFactory: (ConsoleLogger logger) => _FakeRunService(
+          logger: logger,
+          result: const RunResult(
+            status: RunStatus.validationFailure,
+            exitCode: 1,
+            resultsRootPath: '/tmp/results',
+            runWorkdirPath: '/tmp/results/20260313-120000',
+            logPath: '/tmp/results/20260313-120000/migration-log.jsonl',
+            checkpointPath: '/tmp/results/checkpoints/state.jsonl',
+            summaryPath: '/tmp/results/20260313-120000/summary.json',
+            failedTagsPath: '/tmp/results/20260313-120000/failed-tags.txt',
+            retryCommand: '',
+            preflightChecks: <PreflightCheck>[
+              PreflightCheck(
+                status: PreflightCheckStatus.error,
+                code: 'missing-source-token',
+                message: 'Missing source token.',
+                hint: 'Provide --source-token, a settings profile token, or a relevant environment variable.',
+                field: 'source_token',
+              ),
+            ],
+            failures: <RunFailure>[
+              RunFailure(
+                scope: RunFailure.scopeValidation,
+                code: 'missing-source-token',
+                message: 'Missing source token.',
+                retryable: false,
+              ),
+            ],
+          ),
+        ),
       );
 
       expect(exitCode, 1);

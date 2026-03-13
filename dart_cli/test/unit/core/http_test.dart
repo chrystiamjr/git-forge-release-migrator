@@ -194,6 +194,32 @@ void main() {
       expect(dio.requestCalls, 2);
     });
 
+    test('requestJson uses injected delay before retrying retryable responses', () async {
+      final _QueueDio dio = _QueueDio(
+        requestResults: <dynamic>[
+          _response('https://example.com/api', 500, data: 'server error'),
+          _response('https://example.com/api', 200, data: '{"ok":true}'),
+        ],
+      );
+      final List<Duration> delays = <Duration>[];
+      final HttpClientHelper helper = HttpClientHelper(
+        dio: dio,
+        delay: (Duration duration) async {
+          delays.add(duration);
+        },
+      );
+
+      final dynamic result = await helper.requestJson(
+        'https://example.com/api',
+        retries: 2,
+        retryDelay: const Duration(milliseconds: 250),
+      );
+
+      expect((result as Map<String, dynamic>)['ok'], isTrue);
+      expect(dio.requestCalls, 2);
+      expect(delays, <Duration>[const Duration(milliseconds: 250)]);
+    });
+
     test('requestJson throws AuthenticationError on non-rate-limit 403', () async {
       final _QueueDio dio = _QueueDio(
         requestResults: <dynamic>[_response('https://example.com/api', 403, data: 'forbidden')],
@@ -312,6 +338,32 @@ void main() {
       expect(dio.requestCalls, 2);
     });
 
+    test('requestStatus uses injected delay before a successful retry', () async {
+      final _QueueDio dio = _QueueDio(
+        requestResults: <dynamic>[
+          DioException(
+            requestOptions: RequestOptions(path: 'https://example.com/status'),
+            type: DioExceptionType.connectionError,
+            message: 'network down',
+          ),
+          _response('https://example.com/status', 204),
+        ],
+      );
+      final List<Duration> delays = <Duration>[];
+      final HttpClientHelper helper = HttpClientHelper(
+        dio: dio,
+        delay: (Duration duration) async {
+          delays.add(duration);
+        },
+      );
+
+      final int status = await helper.requestStatus('https://example.com/status');
+
+      expect(status, 204);
+      expect(dio.requestCalls, 2);
+      expect(delays, <Duration>[const Duration(milliseconds: 500)]);
+    });
+
     test('downloadFile retries rate-limit 403 and succeeds', () async {
       final Directory temp = Directory.systemTemp.createTempSync('gfrm-http-download-');
       addTearDown(() => temp.deleteSync(recursive: true));
@@ -359,9 +411,14 @@ void main() {
           _response('https://example.com/file.zip', 200),
         ],
       );
-      final HttpClientHelper helper = HttpClientHelper(dio: dio);
+      final List<Duration> delays = <Duration>[];
+      final HttpClientHelper helper = HttpClientHelper(
+        dio: dio,
+        delay: (Duration duration) async {
+          delays.add(duration);
+        },
+      );
       final String destination = '${temp.path}/file.zip';
-      final Stopwatch stopwatch = Stopwatch()..start();
 
       final bool ok = await helper.downloadFile(
         'https://example.com/file.zip',
@@ -369,11 +426,10 @@ void main() {
         retries: 2,
         backoff: Duration.zero,
       );
-      stopwatch.stop();
 
       expect(ok, isTrue);
       expect(dio.downloadCalls, 2);
-      expect(stopwatch.elapsedMilliseconds, greaterThanOrEqualTo(900));
+      expect(delays, <Duration>[const Duration(seconds: 1)]);
     });
 
     test('downloadFile returns false on non-rate-limit 403 without retry loop', () async {
@@ -500,9 +556,14 @@ void main() {
           _response('https://example.com/file.zip', 200),
         ],
       );
-      final HttpClientHelper helper = HttpClientHelper(dio: dio);
+      final List<Duration> delays = <Duration>[];
+      final HttpClientHelper helper = HttpClientHelper(
+        dio: dio,
+        delay: (Duration duration) async {
+          delays.add(duration);
+        },
+      );
       final String destination = '${temp.path}/file.zip';
-      final Stopwatch stopwatch = Stopwatch()..start();
 
       final bool ok = await helper.downloadFile(
         'https://example.com/file.zip',
@@ -510,11 +571,10 @@ void main() {
         retries: 2,
         backoff: Duration.zero,
       );
-      stopwatch.stop();
 
       expect(ok, isTrue);
       expect(dio.downloadCalls, 2);
-      expect(stopwatch.elapsedMilliseconds, greaterThanOrEqualTo(900));
+      expect(delays, <Duration>[const Duration(seconds: 1)]);
     });
 
     test('downloadFile returns false on DioException 404 without retrying', () async {

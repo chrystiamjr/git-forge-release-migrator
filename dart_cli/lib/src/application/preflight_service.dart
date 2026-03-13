@@ -136,7 +136,15 @@ class PreflightService {
         message: 'Repository URL is valid for $provider.',
         field: field,
       );
-    } catch (exc) {
+    } on ArgumentError catch (exc) {
+      return PreflightCheck(
+        status: PreflightCheckStatus.error,
+        code: errorCode,
+        message: exc.toString(),
+        hint: 'Provide a valid $provider repository URL.',
+        field: field,
+      );
+    } on FormatException catch (exc) {
       return PreflightCheck(
         status: PreflightCheckStatus.error,
         code: errorCode,

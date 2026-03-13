@@ -3,11 +3,11 @@ import 'package:test/test.dart';
 
 void main() {
   group('StdConsoleOutput', () {
-    test('exposes terminal capability getters', () {
+    test('accesses terminal capability getters without throwing', () {
       final StdConsoleOutput output = const StdConsoleOutput();
 
-      expect(output.hasTerminal, anyOf(isTrue, isFalse));
-      expect(output.supportsAnsiEscapes, anyOf(isTrue, isFalse));
+      expect(() => output.hasTerminal, returnsNormally);
+      expect(() => output.supportsAnsiEscapes, returnsNormally);
     });
   });
 }
