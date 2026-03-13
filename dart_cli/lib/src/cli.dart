@@ -14,6 +14,8 @@ import 'core/std_console_output.dart';
 import 'core/std_input_reader.dart';
 import 'models/runtime_options.dart';
 
+typedef RunServiceFactory = RunService Function(ConsoleLogger logger);
+
 void _printBanner(ConsoleOutput output) {
   if (!output.hasTerminal) {
     return;
@@ -198,7 +200,7 @@ Future<int> _runCli(
   List<String> argv, {
   ConsoleOutput? output,
   InputReader? input,
-  RunService Function()? runServiceFactory,
+  RunServiceFactory? runServiceFactory,
 }) async {
   final ConsoleOutput resolvedOutput = output ?? const StdConsoleOutput();
   final InputReader resolvedInput = input ?? const StdInputReader();
@@ -257,13 +259,10 @@ Future<int> _runCli(
       );
     }
 
-    final RunService runService = runServiceFactory != null ? runServiceFactory() : RunService(logger: logger);
-    final RunResult result = await runService.run(RunRequest(options: initialOptions));
-    if (!result.isSuccess && result.failures.isNotEmpty) {
-      logger.error(result.failures.first.message);
-    }
-
-    return result.exitCode;
+    final RunService runService = runServiceFactory != null ? runServiceFactory(logger) : RunService(logger: logger);
+    final RunRequest runRequest = _buildRunRequest(initialOptions);
+    final RunResult result = await runService.run(runRequest);
+    return _renderRunResult(logger, result);
   } catch (exc) {
     try {
       logger?.stopSpinner();
@@ -279,6 +278,18 @@ Future<int> _runCli(
   }
 }
 
+RunRequest _buildRunRequest(RuntimeOptions options) {
+  return RunRequest(options: options);
+}
+
+int _renderRunResult(ConsoleLogger logger, RunResult result) {
+  if (!result.isSuccess && result.failures.isNotEmpty) {
+    logger.error(result.failures.first.message);
+  }
+
+  return result.exitCode;
+}
+
 final class CliRunner {
   const CliRunner._();
 
@@ -286,7 +297,7 @@ final class CliRunner {
     List<String> argv, {
     ConsoleOutput? output,
     InputReader? input,
-    RunService Function()? runServiceFactory,
+    RunServiceFactory? runServiceFactory,
   }) async {
     return _runCli(
       argv,
