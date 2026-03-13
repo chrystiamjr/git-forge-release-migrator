@@ -66,6 +66,13 @@ jobs:
             exit 0
           fi
 
+          if [[ -n "${{ github.token }}" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "identity=github_actions_token" >> "$GITHUB_OUTPUT"
+            echo "GH_TOKEN=${{ github.token }}" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
           if [[ "${HAS_BOT_TOKEN}" == "true" ]]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
             echo "identity=bot_token" >> "$GITHUB_OUTPUT"
@@ -79,7 +86,7 @@ jobs:
         if: steps.pr.outputs.number != '' && steps.review-token.outputs.configured != 'true'
         run: |
           echo "Automated PR review skipped because no review bot credentials were configured."
-          echo "Configure REVIEW_BOT_APP_ID + REVIEW_BOT_APP_PRIVATE_KEY or GH_REVIEW_BOT_TOKEN."
+          echo "Configure REVIEW_BOT_APP_ID + REVIEW_BOT_APP_PRIVATE_KEY, rely on GITHUB_TOKEN, or set GH_REVIEW_BOT_TOKEN."
 
       - name: Run automated review analysis
         if: steps.pr.outputs.number != '' && steps.review-token.outputs.configured == 'true'
