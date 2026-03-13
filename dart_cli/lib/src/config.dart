@@ -167,6 +167,7 @@ RuntimeOptions _buildRuntimeOptions({
 String _resolveTokenFromSession({
   required String tokenPlain,
   required String tokenEnv,
+  Map<String, String>? env,
 }) {
   if (tokenPlain.isNotEmpty) {
     return tokenPlain;
@@ -176,7 +177,8 @@ String _resolveTokenFromSession({
     return '';
   }
 
-  return Platform.environment[tokenEnv] ?? '';
+  final Map<String, String> sourceEnv = env ?? Platform.environment;
+  return sourceEnv[tokenEnv] ?? '';
 }
 
 String _resolveTokenWithFallback({
@@ -185,20 +187,35 @@ String _resolveTokenWithFallback({
   required String profile,
   required Map<String, dynamic> settingsPayload,
   required String sideEnvName,
+  Map<String, String>? env,
 }) {
   if (providedToken.isNotEmpty) {
     return providedToken;
   }
 
-  final String fromSettings = SettingsManager.tokenFromSettings(settingsPayload, profile, provider);
+  final String fromSettings = SettingsManager.tokenFromSettings(
+    settingsPayload,
+    profile,
+    provider,
+    env: env,
+  );
   if (fromSettings.isNotEmpty) {
     return fromSettings;
   }
 
-  return SettingsManager.tokenFromEnvAliases(provider, sideEnvName: sideEnvName);
+  return SettingsManager.tokenFromEnvAliases(
+    provider,
+    sideEnvName: sideEnvName,
+    env: env,
+  );
 }
 
-RuntimeOptions _buildMigrateRuntime(ArgResults args) {
+RuntimeOptions _buildMigrateRuntime(
+  ArgResults args, {
+  String? cwd,
+  Map<String, String>? env,
+  String? homeDir,
+}) {
   final String sourceProvider = _normalizeProvider(_requiredString(args, 'source-provider'));
   final String targetProvider = _normalizeProvider(_requiredString(args, 'target-provider'));
   ConfigValidators.validateProviderValue('source', sourceProvider, _knownProviders);
@@ -222,7 +239,11 @@ RuntimeOptions _buildMigrateRuntime(ArgResults args) {
   ConfigValidators.validateWorkerBounds(downloadWorkers: downloadWorkers, releaseWorkers: releaseWorkers);
   ConfigValidators.validateTagRange(fromTag, toTag);
 
-  final Map<String, dynamic> settingsPayload = SettingsManager.loadEffectiveSettings();
+  final Map<String, dynamic> settingsPayload = SettingsManager.loadEffectiveSettings(
+    cwd: cwd,
+    env: env,
+    homeDir: homeDir,
+  );
   final String settingsProfile =
       SettingsManager.resolveProfileName(settingsPayload, _optionalString(args, 'settings-profile'));
   final String sourceToken = _resolveTokenWithFallback(
@@ -231,6 +252,7 @@ RuntimeOptions _buildMigrateRuntime(ArgResults args) {
     profile: settingsProfile,
     settingsPayload: settingsPayload,
     sideEnvName: sessionSourceTokenEnv,
+    env: env,
   );
   final String targetToken = _resolveTokenWithFallback(
     providedToken: targetTokenInput,
@@ -238,6 +260,7 @@ RuntimeOptions _buildMigrateRuntime(ArgResults args) {
     profile: settingsProfile,
     settingsPayload: settingsPayload,
     sideEnvName: sessionTargetTokenEnv,
+    env: env,
   );
   ConfigValidators.validateTokenPresence(sourceToken, targetToken);
 
@@ -270,7 +293,12 @@ RuntimeOptions _buildMigrateRuntime(ArgResults args) {
   );
 }
 
-RuntimeOptions _buildRuntimeFromSession(ArgResults args) {
+RuntimeOptions _buildRuntimeFromSession(
+  ArgResults args, {
+  String? cwd,
+  Map<String, String>? env,
+  String? homeDir,
+}) {
   final String sessionFile = _optionalString(args, 'session-file');
   final String sessionPath = sessionFile.isEmpty ? '${Directory.current.path}/sessions/last-session.json' : sessionFile;
   final Map<String, dynamic> data = SessionStore.loadSession(sessionPath);
@@ -298,33 +326,47 @@ RuntimeOptions _buildRuntimeFromSession(ArgResults args) {
   final String targetTokenEnv =
       ((data['target_token_env'] ?? _optionalString(args, 'session-target-token-env')).toString()).trim();
 
-  final Map<String, dynamic> settingsPayload = SettingsManager.loadEffectiveSettings();
+  final Map<String, dynamic> settingsPayload = SettingsManager.loadEffectiveSettings(
+    cwd: cwd,
+    env: env,
+    homeDir: homeDir,
+  );
   final String settingsProfileRequested = _optionalString(args, 'settings-profile');
   final String settingsProfileFromFile = (data['settings_profile'] ?? '').toString().trim();
   final String settingsProfile = SettingsManager.resolveProfileName(
     settingsPayload,
     settingsProfileRequested.isEmpty ? settingsProfileFromFile : settingsProfileRequested,
   );
+  final String sourceTokenOverride = _optionalString(args, 'source-token');
+  final String targetTokenOverride = _optionalString(args, 'target-token');
 
   final String sourceToken = _resolveTokenWithFallback(
-    providedToken: _resolveTokenFromSession(
-      tokenPlain: (data['source_token'] ?? '').toString(),
-      tokenEnv: sourceTokenEnv,
-    ),
+    providedToken: sourceTokenOverride.isNotEmpty
+        ? sourceTokenOverride
+        : _resolveTokenFromSession(
+            tokenPlain: (data['source_token'] ?? '').toString(),
+            tokenEnv: sourceTokenEnv,
+            env: env,
+          ),
     provider: sourceProvider,
     profile: settingsProfile,
     settingsPayload: settingsPayload,
     sideEnvName: sourceTokenEnv,
+    env: env,
   );
   final String targetToken = _resolveTokenWithFallback(
-    providedToken: _resolveTokenFromSession(
-      tokenPlain: (data['target_token'] ?? '').toString(),
-      tokenEnv: targetTokenEnv,
-    ),
+    providedToken: targetTokenOverride.isNotEmpty
+        ? targetTokenOverride
+        : _resolveTokenFromSession(
+            tokenPlain: (data['target_token'] ?? '').toString(),
+            tokenEnv: targetTokenEnv,
+            env: env,
+          ),
     provider: targetProvider,
     profile: settingsProfile,
     settingsPayload: settingsPayload,
     sideEnvName: targetTokenEnv,
+    env: env,
   );
   ConfigValidators.validateTokenPresence(sourceToken, targetToken);
 
@@ -477,7 +519,12 @@ CliRequest _parseSetupRequest(ArgResults command) {
   );
 }
 
-CliRequest _parseCliRequest(List<String> argv) {
+CliRequest _parseCliRequest(
+  List<String> argv, {
+  String? cwd,
+  Map<String, String>? env,
+  String? homeDir,
+}) {
   if (argv.isEmpty) {
     return CliRequest(command: 'help', usage: CliParserCatalog.buildUsage());
   }
@@ -510,13 +557,23 @@ CliRequest _parseCliRequest(List<String> argv) {
     case commandMigrate:
       return CliRequest(
         command: commandMigrate,
-        options: _buildMigrateRuntime(commandResult),
+        options: _buildMigrateRuntime(
+          commandResult,
+          cwd: cwd,
+          env: env,
+          homeDir: homeDir,
+        ),
       );
 
     case commandResume:
       return CliRequest(
         command: commandResume,
-        options: _buildRuntimeFromSession(commandResult),
+        options: _buildRuntimeFromSession(
+          commandResult,
+          cwd: cwd,
+          env: env,
+          homeDir: homeDir,
+        ),
       );
 
     case commandDemo:
@@ -539,7 +596,17 @@ CliRequest _parseCliRequest(List<String> argv) {
 final class CliRequestParser {
   const CliRequestParser._();
 
-  static CliRequest parseCliRequest(List<String> argv) {
-    return _parseCliRequest(argv);
+  static CliRequest parseCliRequest(
+    List<String> argv, {
+    String? cwd,
+    Map<String, String>? env,
+    String? homeDir,
+  }) {
+    return _parseCliRequest(
+      argv,
+      cwd: cwd,
+      env: env,
+      homeDir: homeDir,
+    );
   }
 }

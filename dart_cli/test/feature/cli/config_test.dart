@@ -251,6 +251,277 @@ void main() {
       expect(options.settingsProfile, 'work');
     });
 
+    test('parseCliRequest migrate prefers settings token_env over token_plain', () {
+      final Directory tempWorkdir = createTempDir('gfrm-dart-settings-env-workdir-');
+      final String settingsPath = '${tempWorkdir.path}/.gfrm/settings.yaml';
+      SettingsManager.writeSettingsFile(
+        settingsPath,
+        <String, dynamic>{
+          'profiles': <String, dynamic>{
+            'work': <String, dynamic>{
+              'providers': <String, dynamic>{
+                'github': <String, dynamic>{
+                  'token_env': 'GH_WORK_TOKEN',
+                  'token_plain': 'source-from-plain',
+                },
+                'gitlab': <String, dynamic>{
+                  'token_env': 'GL_WORK_TOKEN',
+                  'token_plain': 'target-from-plain',
+                },
+              },
+            },
+          },
+        },
+      );
+
+      final CliRequest request = CliRequestParser.parseCliRequest(
+        <String>[
+          commandMigrate,
+          '--source-provider',
+          'github',
+          '--source-url',
+          'https://github.com/acme/src',
+          '--target-provider',
+          'gitlab',
+          '--target-url',
+          'https://gitlab.com/acme/dst',
+          '--settings-profile',
+          'work',
+        ],
+        cwd: tempWorkdir.path,
+        env: <String, String>{
+          'GH_WORK_TOKEN': 'source-from-env',
+          'GL_WORK_TOKEN': 'target-from-env',
+        },
+      );
+
+      final RuntimeOptions options = request.options!;
+      expect(options.sourceToken, 'source-from-env');
+      expect(options.targetToken, 'target-from-env');
+    });
+
+    test('parseCliRequest migrate falls back to environment aliases when settings are absent', () {
+      final CliRequest request = CliRequestParser.parseCliRequest(
+        <String>[
+          commandMigrate,
+          '--source-provider',
+          'github',
+          '--source-url',
+          'https://github.com/acme/src',
+          '--target-provider',
+          'gitlab',
+          '--target-url',
+          'https://gitlab.com/acme/dst',
+        ],
+        env: <String, String>{
+          'GH_TOKEN': 'source-from-alias',
+          'GL_TOKEN': 'target-from-alias',
+        },
+      );
+
+      final RuntimeOptions options = request.options!;
+      expect(options.sourceToken, 'source-from-alias');
+      expect(options.targetToken, 'target-from-alias');
+    });
+
+    test('parseCliRequest migrate explicit tokens override settings and environment fallbacks', () {
+      final Directory tempWorkdir = createTempDir('gfrm-dart-settings-override-workdir-');
+      final String settingsPath = '${tempWorkdir.path}/.gfrm/settings.yaml';
+      SettingsManager.writeSettingsFile(
+        settingsPath,
+        <String, dynamic>{
+          'profiles': <String, dynamic>{
+            'work': <String, dynamic>{
+              'providers': <String, dynamic>{
+                'github': <String, dynamic>{'token_plain': 'source-from-settings'},
+                'gitlab': <String, dynamic>{'token_plain': 'target-from-settings'},
+              },
+            },
+          },
+        },
+      );
+
+      final CliRequest request = CliRequestParser.parseCliRequest(
+        <String>[
+          commandMigrate,
+          '--source-provider',
+          'github',
+          '--source-url',
+          'https://github.com/acme/src',
+          '--source-token',
+          'source-explicit',
+          '--target-provider',
+          'gitlab',
+          '--target-url',
+          'https://gitlab.com/acme/dst',
+          '--target-token',
+          'target-explicit',
+          '--settings-profile',
+          'work',
+        ],
+        cwd: tempWorkdir.path,
+        env: <String, String>{
+          'GH_TOKEN': 'source-from-alias',
+          'GL_TOKEN': 'target-from-alias',
+        },
+      );
+
+      final RuntimeOptions options = request.options!;
+      expect(options.sourceToken, 'source-explicit');
+      expect(options.targetToken, 'target-explicit');
+    });
+
+    test('parseCliRequest resume prefers session token context before settings and env aliases', () {
+      final Directory temp = createTempDir('gfrm-dart-resume-session-precedence-');
+      final String sessionPath = '${temp.path}/session.json';
+      final String settingsPath = '${temp.path}/.gfrm/settings.yaml';
+
+      SessionStore.saveSession(
+        sessionPath,
+        <String, dynamic>{
+          'source_provider': 'github',
+          'source_url': 'https://github.com/acme/src',
+          'target_provider': 'gitlab',
+          'target_url': 'https://gitlab.com/acme/dst',
+          'source_token': 'source-from-session',
+          'target_token': 'target-from-session',
+          'session_token_mode': 'plain',
+          'settings_profile': 'work',
+        },
+      );
+      SettingsManager.writeSettingsFile(
+        settingsPath,
+        <String, dynamic>{
+          'profiles': <String, dynamic>{
+            'work': <String, dynamic>{
+              'providers': <String, dynamic>{
+                'github': <String, dynamic>{'token_plain': 'source-from-settings'},
+                'gitlab': <String, dynamic>{'token_plain': 'target-from-settings'},
+              },
+            },
+          },
+        },
+      );
+
+      final CliRequest request = CliRequestParser.parseCliRequest(
+        <String>[
+          commandResume,
+          '--session-file',
+          sessionPath,
+        ],
+        cwd: temp.path,
+        env: <String, String>{
+          'GH_TOKEN': 'source-from-alias',
+          'GL_TOKEN': 'target-from-alias',
+        },
+      );
+
+      final RuntimeOptions options = request.options!;
+      expect(options.sourceToken, 'source-from-session');
+      expect(options.targetToken, 'target-from-session');
+    });
+
+    test('parseCliRequest resume falls back to settings when session env refs are unavailable', () {
+      final Directory temp = createTempDir('gfrm-dart-resume-settings-fallback-');
+      final String sessionPath = '${temp.path}/session.json';
+      final String settingsPath = '${temp.path}/.gfrm/settings.yaml';
+
+      SessionStore.saveSession(
+        sessionPath,
+        <String, dynamic>{
+          'source_provider': 'github',
+          'source_url': 'https://github.com/acme/src',
+          'target_provider': 'gitlab',
+          'target_url': 'https://gitlab.com/acme/dst',
+          'source_token_env': 'MISSING_SOURCE_ENV',
+          'target_token_env': 'MISSING_TARGET_ENV',
+          'session_token_mode': 'env',
+          'settings_profile': 'work',
+        },
+      );
+      SettingsManager.writeSettingsFile(
+        settingsPath,
+        <String, dynamic>{
+          'profiles': <String, dynamic>{
+            'work': <String, dynamic>{
+              'providers': <String, dynamic>{
+                'github': <String, dynamic>{'token_plain': 'source-from-settings'},
+                'gitlab': <String, dynamic>{'token_plain': 'target-from-settings'},
+              },
+            },
+          },
+        },
+      );
+
+      final CliRequest request = CliRequestParser.parseCliRequest(
+        <String>[
+          commandResume,
+          '--session-file',
+          sessionPath,
+        ],
+        cwd: temp.path,
+        env: <String, String>{},
+      );
+
+      final RuntimeOptions options = request.options!;
+      expect(options.sourceToken, 'source-from-settings');
+      expect(options.targetToken, 'target-from-settings');
+    });
+
+    test('parseCliRequest resume explicit hidden tokens override session, settings, and env aliases', () {
+      final Directory temp = createTempDir('gfrm-dart-resume-explicit-override-');
+      final String sessionPath = '${temp.path}/session.json';
+      final String settingsPath = '${temp.path}/.gfrm/settings.yaml';
+
+      SessionStore.saveSession(
+        sessionPath,
+        <String, dynamic>{
+          'source_provider': 'github',
+          'source_url': 'https://github.com/acme/src',
+          'target_provider': 'gitlab',
+          'target_url': 'https://gitlab.com/acme/dst',
+          'source_token': 'source-from-session',
+          'target_token': 'target-from-session',
+          'session_token_mode': 'plain',
+          'settings_profile': 'work',
+        },
+      );
+      SettingsManager.writeSettingsFile(
+        settingsPath,
+        <String, dynamic>{
+          'profiles': <String, dynamic>{
+            'work': <String, dynamic>{
+              'providers': <String, dynamic>{
+                'github': <String, dynamic>{'token_plain': 'source-from-settings'},
+                'gitlab': <String, dynamic>{'token_plain': 'target-from-settings'},
+              },
+            },
+          },
+        },
+      );
+
+      final CliRequest request = CliRequestParser.parseCliRequest(
+        <String>[
+          commandResume,
+          '--session-file',
+          sessionPath,
+          '--source-token',
+          'source-explicit',
+          '--target-token',
+          'target-explicit',
+        ],
+        cwd: temp.path,
+        env: <String, String>{
+          'GH_TOKEN': 'source-from-alias',
+          'GL_TOKEN': 'target-from-alias',
+        },
+      );
+
+      final RuntimeOptions options = request.options!;
+      expect(options.sourceToken, 'source-explicit');
+      expect(options.targetToken, 'target-explicit');
+    });
+
     test('parseCliRequest builds demo runtime with defaults', () {
       final CliRequest request = CliRequestParser.parseCliRequest(<String>[
         commandDemo,

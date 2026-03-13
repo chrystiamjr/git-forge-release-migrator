@@ -144,6 +144,8 @@ final class CliParserCatalog {
   static ArgParser _buildResumeParser() {
     final ArgParser parser = _baseRuntimeFlags();
     parser.addOption('session-file', defaultsTo: '');
+    parser.addOption('source-token', defaultsTo: '', hide: true);
+    parser.addOption('target-token', defaultsTo: '', hide: true);
     parser.addFlag('save-session', defaultsTo: true, negatable: true);
     parser.addOption('session-token-mode', defaultsTo: '');
     parser.addOption('session-source-token-env', defaultsTo: defaultSourceTokenEnv);

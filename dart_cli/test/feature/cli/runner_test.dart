@@ -6,12 +6,12 @@ import 'package:gfrm_dart/src/application/run_failure.dart';
 import 'package:gfrm_dart/src/application/run_request.dart';
 import 'package:gfrm_dart/src/application/run_result.dart';
 import 'package:gfrm_dart/src/application/run_service.dart';
+import 'package:gfrm_dart/src/core/logging.dart';
 import 'package:gfrm_dart/src/models/runtime_options.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../../support/buffer_console_output.dart';
-import '../../support/logging.dart';
 import '../../support/temp_dir.dart';
 
 File _findSingleFile(Directory root, String name) {
@@ -27,12 +27,18 @@ File _findSingleFile(Directory root, String name) {
 final class _FakeRunService extends RunService {
   _FakeRunService({
     required this.result,
-  }) : super(logger: createSilentLogger());
+    required super.logger,
+    this.onRun,
+  });
 
   final RunResult result;
+  final void Function(RunRequest request)? onRun;
 
   @override
-  Future<RunResult> run(RunRequest request) async => result;
+  Future<RunResult> run(RunRequest request) async {
+    onRun?.call(request);
+    return result;
+  }
 }
 
 void main() {
@@ -212,7 +218,8 @@ void main() {
           '--no-banner',
         ],
         output: output,
-        runServiceFactory: () => _FakeRunService(
+        runServiceFactory: (ConsoleLogger logger) => _FakeRunService(
+          logger: logger,
           result: const RunResult(
             status: RunStatus.runtimeFailure,
             exitCode: 1,
@@ -260,10 +267,111 @@ void main() {
           '--no-banner',
         ],
         output: output,
-        runServiceFactory: () => throw StateError('factory boom'),
+        runServiceFactory: (_) => throw StateError('factory boom'),
       );
 
       expect(exitCode, 1);
+    });
+
+    test('migrate command maps parsed runtime options into RunRequest', () async {
+      final BufferConsoleOutput output = BufferConsoleOutput();
+      RunRequest? capturedRequest;
+
+      final int exitCode = await CliRunner.run(
+        <String>[
+          commandMigrate,
+          '--source-provider',
+          'github',
+          '--source-url',
+          'https://github.com/acme/source',
+          '--source-token',
+          'src-token',
+          '--target-provider',
+          'gitlab',
+          '--target-url',
+          'https://gitlab.com/acme/target',
+          '--target-token',
+          'dst-token',
+          '--settings-profile',
+          'work',
+          '--no-banner',
+        ],
+        output: output,
+        runServiceFactory: (ConsoleLogger logger) => _FakeRunService(
+          logger: logger,
+          onRun: (RunRequest request) => capturedRequest = request,
+          result: const RunResult(
+            status: RunStatus.success,
+            exitCode: 0,
+            resultsRootPath: '/tmp/results',
+            runWorkdirPath: '/tmp/results/20260313-120000',
+            logPath: '/tmp/results/20260313-120000/migration-log.jsonl',
+            checkpointPath: '/tmp/results/checkpoints/state.jsonl',
+            summaryPath: '/tmp/results/20260313-120000/summary.json',
+            failedTagsPath: '/tmp/results/20260313-120000/failed-tags.txt',
+            retryCommand: '',
+            preflightMessages: <String>[],
+            failures: <RunFailure>[],
+          ),
+        ),
+      );
+
+      expect(exitCode, 0);
+      expect(capturedRequest, isNotNull);
+      expect(capturedRequest!.options.commandName, commandMigrate);
+      expect(capturedRequest!.options.settingsProfile, 'work');
+      expect(capturedRequest!.options.sourceToken, 'src-token');
+      expect(capturedRequest!.options.targetToken, 'dst-token');
+    });
+
+    test('resume command maps parsed runtime options into RunRequest and preserves success exit', () async {
+      final BufferConsoleOutput output = BufferConsoleOutput();
+      final Directory temp = createTempDir('gfrm-runner-resume-');
+      final String sessionPath = '${temp.path}/session.json';
+      RunRequest? capturedRequest;
+
+      File(sessionPath).writeAsStringSync(jsonEncode(<String, dynamic>{
+        'source_provider': 'github',
+        'source_url': 'https://github.com/acme/source',
+        'target_provider': 'gitlab',
+        'target_url': 'https://gitlab.com/acme/target',
+        'source_token': 'session-source-token',
+        'target_token': 'session-target-token',
+        'session_token_mode': 'plain',
+      }));
+
+      final int exitCode = await CliRunner.run(
+        <String>[
+          commandResume,
+          '--session-file',
+          sessionPath,
+          '--no-banner',
+        ],
+        output: output,
+        runServiceFactory: (ConsoleLogger logger) => _FakeRunService(
+          logger: logger,
+          onRun: (RunRequest request) => capturedRequest = request,
+          result: const RunResult(
+            status: RunStatus.success,
+            exitCode: 0,
+            resultsRootPath: '/tmp/results',
+            runWorkdirPath: '/tmp/results/20260313-120000',
+            logPath: '/tmp/results/20260313-120000/migration-log.jsonl',
+            checkpointPath: '/tmp/results/checkpoints/state.jsonl',
+            summaryPath: '/tmp/results/20260313-120000/summary.json',
+            failedTagsPath: '/tmp/results/20260313-120000/failed-tags.txt',
+            retryCommand: '',
+            preflightMessages: <String>[],
+            failures: <RunFailure>[],
+          ),
+        ),
+      );
+
+      expect(exitCode, 0);
+      expect(capturedRequest, isNotNull);
+      expect(capturedRequest!.options.commandName, commandResume);
+      expect(capturedRequest!.options.sourceToken, 'session-source-token');
+      expect(capturedRequest!.options.targetToken, 'session-target-token');
     });
 
     test('demo command honors custom log path and keeps banner hidden on non-terminal output', () async {
