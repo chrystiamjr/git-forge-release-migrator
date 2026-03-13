@@ -167,9 +167,11 @@ Main code lives in `dart_cli/lib/src/`.
 - `config/arg_parsers.dart`
 - `config/validators.dart`
 - `config/types/*`
+- `application/{run_service,run_request,run_result,run_failure}.dart`
 - `models/runtime_options.dart`
 - `models/migration_context.dart`
 - `migrations/engine.dart`
+- `migrations/migration_execution_result.dart`
 - `migrations/selection.dart`
 - `migrations/tag_phase.dart`
 - `migrations/release_phase.dart`
@@ -181,6 +183,15 @@ Main code lives in `dart_cli/lib/src/`.
 - `core/types/*`
 
 Provider adapters must produce canonical release data consumed by the engine.
+
+Application-layer orchestration rules:
+
+- `cli.dart` remains the terminal-facing adapter and should delegate `migrate`/`resume` orchestration to the
+  application layer.
+- `application/run_service.dart` owns typed run orchestration for `migrate` and `resume`, including run preparation,
+  session persistence, engine coordination, summary finalization, and typed result mapping.
+- `migrations/engine.dart` remains the execution core; do not move CLI parsing or provider-specific behavior into the
+  application layer.
 
 ## Safe Change Playbook
 
@@ -304,8 +315,9 @@ Minimum coverage priorities:
 Current quality gate implementation:
 
 - main quality gate logic lives in `.github/actions/quality-check/action.yml`
-- primary workflows are `.github/workflows/quality-checks.yml` and `.github/workflows/release.yml`
+- primary workflows are `.github/workflows/quality-checks.yml`, `.github/workflows/auto-pr-review.yml`, and `.github/workflows/release.yml`
 - `.github/workflows/quality-checks.yml` runs on `pull_request`
+- `.github/workflows/auto-pr-review.yml` runs after `Quality Checks` completes to publish automated review verdicts when bot credentials are configured
 - `.github/workflows/release.yml` runs on `push` to `main`
 - there is no manual `workflow_dispatch` path for the main quality-check or release pipelines
 

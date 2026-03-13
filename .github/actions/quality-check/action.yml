@@ -4,17 +4,16 @@ description: Run quality checks
 runs:
   using: composite
   steps:
-    - name: Enable Corepack
-      shell: bash
-      run: corepack enable
+    - name: Setup Node
+      uses: ./.github/actions/node-setup
 
-    - name: Install Node dependencies
-      shell: bash
-      run: yarn install --immutable
-
-    - name: Check PT-BR translations
+    - name: Check translations parity
       shell: bash
       run: node scripts/check-translations.mjs
+
+    - name: Test automated review helpers
+      shell: bash
+      run: yarn test:reviewer
 
     - name: Lint Dart sources
       shell: bash

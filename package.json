@@ -23,7 +23,8 @@
     "docs:dev:pt-BR": "docusaurus start website --locale pt-BR",
     "docs:build": "docusaurus clear website && docusaurus build website",
     "docs:serve": "docusaurus serve website",
-    "test:website": "yarn workspace gfrm-website test"
+    "test:website": "yarn workspace gfrm-website test",
+    "test:reviewer": "node --test scripts/*.test.mjs"
   },
   "devDependencies": {
     "@docusaurus/core": "^3.7.0",
