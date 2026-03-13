@@ -1,3 +1,14 @@
+## [0.3.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.2.0...v0.3.0) (2026-03-13)
+
+### Features
+
+* **dart:** extract run orchestration into application layer ([84641ce](https://github.com/chrystiamjr/git-forge-release-migrator/commit/84641ced95ce1fc7162e9438645fb6ae380e64d1))
+
+### Bug Fixes
+
+* **dart:** address PR review comments ([7460f6d](https://github.com/chrystiamjr/git-forge-release-migrator/commit/7460f6da9c68e3cc5736558890cc7ea44a102e5a))
+* **dart:** harden preflight flow and review safety checks ([fa950be](https://github.com/chrystiamjr/git-forge-release-migrator/commit/fa950be211a41cf3ddd0706e3a042f5e59d025bf))
+
 ## [0.2.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.1.0...v0.2.0) (2026-03-12)
 
 ### Features
