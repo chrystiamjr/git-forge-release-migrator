@@ -1,12 +1,16 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:gfrm_dart/src/core/adapters/provider_adapter.dart';
 import 'package:gfrm_dart/src/core/exceptions/migration_phase_error.dart';
 import 'package:gfrm_dart/src/core/types/canonical_release.dart';
+import 'package:gfrm_dart/src/core/types/existing_release_info.dart';
+import 'package:gfrm_dart/src/core/types/publish_release_input.dart';
 import 'package:gfrm_dart/src/migrations/engine.dart';
 import 'package:gfrm_dart/src/models/runtime_options.dart';
 import 'package:gfrm_dart/src/providers/registry.dart';
 import '../../support/logging.dart';
+import '../../support/provider_fixtures.dart';
 import '../../support/runtime_options_fixture.dart';
 import '../../support/temp_dir.dart';
 import 'package:test/test.dart';
@@ -38,6 +42,13 @@ final class _EmptySourceAdapter extends ProviderAdapter {
 }
 
 final class _TargetAdapter extends ProviderAdapter {
+  _TargetAdapter({
+    this.onCreateTag,
+  });
+
+  final Future<void> Function(ProviderRef, String, String, String, CanonicalRelease)? onCreateTag;
+  final Set<String> _createdTags = <String>{};
+
   @override
   String get name => 'target';
 
@@ -55,6 +66,84 @@ final class _TargetAdapter extends ProviderAdapter {
   @override
   CanonicalRelease toCanonicalRelease(Map<String, dynamic> payload) {
     return CanonicalRelease.fromMap(payload);
+  }
+
+  @override
+  Future<List<String>> listTags(ProviderRef ref, String token) async => _createdTags.toList(growable: false);
+
+  @override
+  Future<void> createTagForMigration(
+    ProviderRef ref,
+    String token,
+    String tag,
+    String sha,
+    CanonicalRelease canonical,
+  ) async {
+    if (onCreateTag != null) {
+      return onCreateTag!(ref, token, tag, sha, canonical);
+    }
+
+    _createdTags.add(tag);
+  }
+
+  @override
+  Future<bool> tagExists(ProviderRef ref, String token, String tag) async => _createdTags.contains(tag);
+
+  @override
+  Future<bool> releaseExists(ProviderRef ref, String token, String tag) async => false;
+
+  @override
+  Future<ExistingReleaseInfo> existingReleaseInfo(
+    ProviderRef ref,
+    String token,
+    String tag,
+    int expectedLinkAssets,
+  ) async =>
+      const ExistingReleaseInfo(exists: false, shouldRetry: false, reason: '');
+
+  @override
+  Future<String> publishRelease(PublishReleaseInput input) async => 'created';
+}
+
+final class _ReleaseSourceAdapter extends ProviderAdapter {
+  _ReleaseSourceAdapter({required this.releases});
+
+  final List<Map<String, dynamic>> releases;
+
+  @override
+  String get name => 'release-source';
+
+  @override
+  ProviderRef parseUrl(String url) {
+    return ProviderRef(
+      provider: 'github',
+      rawUrl: url,
+      baseUrl: 'https://github.com',
+      host: 'github.com',
+      resource: 'acme/source',
+    );
+  }
+
+  @override
+  CanonicalRelease toCanonicalRelease(Map<String, dynamic> payload) {
+    return CanonicalRelease.fromMap(payload);
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> listReleases(ProviderRef ref, String token) async => releases;
+
+  @override
+  Future<String> resolveCommitShaForMigration(
+    ProviderRef ref,
+    String token,
+    String tag,
+    CanonicalRelease canonical,
+  ) async {
+    if (canonical.commitSha.isNotEmpty) {
+      return canonical.commitSha;
+    }
+
+    return 'default-sha';
   }
 }
 
@@ -89,6 +178,88 @@ void main() {
 
       expect(File(logPath).parent.existsSync(), isTrue);
       expect(File(logPath).existsSync(), isTrue);
+    });
+
+    test('run writes summary for successful migrations inside the workdir', () async {
+      final Directory temp = createTempDir('gfrm-engine-success-');
+      final RuntimeOptions options = buildRuntimeOptions(
+        workdir: '${temp.path}/results',
+        fromTag: 'v1.0.0',
+        toTag: 'v1.0.0',
+      );
+
+      final _ReleaseSourceAdapter source = _ReleaseSourceAdapter(
+        releases: <Map<String, dynamic>>[
+          buildMinimalReleasePayload('v1.0.0'),
+          buildMinimalReleasePayload('v1.1.0'),
+        ],
+      );
+      final _TargetAdapter target = _TargetAdapter();
+      final ProviderRegistry registry = ProviderRegistry(<String, ProviderAdapter>{
+        'github': source,
+        'gitlab': target,
+      });
+      final MigrationEngine engine = MigrationEngine(
+        registry: registry,
+        logger: createSilentLogger(),
+      );
+
+      await engine.run(
+        options,
+        source.parseUrl(options.sourceUrl),
+        target.parseUrl(options.targetUrl),
+      );
+
+      final File summaryFile = File('${options.effectiveWorkdir()}/summary.json');
+      final Map<String, dynamic> summary = jsonDecode(summaryFile.readAsStringSync()) as Map<String, dynamic>;
+
+      expect(summaryFile.existsSync(), isTrue);
+      expect(summary['schema_version'], 2);
+      expect((summary['counts'] as Map<String, dynamic>)['releases_created'], 1);
+      expect((summary['failed_tags'] as List<dynamic>), isEmpty);
+    });
+
+    test('run writes retry metadata before surfacing partial failures', () async {
+      final Directory temp = createTempDir('gfrm-engine-partial-failure-');
+      final RuntimeOptions options = buildRuntimeOptions(workdir: '${temp.path}/results');
+
+      final _ReleaseSourceAdapter source = _ReleaseSourceAdapter(
+        releases: <Map<String, dynamic>>[buildMinimalReleasePayload('v1.0.0')],
+      );
+      final _TargetAdapter target = _TargetAdapter(
+        onCreateTag: (_, __, ___, ____, _____) async => throw Exception('network error'),
+      );
+      final ProviderRegistry registry = ProviderRegistry(<String, ProviderAdapter>{
+        'github': source,
+        'gitlab': target,
+      });
+      final MigrationEngine engine = MigrationEngine(
+        registry: registry,
+        logger: createSilentLogger(),
+      );
+
+      await expectLater(
+        engine.run(
+          options,
+          source.parseUrl(options.sourceUrl),
+          target.parseUrl(options.targetUrl),
+        ),
+        throwsA(
+          isA<MigrationPhaseError>().having(
+            (MigrationPhaseError error) => error.message,
+            'message',
+            'Migration finished with failures',
+          ),
+        ),
+      );
+
+      final File summaryFile = File('${options.effectiveWorkdir()}/summary.json');
+      final Map<String, dynamic> summary = jsonDecode(summaryFile.readAsStringSync()) as Map<String, dynamic>;
+
+      expect(summaryFile.existsSync(), isTrue);
+      expect((summary['counts'] as Map<String, dynamic>)['tags_failed'], 1);
+      expect(summary['retry_command'], contains('gfrm resume --tags-file'));
+      expect(File('${options.effectiveWorkdir()}/failed-tags.txt').readAsStringSync(), 'v1.0.0\n');
     });
   });
 }

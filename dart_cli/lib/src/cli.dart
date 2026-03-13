@@ -1,20 +1,18 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'application/run_request.dart';
+import 'application/run_result.dart';
+import 'application/run_service.dart';
 import 'cli/settings_setup_command_handler.dart';
 import 'config.dart';
-import 'core/adapters/provider_adapter.dart';
 import 'core/console_output.dart';
 import 'core/input_reader.dart';
 import 'core/jsonl.dart';
 import 'core/logging.dart';
-import 'core/session_store.dart';
-import 'core/settings.dart';
 import 'core/std_console_output.dart';
 import 'core/std_input_reader.dart';
-import 'migrations/engine.dart';
 import 'models/runtime_options.dart';
-import 'providers/registry.dart';
 
 void _printBanner(ConsoleOutput output) {
   if (!output.hasTerminal) {
@@ -66,88 +64,6 @@ Directory _allocateRunWorkdir(Directory baseDir) {
     }
 
     index += 1;
-  }
-}
-
-class _PreparedRun {
-  _PreparedRun({
-    required this.options,
-    required this.resultsRoot,
-    required this.runWorkdir,
-  });
-
-  final RuntimeOptions options;
-  final Directory resultsRoot;
-  final Directory runWorkdir;
-}
-
-_PreparedRun _prepareRun(RuntimeOptions options) {
-  final Directory resultsRoot = Directory(options.effectiveWorkdir());
-  if (!resultsRoot.existsSync()) {
-    resultsRoot.createSync(recursive: true);
-  }
-
-  final Directory runWorkdir = _allocateRunWorkdir(resultsRoot);
-  runWorkdir.createSync(recursive: true);
-
-  final RuntimeOptions withWorkdir = options.copyWith(
-    workdir: runWorkdir.path,
-    logFile: options.logFile.isEmpty ? '${runWorkdir.path}/migration-log.jsonl' : options.logFile,
-    checkpointFile:
-        options.checkpointFile.isEmpty ? '${resultsRoot.path}/checkpoints/state.jsonl' : options.checkpointFile,
-  );
-
-  return _PreparedRun(
-    options: withWorkdir,
-    resultsRoot: resultsRoot,
-    runWorkdir: runWorkdir,
-  );
-}
-
-void _saveSessionIfEnabled(RuntimeOptions options, ConsoleLogger logger) {
-  if (!options.saveSession && !options.resumeSession) {
-    return;
-  }
-
-  final String sessionFile = options.effectiveSessionFile();
-  SessionStore.saveSession(sessionFile, options.toSessionPayload());
-  logger.info('Session saved to $sessionFile');
-  if (options.sessionTokenMode == 'plain') {
-    logger.warn('Session file stores tokens in plain text. Keep file permissions restricted.');
-  } else {
-    logger.info('Session stores token env references only. Keep those environment variables available for resume.');
-  }
-}
-
-void _logRuntimeHeader(
-  RuntimeOptions options,
-  ProviderRef sourceRef,
-  ProviderRef targetRef,
-  Directory resultsRoot,
-  Directory runWorkdir,
-  ConsoleLogger logger,
-) {
-  logger.info('Dart runtime loaded');
-  logger.info('  Command: ${options.commandName}');
-  logger.info('  Source: ${options.sourceProvider} (${sourceRef.resource})');
-  logger.info('  Target: ${options.targetProvider} (${targetRef.resource})');
-  logger.info('  Order: ${options.migrationOrder}');
-  logger.info(
-    '  Tag range: ${options.fromTag.isEmpty ? '<start>' : options.fromTag} -> ${options.toTag.isEmpty ? '<end>' : options.toTag}',
-  );
-  logger.info('  Dry-run: ${options.dryRun}');
-  logger.info('  Skip tags: ${options.skipTagMigration}');
-  logger.info('  Download workers: ${options.downloadWorkers}');
-  logger.info('  Release workers: ${options.releaseWorkers}');
-  logger.info('  Session token mode: ${options.sessionTokenMode}');
-  if (options.settingsProfile.isNotEmpty) {
-    logger.info('  Settings profile: ${options.settingsProfile}');
-  }
-  logger.info('  Checkpoint file: ${options.effectiveCheckpointFile()}');
-  logger.info('  Results root: ${resultsRoot.path}');
-  logger.info('  Run workdir: ${runWorkdir.path}');
-  if (options.tagsFile.isNotEmpty) {
-    logger.info('  Tags file: ${options.tagsFile}');
   }
 }
 
@@ -278,27 +194,12 @@ Future<int> _runDemo(
   return 0;
 }
 
-Future<int> _executeMigration(
-    RuntimeOptions options, ConsoleLogger logger, Directory resultsRoot, Directory runWorkdir) async {
-  final Map<String, dynamic> settingsPayload = SettingsManager.loadEffectiveSettings();
-  final HttpConfig httpConfig = SettingsManager.httpConfigFromSettings(settingsPayload, options.settingsProfile);
-  final ProviderRegistry registry = ProviderRegistry.defaults(config: httpConfig);
-  final ProviderAdapter sourceAdapter = registry.get(options.sourceProvider);
-  final ProviderAdapter targetAdapter = registry.get(options.targetProvider);
-
-  final ProviderRef sourceRef = sourceAdapter.parseUrl(options.sourceUrl);
-  final ProviderRef targetRef = targetAdapter.parseUrl(options.targetUrl);
-  _saveSessionIfEnabled(options, logger);
-  _logRuntimeHeader(options, sourceRef, targetRef, resultsRoot, runWorkdir, logger);
-
-  final MigrationEngine engine = MigrationEngine(registry: registry, logger: logger);
-  await engine.run(options, sourceRef, targetRef);
-  logger.stopSpinner();
-
-  return 0;
-}
-
-Future<int> _runCli(List<String> argv, {ConsoleOutput? output, InputReader? input}) async {
+Future<int> _runCli(
+  List<String> argv, {
+  ConsoleOutput? output,
+  InputReader? input,
+  RunService Function(ConsoleLogger logger)? runServiceFactory,
+}) async {
   final ConsoleOutput resolvedOutput = output ?? const StdConsoleOutput();
   final InputReader resolvedInput = input ?? const StdInputReader();
   ConsoleLogger? logger;
@@ -337,19 +238,32 @@ Future<int> _runCli(List<String> argv, {ConsoleOutput? output, InputReader? inpu
       _printBanner(resolvedOutput);
     }
 
-    final _PreparedRun prepared = _prepareRun(initialOptions);
-    final RuntimeOptions options = prepared.options;
-
-    if (options.commandName == commandDemo) {
+    if (initialOptions.commandName == commandDemo) {
+      final Directory resultsRoot = Directory(initialOptions.effectiveWorkdir());
+      if (!resultsRoot.existsSync()) {
+        resultsRoot.createSync(recursive: true);
+      }
+      final Directory runWorkdir = _allocateRunWorkdir(resultsRoot);
+      runWorkdir.createSync(recursive: true);
+      final RuntimeOptions options = initialOptions.copyWith(
+        workdir: runWorkdir.path,
+        logFile: initialOptions.logFile.isEmpty ? '${runWorkdir.path}/migration-log.jsonl' : initialOptions.logFile,
+      );
       return _runDemo(
         options,
         logger,
-        resultsRoot: prepared.resultsRoot,
-        runWorkdir: prepared.runWorkdir,
+        resultsRoot: resultsRoot,
+        runWorkdir: runWorkdir,
       );
     }
 
-    return _executeMigration(options, logger, prepared.resultsRoot, prepared.runWorkdir);
+    final RunService runService = runServiceFactory != null ? runServiceFactory(logger) : RunService(logger: logger);
+    final RunResult result = await runService.run(RunRequest(options: initialOptions));
+    if (!result.isSuccess && result.failures.isNotEmpty) {
+      logger.error(result.failures.first.message);
+    }
+
+    return result.exitCode;
   } catch (exc) {
     try {
       logger?.stopSpinner();
@@ -368,7 +282,17 @@ Future<int> _runCli(List<String> argv, {ConsoleOutput? output, InputReader? inpu
 final class CliRunner {
   const CliRunner._();
 
-  static Future<int> run(List<String> argv, {ConsoleOutput? output, InputReader? input}) async {
-    return _runCli(argv, output: output, input: input);
+  static Future<int> run(
+    List<String> argv, {
+    ConsoleOutput? output,
+    InputReader? input,
+    RunService Function(ConsoleLogger logger)? runServiceFactory,
+  }) async {
+    return _runCli(
+      argv,
+      output: output,
+      input: input,
+      runServiceFactory: runServiceFactory,
+    );
   }
 }

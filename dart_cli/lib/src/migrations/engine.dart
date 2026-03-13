@@ -9,6 +9,7 @@ import '../core/types/phase.dart';
 import '../models/migration_context.dart';
 import '../models/runtime_options.dart';
 import '../providers/registry.dart';
+import 'migration_execution_result.dart';
 import 'release_phase.dart';
 import 'selection.dart';
 import 'summary.dart';
@@ -23,7 +24,7 @@ class MigrationEngine {
   final ProviderRegistry registry;
   final ConsoleLogger logger;
 
-  Future<void> run(RuntimeOptions options, ProviderRef sourceRef, ProviderRef targetRef) async {
+  Future<MigrationContext> createContext(RuntimeOptions options, ProviderRef sourceRef, ProviderRef targetRef) async {
     registry.requireSupportedPair(options.sourceProvider, options.targetProvider);
     final ProviderAdapter source = registry.get(options.sourceProvider);
     final ProviderAdapter target = registry.get(options.targetProvider);
@@ -64,7 +65,7 @@ class MigrationEngine {
     final Set<String> targetTags = (await target.listTags(targetRef, options.targetToken)).toSet();
     final Set<String> targetReleaseTags =
         await target.listTargetReleaseTags(targetRef, options.targetToken, targetTags);
-    final MigrationContext ctx = MigrationContext(
+    return MigrationContext(
       sourceRef: sourceRef,
       targetRef: targetRef,
       source: source,
@@ -81,23 +82,35 @@ class MigrationEngine {
       failedTags: <String>{},
       releases: releases,
     );
+  }
 
+  Future<MigrationExecutionResult> execute(MigrationContext ctx) async {
     final TagMigrationCounts tagCounts = await TagPhaseRunner(logger: logger).run(ctx);
     final ReleaseMigrationCounts releaseCounts = await ReleasePhaseRunner(logger: logger).run(ctx);
+    return MigrationExecutionResult(
+      tagCounts: tagCounts,
+      releaseCounts: releaseCounts,
+    );
+  }
+
+  Future<void> run(RuntimeOptions options, ProviderRef sourceRef, ProviderRef targetRef) async {
+    final MigrationContext ctx = await createContext(options, sourceRef, targetRef);
+    final MigrationExecutionResult execution = await execute(ctx);
+
     await SummaryWriter.writeSummary(
       logger: logger,
       options: options,
       sourceRef: sourceRef,
       targetRef: targetRef,
-      logPath: logPath,
-      checkpointPath: checkpointPath,
-      workdir: workdir,
+      logPath: ctx.logPath,
+      checkpointPath: ctx.checkpointPath,
+      workdir: ctx.workdir,
       failedTags: ctx.failedTags,
-      tagCounts: tagCounts,
-      releaseCounts: releaseCounts,
+      tagCounts: execution.tagCounts,
+      releaseCounts: execution.releaseCounts,
     );
 
-    if (tagCounts.failed > 0 || releaseCounts.failed > 0) {
+    if (execution.tagCounts.failed > 0 || execution.releaseCounts.failed > 0) {
       throw MigrationPhaseError('Migration finished with failures');
     }
   }
