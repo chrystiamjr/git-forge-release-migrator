@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:gfrm_dart/src/application/preflight_check.dart';
+import 'package:gfrm_dart/src/application/preflight_service.dart';
 import 'package:gfrm_dart/src/application/run_request.dart';
 import 'package:gfrm_dart/src/application/run_failure.dart';
 import 'package:gfrm_dart/src/application/run_result.dart';
@@ -30,13 +32,19 @@ final class _SourceAdapter extends ProviderAdapter {
   String get name => 'stub-source';
 
   @override
-  ProviderRef parseUrl(String url) => ProviderRef(
-        provider: 'github',
-        rawUrl: url,
-        baseUrl: 'https://github.com',
-        host: 'github.com',
-        resource: 'acme/source',
-      );
+  ProviderRef parseUrl(String url) {
+    if (!url.startsWith('https://github.com/')) {
+      throw ArgumentError('Invalid GitHub repository URL: $url');
+    }
+
+    return ProviderRef(
+      provider: 'github',
+      rawUrl: url,
+      baseUrl: 'https://github.com',
+      host: 'github.com',
+      resource: 'acme/source',
+    );
+  }
 
   @override
   CanonicalRelease toCanonicalRelease(Map<String, dynamic> payload) => CanonicalRelease.fromMap(payload);
@@ -73,13 +81,19 @@ final class _TargetAdapter extends ProviderAdapter {
   String get name => 'stub-target';
 
   @override
-  ProviderRef parseUrl(String url) => ProviderRef(
-        provider: 'gitlab',
-        rawUrl: url,
-        baseUrl: 'https://gitlab.com',
-        host: 'gitlab.com',
-        resource: 'acme/target',
-      );
+  ProviderRef parseUrl(String url) {
+    if (!url.startsWith('https://gitlab.com/')) {
+      throw ArgumentError('Invalid GitLab repository URL: $url');
+    }
+
+    return ProviderRef(
+      provider: 'gitlab',
+      rawUrl: url,
+      baseUrl: 'https://gitlab.com',
+      host: 'gitlab.com',
+      resource: 'acme/target',
+    );
+  }
 
   @override
   CanonicalRelease toCanonicalRelease(Map<String, dynamic> payload) => CanonicalRelease.fromMap(payload);
@@ -158,6 +172,8 @@ void main() {
 
       expect(result.status, RunStatus.success);
       expect(result.exitCode, 0);
+      expect(
+          result.preflightChecks.where((PreflightCheck check) => check.status == PreflightCheckStatus.ok), isNotEmpty);
       expect(File(result.summaryPath).existsSync(), isTrue);
       expect(File(result.failedTagsPath).readAsStringSync(), isEmpty);
       expect(result.retryCommand, isEmpty);
@@ -248,8 +264,108 @@ void main() {
       expect(result.exitCode, 1);
       expect(result.preflightMessages, hasLength(1));
       expect(result.preflightMessages.single, contains('RunService supports migrate and resume only'));
+      expect(result.preflightChecks.single.code, 'unsupported-command');
       expect(result.failures.single.retryable, isFalse);
       expect(Directory(resultsRootPath).existsSync(), isFalse);
+    });
+
+    test('returns validation failure with structured preflight checks for unsupported provider pair', () async {
+      final Directory temp = createTempDir('gfrm-run-service-unsupported-pair-');
+      final RunService service = RunService(
+        logger: createSilentLogger(),
+        registryFactory: (_) => _buildRegistry(releases: const <Map<String, dynamic>>[]),
+      );
+
+      final RunResult result = await service.run(
+        RunRequest(
+          options: buildRuntimeOptions(
+            workdir: '${temp.path}/results',
+            sourceProvider: 'github',
+            targetProvider: 'github',
+            migrationOrder: 'github-to-github',
+          ),
+        ),
+      );
+
+      expect(result.status, RunStatus.validationFailure);
+      expect(result.failures.single.code, 'unsupported-provider-pair');
+      expect(result.preflightChecks.any((PreflightCheck check) => check.code == 'unsupported-provider-pair'), isTrue);
+      expect(Directory('${temp.path}/results').existsSync(), isFalse);
+    });
+
+    test('returns validation failure with structured preflight checks for malformed repository URL', () async {
+      final Directory temp = createTempDir('gfrm-run-service-bad-url-');
+      final RunService service = RunService(
+        logger: createSilentLogger(),
+        registryFactory: (_) => _buildRegistry(releases: <Map<String, dynamic>>[buildMinimalReleasePayload('v1.0.0')]),
+      );
+
+      final RunResult result = await service.run(
+        RunRequest(
+          options: buildRuntimeOptions(
+            workdir: '${temp.path}/results',
+            sourceUrl: 'not-a-valid-url',
+          ),
+        ),
+      );
+
+      expect(result.status, RunStatus.validationFailure);
+      expect(result.failures.single.code, 'invalid-source-url');
+      expect(
+          result.preflightChecks.any((PreflightCheck check) => check.field == PreflightService.fieldSourceUrl), isTrue);
+      expect(Directory('${temp.path}/results').existsSync(), isFalse);
+    });
+
+    test('returns validation failure with structured preflight checks for missing token resolution', () async {
+      final Directory temp = createTempDir('gfrm-run-service-missing-token-');
+      final RunService service = RunService(
+        logger: createSilentLogger(),
+        registryFactory: (_) => _buildRegistry(releases: <Map<String, dynamic>>[buildMinimalReleasePayload('v1.0.0')]),
+      );
+
+      final RunResult result = await service.run(
+        RunRequest(
+          options: buildRuntimeOptions(
+            workdir: '${temp.path}/results',
+            sourceToken: '',
+            targetToken: '',
+          ),
+        ),
+      );
+
+      expect(result.status, RunStatus.validationFailure);
+      expect(result.preflightChecks.where((PreflightCheck check) => check.isBlocking), hasLength(2));
+      expect(result.preflightChecks.any((PreflightCheck check) => check.code == 'missing-source-token'), isTrue);
+      expect(result.preflightChecks.any((PreflightCheck check) => check.code == 'missing-target-token'), isTrue);
+    });
+
+    test('keeps warning-only preflight non-blocking for missing settings profile', () async {
+      final Directory temp = createTempDir('gfrm-run-service-settings-warning-');
+      final RunService service = RunService(
+        logger: createSilentLogger(),
+        registryFactory: (_) => _buildRegistry(releases: <Map<String, dynamic>>[buildMinimalReleasePayload('v1.0.0')]),
+        preflightService: PreflightService(
+          settingsLoader: () => <String, dynamic>{
+            'profiles': <String, dynamic>{
+              'default': <String, dynamic>{},
+            },
+          },
+        ),
+      );
+
+      final RunResult result = await service.run(
+        RunRequest(
+          options: buildRuntimeOptions(
+            workdir: '${temp.path}/results',
+            settingsProfile: 'work',
+          ),
+        ),
+      );
+
+      expect(result.status, RunStatus.success);
+      expect(result.preflightChecks.any((PreflightCheck check) => check.code == 'missing-settings-profile'), isTrue);
+      expect(
+          result.preflightChecks.any((PreflightCheck check) => check.status == PreflightCheckStatus.warning), isTrue);
     });
 
     test('saves plain session payload and emits runtime header details', () async {
@@ -336,7 +452,7 @@ void main() {
               '[INFO] Session stores token env references only. Keep those environment variables available for resume.'));
     });
 
-    test('uses default registry factory before rejecting unsupported provider pairs', () async {
+    test('uses preflight to reject unsupported provider pairs before migration starts', () async {
       final Directory temp = createTempDir('gfrm-run-service-default-registry-');
       final RunService service = RunService(
         logger: createSilentLogger(),
@@ -358,6 +474,7 @@ void main() {
       expect(result.exitCode, 1);
       expect(result.failures.single.scope, RunFailure.scopeValidation);
       expect(result.failures.single.message, contains('Provider pair github->github is unsupported.'));
+      expect(result.preflightChecks.any((PreflightCheck check) => check.code == 'unsupported-provider-pair'), isTrue);
     });
   });
 }

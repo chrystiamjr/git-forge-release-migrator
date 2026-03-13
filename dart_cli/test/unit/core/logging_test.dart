@@ -1,4 +1,5 @@
 import 'package:gfrm_dart/src/core/logging.dart';
+import 'package:gfrm_dart/src/core/enums/logger_prefix.dart';
 import 'package:test/test.dart';
 
 import '../../support/buffer_console_output.dart';
@@ -15,6 +16,22 @@ void main() {
       );
 
       logger.info('hello');
+
+      expect(output.stdoutLines, isEmpty);
+      expect(output.stderrLines, isEmpty);
+      expect(output.rawWrites, isEmpty);
+    });
+
+    test('logger defaults to silent mode under dart test when silent is omitted', () {
+      final BufferConsoleOutput output = BufferConsoleOutput();
+      final ConsoleLogger logger = ConsoleLogger(
+        quiet: false,
+        jsonOutput: false,
+        output: output,
+      );
+
+      logger.info('hello');
+      logger.warn('warning');
 
       expect(output.stdoutLines, isEmpty);
       expect(output.stderrLines, isEmpty);
@@ -156,6 +173,65 @@ void main() {
 
       expect(output.rawWrites, isNotEmpty);
       expect(output.stdoutLines, contains('[INFO] done'));
+    });
+
+    test('spinner can start with warning prefix and emits warning final message', () {
+      final BufferConsoleOutput output = BufferConsoleOutput(
+        hasTerminal: true,
+        supportsAnsiEscapes: true,
+      );
+      final ConsoleLogger logger = ConsoleLogger(
+        quiet: false,
+        jsonOutput: false,
+        output: output,
+        silent: false,
+      );
+
+      expect(logger.startSpinner('checking', prefix: LoggerPrefix.warning), isTrue);
+      logger.stopSpinner(finalMessage: 'done with warning', prefix: LoggerPrefix.warning);
+
+      expect(output.rawWrites.first, contains('[WARN] checking'));
+      expect(output.stdoutLines, contains('[WARN] done with warning'));
+    });
+
+    test('info stops an active spinner before emitting', () {
+      final BufferConsoleOutput output = BufferConsoleOutput(
+        hasTerminal: true,
+        supportsAnsiEscapes: true,
+      );
+      final ConsoleLogger logger = ConsoleLogger(
+        quiet: false,
+        jsonOutput: false,
+        output: output,
+        silent: false,
+      );
+
+      expect(logger.startSpinner('loading'), isTrue);
+
+      logger.info('finished');
+
+      expect(output.rawWrites.last, contains('\r'));
+      expect(output.stdoutLines.last, '[INFO] finished');
+    });
+
+    test('warn stops an active spinner and emits to stderr', () {
+      final BufferConsoleOutput output = BufferConsoleOutput(
+        hasTerminal: true,
+        supportsAnsiEscapes: true,
+      );
+      final ConsoleLogger logger = ConsoleLogger(
+        quiet: false,
+        jsonOutput: false,
+        output: output,
+        silent: false,
+      );
+
+      expect(logger.startSpinner('loading'), isTrue);
+
+      logger.warn('watch out');
+
+      expect(output.rawWrites.last, contains('\r'));
+      expect(output.stderrLines.last, '[WARN] watch out');
     });
 
     test('jsonOutput mode writes JSON to the correct streams', () {

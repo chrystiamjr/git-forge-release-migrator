@@ -262,8 +262,6 @@ RuntimeOptions _buildMigrateRuntime(
     sideEnvName: sessionTargetTokenEnv,
     env: env,
   );
-  ConfigValidators.validateTokenPresence(sourceToken, targetToken);
-
   final _CommonRuntimeFlags common = _commonRuntimeFlags(args);
   final bool saveSession = _optionalBool(args, 'save-session');
   return _buildRuntimeOptions(
@@ -368,8 +366,6 @@ RuntimeOptions _buildRuntimeFromSession(
     sideEnvName: targetTokenEnv,
     env: env,
   );
-  ConfigValidators.validateTokenPresence(sourceToken, targetToken);
-
   final int downloadWorkersOverride = _optionalInt(args, 'download-workers', -1);
   final int releaseWorkersOverride = _optionalInt(args, 'release-workers', -1);
   final int downloadWorkersFromSession = int.tryParse((data['download_workers'] ?? 4).toString()) ?? 4;

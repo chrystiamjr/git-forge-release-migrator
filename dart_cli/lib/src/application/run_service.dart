@@ -11,6 +11,8 @@ import '../migrations/summary.dart';
 import '../models/migration_context.dart';
 import '../models/runtime_options.dart';
 import '../providers/registry.dart';
+import 'preflight_check.dart';
+import 'preflight_service.dart';
 import 'run_failure.dart';
 import 'run_request.dart';
 import 'run_result.dart';
@@ -21,25 +23,45 @@ class RunService {
   RunService({
     required this.logger,
     ProviderRegistryFactory? registryFactory,
-  }) : _registryFactory = registryFactory ?? _defaultRegistryFactory;
+    PreflightService? preflightService,
+  })  : _registryFactory = registryFactory ?? _defaultRegistryFactory,
+        _preflightService = preflightService ?? PreflightService();
 
   static const String noReleasesFoundMessage = 'No releases found in selected range';
   static const String partialFailureMessage = 'Migration finished with failures';
 
   final ConsoleLogger logger;
   final ProviderRegistryFactory _registryFactory;
+  final PreflightService _preflightService;
 
   Future<RunResult> run(RunRequest request) async {
     final _PreparedRun prepared = _prepareRun(request.options);
     final RuntimeOptions options = prepared.options;
     final String summaryPath = '${prepared.runWorkdir.path}/summary.json';
     final String failedTagsPath = '${prepared.runWorkdir.path}/failed-tags.txt';
+    List<PreflightCheck> preflightChecks = const <PreflightCheck>[];
 
     try {
-      _validateCommand(options.commandName);
+      preflightChecks = _preflightService.evaluateCommand(options);
+      if (PreflightService.hasBlockingErrors(preflightChecks)) {
+        return _preflightFailureResult(
+          prepared: prepared,
+          checks: preflightChecks,
+        );
+      }
 
       final ProviderRegistry registry = _registryFactory(options);
-      registry.requireSupportedPair(options.sourceProvider, options.targetProvider);
+      preflightChecks = <PreflightCheck>[
+        ...preflightChecks,
+        ..._preflightService.evaluateStartup(options, registry),
+      ];
+      if (PreflightService.hasBlockingErrors(preflightChecks)) {
+        return _preflightFailureResult(
+          prepared: prepared,
+          checks: preflightChecks,
+        );
+      }
+
       _prepareRunDirectories(prepared);
 
       final ProviderAdapter sourceAdapter = registry.get(options.sourceProvider);
@@ -78,6 +100,7 @@ class RunService {
           ),
           prepared: prepared,
           retryCommand: '',
+          preflightChecks: preflightChecks,
         );
       }
 
@@ -92,6 +115,7 @@ class RunService {
           ),
           prepared: prepared,
           retryCommand: SummaryWriter.buildRetryCommand(options, File(failedTagsPath)),
+          preflightChecks: preflightChecks,
         );
       }
 
@@ -105,7 +129,7 @@ class RunService {
         summaryPath: summaryPath,
         failedTagsPath: failedTagsPath,
         retryCommand: '',
-        preflightMessages: const <String>[],
+        preflightChecks: preflightChecks,
         failures: const <RunFailure>[],
       );
     } on ArgumentError catch (exc) {
@@ -119,6 +143,7 @@ class RunService {
         ),
         prepared: prepared,
         retryCommand: '',
+        preflightChecks: preflightChecks,
       );
     } on MigrationPhaseError catch (exc) {
       final bool isValidationFailure = exc.message == noReleasesFoundMessage;
@@ -132,6 +157,7 @@ class RunService {
         ),
         prepared: prepared,
         retryCommand: '',
+        preflightChecks: preflightChecks,
       );
     } catch (exc) {
       return _failureResult(
@@ -144,6 +170,7 @@ class RunService {
         ),
         prepared: prepared,
         retryCommand: '',
+        preflightChecks: preflightChecks,
       );
     } finally {
       logger.stopSpinner();
@@ -155,6 +182,7 @@ class RunService {
     required RunFailure failure,
     required _PreparedRun prepared,
     required String retryCommand,
+    required List<PreflightCheck> preflightChecks,
   }) {
     final RuntimeOptions options = prepared.options;
     return RunResult(
@@ -167,8 +195,34 @@ class RunService {
       summaryPath: '${prepared.runWorkdir.path}/summary.json',
       failedTagsPath: '${prepared.runWorkdir.path}/failed-tags.txt',
       retryCommand: retryCommand,
-      preflightMessages: status == RunStatus.validationFailure ? <String>[failure.message] : const <String>[],
+      preflightChecks: preflightChecks,
       failures: <RunFailure>[failure],
+    );
+  }
+
+  RunResult _preflightFailureResult({
+    required _PreparedRun prepared,
+    required List<PreflightCheck> checks,
+  }) {
+    final PreflightCheck? blocking = PreflightService.firstBlockingError(checks);
+    final PreflightCheck resolved = blocking ??
+        const PreflightCheck(
+          status: PreflightCheckStatus.error,
+          code: 'preflight-failed',
+          message: 'Preflight failed before migration start.',
+        );
+
+    return _failureResult(
+      status: RunStatus.validationFailure,
+      failure: RunFailure(
+        scope: RunFailure.scopeValidation,
+        code: resolved.code,
+        message: resolved.message,
+        retryable: false,
+      ),
+      prepared: prepared,
+      retryCommand: '',
+      preflightChecks: checks,
     );
   }
 
@@ -176,12 +230,6 @@ class RunService {
     final Map<String, dynamic> settingsPayload = SettingsManager.loadEffectiveSettings();
     final HttpConfig httpConfig = SettingsManager.httpConfigFromSettings(settingsPayload, options.settingsProfile);
     return ProviderRegistry.defaults(config: httpConfig);
-  }
-
-  static void _validateCommand(String commandName) {
-    if (commandName != commandMigrate && commandName != commandResume) {
-      throw ArgumentError('RunService supports migrate and resume only. Received: $commandName');
-    }
   }
 }
 

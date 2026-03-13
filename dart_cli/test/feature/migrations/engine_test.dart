@@ -7,6 +7,7 @@ import 'package:gfrm_dart/src/core/types/canonical_release.dart';
 import 'package:gfrm_dart/src/core/types/existing_release_info.dart';
 import 'package:gfrm_dart/src/core/types/publish_release_input.dart';
 import 'package:gfrm_dart/src/migrations/engine.dart';
+import 'package:gfrm_dart/src/models/migration_context.dart';
 import 'package:gfrm_dart/src/models/runtime_options.dart';
 import 'package:gfrm_dart/src/providers/registry.dart';
 import '../../support/logging.dart';
@@ -178,6 +179,50 @@ void main() {
 
       expect(File(logPath).parent.existsSync(), isTrue);
       expect(File(logPath).existsSync(), isTrue);
+    });
+
+    test('createContext builds context with selected and target tag snapshots', () async {
+      final Directory temp = createTempDir('gfrm-engine-create-context-');
+      final RuntimeOptions options = buildRuntimeOptions(
+        workdir: '${temp.path}/results',
+        fromTag: 'v1.0.0',
+        toTag: 'v1.0.0',
+      );
+
+      final _ReleaseSourceAdapter source = _ReleaseSourceAdapter(
+        releases: <Map<String, dynamic>>[
+          buildMinimalReleasePayload('v1.0.0'),
+          buildMinimalReleasePayload('v1.1.0'),
+        ],
+      );
+      final _TargetAdapter target = _TargetAdapter();
+      await target.createTagForMigration(
+        target.parseUrl(options.targetUrl),
+        options.targetToken,
+        'v-existing',
+        'abc123',
+        CanonicalRelease.fromMap(buildMinimalReleasePayload('v-existing')),
+      );
+      final ProviderRegistry registry = ProviderRegistry(<String, ProviderAdapter>{
+        'github': source,
+        'gitlab': target,
+      });
+      final MigrationEngine engine = MigrationEngine(
+        registry: registry,
+        logger: createSilentLogger(),
+      );
+
+      final MigrationContext context = await engine.createContext(
+        options,
+        source.parseUrl(options.sourceUrl),
+        target.parseUrl(options.targetUrl),
+      );
+
+      expect(context.selectedTags, <String>['v1.0.0']);
+      expect(context.targetTags, contains('v-existing'));
+      expect(context.targetReleaseTags, contains('v-existing'));
+      expect(File(context.logPath).existsSync(), isTrue);
+      expect(context.checkpointSignature, contains('github-to-gitlab'));
     });
 
     test('run writes summary for successful migrations inside the workdir', () async {

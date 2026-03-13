@@ -7,6 +7,8 @@ import {
   buildInvariantContractFindings,
   buildMissingPatchFindings,
   buildSecretFindings,
+  isBranchProtectionAccessDeniedError,
+  selectRequiredContexts,
   buildTargetedCoverageFindings,
   selectApplicableRule,
   summarizeCheckState,
@@ -29,6 +31,41 @@ test('selectApplicableRule prefers the most specific branch pattern', () => {
   ]);
 
   assert.equal(selectedRule?.pattern, 'release/1.*');
+});
+
+test('selectRequiredContexts reports unavailable branch protection when access is forbidden', () => {
+  const selected = selectRequiredContexts('main', [], { branchProtectionAvailable: false });
+
+  assert.deepEqual(selected, {
+    requiredContexts: [],
+    requiredContextSource: 'branch_protection_unavailable',
+  });
+});
+
+test('selectRequiredContexts returns required contexts from the matching rule', () => {
+  const selected = selectRequiredContexts('main', [
+    {
+      pattern: 'main',
+      requiredStatusCheckContexts: ['Quality Checks', 'Automated PR Review'],
+    },
+  ]);
+
+  assert.deepEqual(selected, {
+    requiredContexts: ['Quality Checks', 'Automated PR Review'],
+    requiredContextSource: 'branch_protection',
+  });
+});
+
+test('isBranchProtectionAccessDeniedError detects forbidden branch protection reads', () => {
+  assert.equal(
+    isBranchProtectionAccessDeniedError(
+      new Error(
+        'GitHub GraphQL error: [{"path":["repository","branchProtectionRules"],"message":"Resource not accessible by personal access token"}]',
+      ),
+    ),
+    true,
+  );
+  assert.equal(isBranchProtectionAccessDeniedError(new Error('GitHub GraphQL error: unrelated failure')), false);
 });
 
 test('summarizeCheckState ignores failing optional contexts when required checks pass', () => {

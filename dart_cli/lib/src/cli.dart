@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'application/preflight_check.dart';
+import 'application/run_failure.dart';
 import 'application/run_request.dart';
 import 'application/run_result.dart';
 import 'application/run_service.dart';
@@ -283,11 +285,37 @@ RunRequest _buildRunRequest(RuntimeOptions options) {
 }
 
 int _renderRunResult(ConsoleLogger logger, RunResult result) {
+  final Set<String> renderedPreflightErrorCodes = <String>{};
+
+  for (final PreflightCheck check in result.preflightChecks) {
+    if (check.status == PreflightCheckStatus.warning) {
+      logger.warn(_formatPreflightCheck(check));
+    }
+
+    if (check.status == PreflightCheckStatus.error) {
+      logger.error(_formatPreflightCheck(check));
+      renderedPreflightErrorCodes.add(check.code);
+    }
+  }
+
   if (!result.isSuccess && result.failures.isNotEmpty) {
-    logger.error(result.failures.first.message);
+    final RunFailure primaryFailure = result.failures.first;
+    final bool alreadyRenderedPreflightError =
+        primaryFailure.scope == RunFailure.scopeValidation && renderedPreflightErrorCodes.contains(primaryFailure.code);
+    if (!alreadyRenderedPreflightError) {
+      logger.error(primaryFailure.message);
+    }
   }
 
   return result.exitCode;
+}
+
+String _formatPreflightCheck(PreflightCheck check) {
+  if (check.hint == null || check.hint!.trim().isEmpty) {
+    return check.message;
+  }
+
+  return '${check.message} Hint: ${check.hint}';
 }
 
 final class CliRunner {
