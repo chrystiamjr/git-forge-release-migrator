@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:gfrm_dart/src/core/adapters/provider_adapter.dart';
 import 'package:gfrm_dart/src/core/exceptions/http_request_error.dart';
 import 'package:gfrm_dart/src/core/types/canonical_link.dart';
@@ -10,6 +11,71 @@ import 'package:gfrm_dart/src/providers/github.dart';
 import '../../support/http_stubs.dart';
 import '../../support/temp_dir.dart';
 import 'package:test/test.dart';
+
+final class _QueuePostDio implements Dio {
+  _QueuePostDio(this._responses);
+
+  final List<Response<dynamic>> _responses;
+  String? lastUrl;
+  Object? lastData;
+  Options? lastOptions;
+
+  @override
+  Transformer transformer = BackgroundTransformer();
+
+  @override
+  Future<Response<T>> post<T>(
+    String path, {
+    Object? data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+    CancelToken? cancelToken,
+    ProgressCallback? onSendProgress,
+    ProgressCallback? onReceiveProgress,
+  }) async {
+    lastUrl = path;
+    lastData = data;
+    lastOptions = options;
+    if (_responses.isEmpty) {
+      throw StateError('No queued response for $path');
+    }
+    return _responses.removeAt(0) as Response<T>;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+Response<dynamic> _postResponse(String path, int statusCode, {dynamic data}) {
+  return Response<dynamic>(
+    requestOptions: RequestOptions(path: path),
+    statusCode: statusCode,
+    data: data,
+  );
+}
+
+final class _RecordingGitHubAdapter extends GitHubAdapter {
+  _RecordingGitHubAdapter();
+
+  int createCalls = 0;
+  int uploadCalls = 0;
+  int editCalls = 0;
+
+  @override
+  Future<void> releaseCreate(ProviderRef ref, String token, String tag, String title, String notesFile) async {
+    createCalls += 1;
+  }
+
+  @override
+  Future<void> releaseUpload(ProviderRef ref, String token, String tag, List<String> assets) async {
+    uploadCalls += 1;
+  }
+
+  @override
+  Future<void> releaseEdit(ProviderRef ref, String token, String tag, String title, String notesFile) async {
+    editCalls += 1;
+  }
+}
 
 void main() {
   group('GitHubAdapter', () {
@@ -552,6 +618,90 @@ void main() {
         );
       });
 
+      test('releaseUpload returns immediately when assets list is empty', () async {
+        final ScriptedHttpClientHelper stub = ScriptedHttpClientHelper(
+          jsonResponse: <String, dynamic>{
+            'upload_url': 'https://uploads.github.com/repos/acme/repo/releases/1/assets{?name,label}'
+          },
+        );
+        final _QueuePostDio dio = _QueuePostDio(<Response<dynamic>>[]);
+        final GitHubAdapter adapter = GitHubAdapter(http: stub, dio: dio);
+        final ProviderRef ref = adapter.parseUrl('https://github.com/acme/repo');
+
+        await adapter.releaseUpload(ref, 'token', 'v1.0.0', <String>[]);
+
+        expect(dio.lastUrl, isNull);
+      });
+
+      test('releaseUpload throws when release is missing', () async {
+        final ScriptedHttpClientHelper stub = ScriptedHttpClientHelper(jsonResponse: null);
+        final _QueuePostDio dio = _QueuePostDio(<Response<dynamic>>[]);
+        final GitHubAdapter adapter = GitHubAdapter(http: stub, dio: dio);
+        final ProviderRef ref = adapter.parseUrl('https://github.com/acme/repo');
+
+        await expectLater(
+          adapter.releaseUpload(ref, 'token', 'v1.0.0', <String>['/tmp/missing.zip']),
+          throwsA(isA<HttpRequestError>()),
+        );
+      });
+
+      test('releaseUpload throws when upload_url is missing', () async {
+        final ScriptedHttpClientHelper stub = ScriptedHttpClientHelper(
+          jsonResponse: <String, dynamic>{'id': 1},
+        );
+        final _QueuePostDio dio = _QueuePostDio(<Response<dynamic>>[]);
+        final GitHubAdapter adapter = GitHubAdapter(http: stub, dio: dio);
+        final ProviderRef ref = adapter.parseUrl('https://github.com/acme/repo');
+
+        await expectLater(
+          adapter.releaseUpload(ref, 'token', 'v1.0.0', <String>['/tmp/missing.zip']),
+          throwsA(isA<HttpRequestError>()),
+        );
+      });
+
+      test('releaseUpload skips missing files and uploads existing assets', () async {
+        final Directory temp = createTempDir('gfrm-gh-upload-success-');
+        addTearDown(() => temp.deleteSync(recursive: true));
+        final File asset = File('${temp.path}/asset.zip')..writeAsStringSync('payload');
+        final ScriptedHttpClientHelper stub = ScriptedHttpClientHelper(
+          jsonResponse: <String, dynamic>{
+            'upload_url': 'https://uploads.github.com/repos/acme/repo/releases/1/assets{?name,label}',
+          },
+        );
+        final _QueuePostDio dio = _QueuePostDio(<Response<dynamic>>[
+          _postResponse('https://uploads.github.com/repos/acme/repo/releases/1/assets?name=asset.zip', 201),
+        ]);
+        final GitHubAdapter adapter = GitHubAdapter(http: stub, dio: dio);
+        final ProviderRef ref = adapter.parseUrl('https://github.com/acme/repo');
+
+        await adapter.releaseUpload(ref, 'token', 'v1.0.0', <String>['${temp.path}/missing.zip', asset.path]);
+
+        expect(dio.lastUrl, contains('name=asset.zip'));
+        expect(dio.lastOptions?.headers?['Content-Type'], 'application/octet-stream');
+        expect(dio.lastOptions?.validateStatus?.call(HttpStatus.internalServerError), isTrue);
+      });
+
+      test('releaseUpload throws when GitHub asset upload returns non-2xx', () async {
+        final Directory temp = createTempDir('gfrm-gh-upload-failure-');
+        addTearDown(() => temp.deleteSync(recursive: true));
+        final File asset = File('${temp.path}/asset.zip')..writeAsStringSync('payload');
+        final ScriptedHttpClientHelper stub = ScriptedHttpClientHelper(
+          jsonResponse: <String, dynamic>{
+            'upload_url': 'https://uploads.github.com/repos/acme/repo/releases/1/assets{?name,label}',
+          },
+        );
+        final _QueuePostDio dio = _QueuePostDio(<Response<dynamic>>[
+          _postResponse('https://uploads.github.com/repos/acme/repo/releases/1/assets?name=asset.zip', 500),
+        ]);
+        final GitHubAdapter adapter = GitHubAdapter(http: stub, dio: dio);
+        final ProviderRef ref = adapter.parseUrl('https://github.com/acme/repo');
+
+        await expectLater(
+          adapter.releaseUpload(ref, 'token', 'v1.0.0', <String>[asset.path]),
+          throwsA(isA<HttpRequestError>()),
+        );
+      });
+
       test('resolveCommitShaForMigration calls commitShaForRef when canonical sha is empty', () async {
         final ScriptedHttpClientHelper stub =
             ScriptedHttpClientHelper(jsonResponse: <String, dynamic>{'sha': 'feedcafe'});
@@ -582,6 +732,76 @@ void main() {
 
         final List<Map<String, dynamic>> releases = await adapter.listReleases(ref, 'token');
         expect(releases, hasLength(100));
+      });
+
+      test('publishRelease creates, uploads, edits, and returns ok for new release', () async {
+        final Directory temp = createTempDir('gfrm-gh-publish-new-');
+        addTearDown(() => temp.deleteSync(recursive: true));
+        final File notes = File('${temp.path}/notes.md')..writeAsStringSync('notes');
+        final _RecordingGitHubAdapter adapter = _RecordingGitHubAdapter();
+        final ProviderRef ref = adapter.parseUrl('https://github.com/acme/repo');
+
+        final String result = await adapter.publishRelease(
+          PublishReleaseInput(
+            providerRef: ref,
+            token: 'token',
+            tag: 'v1.0.0',
+            releaseName: 'Release v1.0.0',
+            notesFile: notes,
+            downloadedFiles: <String>['${temp.path}/asset.zip'],
+            expectedAssets: 1,
+            existingInfo: const ExistingReleaseInfo(exists: false, shouldRetry: false, reason: ''),
+          ),
+        );
+
+        expect(result, 'ok');
+        expect(adapter.createCalls, 1);
+        expect(adapter.uploadCalls, 1);
+        expect(adapter.editCalls, 1);
+      });
+
+      test('publishRelease skips create when release already exists', () async {
+        final Directory temp = createTempDir('gfrm-gh-publish-existing-');
+        addTearDown(() => temp.deleteSync(recursive: true));
+        final File notes = File('${temp.path}/notes.md')..writeAsStringSync('notes');
+        final _RecordingGitHubAdapter adapter = _RecordingGitHubAdapter();
+        final ProviderRef ref = adapter.parseUrl('https://github.com/acme/repo');
+
+        final String result = await adapter.publishRelease(
+          PublishReleaseInput(
+            providerRef: ref,
+            token: 'token',
+            tag: 'v1.0.0',
+            releaseName: 'Release v1.0.0',
+            notesFile: notes,
+            downloadedFiles: <String>[],
+            expectedAssets: 0,
+            existingInfo: const ExistingReleaseInfo(exists: true, shouldRetry: false, reason: ''),
+          ),
+        );
+
+        expect(result, 'ok');
+        expect(adapter.createCalls, 0);
+        expect(adapter.uploadCalls, 1);
+        expect(adapter.editCalls, 1);
+      });
+
+      test('downloadCanonicalLink returns false when both URLs are empty', () async {
+        final ScriptedHttpClientHelper stub = successfulDownloadStub();
+        final GitHubAdapter adapter = GitHubAdapter(http: stub);
+        final ProviderRef ref = adapter.parseUrl('https://github.com/acme/repo');
+
+        final bool downloaded = await adapter.downloadCanonicalLink(
+          DownloadLinkInput(
+            providerRef: ref,
+            token: 'token',
+            tag: 'v1.0.0',
+            link: CanonicalLink(name: 'asset.zip', url: '', directUrl: '', type: 'other'),
+            outputPath: '/tmp/asset.zip',
+          ),
+        );
+
+        expect(downloaded, isFalse);
       });
     });
   });

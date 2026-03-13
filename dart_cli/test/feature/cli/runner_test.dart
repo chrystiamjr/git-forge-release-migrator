@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:gfrm_dart/gfrm_dart.dart';
+import 'package:gfrm_dart/src/application/preflight_check.dart';
 import 'package:gfrm_dart/src/application/run_failure.dart';
 import 'package:gfrm_dart/src/application/run_request.dart';
 import 'package:gfrm_dart/src/application/run_result.dart';
@@ -188,6 +189,26 @@ void main() {
       expect(output.stderrLines, isEmpty);
     });
 
+    test('settings help command prints settings usage and exits successfully', () async {
+      final BufferConsoleOutput output = BufferConsoleOutput();
+
+      final int exitCode = await CliRunner.run(<String>[commandSettings, '--help'], output: output);
+
+      expect(exitCode, 0);
+      expect(output.stdoutLines.single, contains('Usage: gfrm settings <action> [options]'));
+      expect(output.stderrLines, isEmpty);
+    });
+
+    test('setup help command prints setup usage and exits successfully', () async {
+      final BufferConsoleOutput output = BufferConsoleOutput();
+
+      final int exitCode = await CliRunner.run(<String>[commandSetup, '--help'], output: output);
+
+      expect(exitCode, 0);
+      expect(output.stdoutLines.single, contains('Usage: gfrm setup [options]'));
+      expect(output.stderrLines, isEmpty);
+    });
+
     test('invalid migrate invocation returns non-zero', () async {
       final BufferConsoleOutput output = BufferConsoleOutput();
 
@@ -195,6 +216,16 @@ void main() {
 
       expect(exitCode, 1);
       expect(output.stderrLines.single, contains('Missing required option --source-provider'));
+    });
+
+    test('unknown command reports error through stderr when logger was not created yet', () async {
+      final BufferConsoleOutput output = BufferConsoleOutput();
+
+      final int exitCode = await CliRunner.run(<String>['unknown-command'], output: output);
+
+      expect(exitCode, 1);
+      expect(output.stdoutLines, isEmpty);
+      expect(output.stderrLines.single, contains('[ERROR]'));
     });
 
     test('migrate command preserves non-zero exit code from RunService', () async {
@@ -230,7 +261,7 @@ void main() {
             summaryPath: '/tmp/results/20260313-120000/summary.json',
             failedTagsPath: '/tmp/results/20260313-120000/failed-tags.txt',
             retryCommand: '',
-            preflightMessages: <String>[],
+            preflightChecks: <PreflightCheck>[],
             failures: <RunFailure>[
               RunFailure(
                 scope: RunFailure.scopeExecution,
@@ -310,7 +341,7 @@ void main() {
             summaryPath: '/tmp/results/20260313-120000/summary.json',
             failedTagsPath: '/tmp/results/20260313-120000/failed-tags.txt',
             retryCommand: '',
-            preflightMessages: <String>[],
+            preflightChecks: <PreflightCheck>[],
             failures: <RunFailure>[],
           ),
         ),
@@ -361,7 +392,7 @@ void main() {
             summaryPath: '/tmp/results/20260313-120000/summary.json',
             failedTagsPath: '/tmp/results/20260313-120000/failed-tags.txt',
             retryCommand: '',
-            preflightMessages: <String>[],
+            preflightChecks: <PreflightCheck>[],
             failures: <RunFailure>[],
           ),
         ),
@@ -372,6 +403,81 @@ void main() {
       expect(capturedRequest!.options.commandName, commandResume);
       expect(capturedRequest!.options.sourceToken, 'session-source-token');
       expect(capturedRequest!.options.targetToken, 'session-target-token');
+    });
+
+    test('cli renders structured preflight warnings without changing successful exit', () async {
+      final BufferConsoleOutput output = BufferConsoleOutput();
+
+      final int exitCode = await CliRunner.run(
+        <String>[
+          commandMigrate,
+          '--source-provider',
+          'github',
+          '--source-url',
+          'https://github.com/acme/source',
+          '--source-token',
+          'src-token',
+          '--target-provider',
+          'gitlab',
+          '--target-url',
+          'https://gitlab.com/acme/target',
+          '--target-token',
+          'dst-token',
+          '--no-banner',
+        ],
+        output: output,
+        runServiceFactory: (ConsoleLogger logger) => _FakeRunService(
+          logger: logger,
+          result: const RunResult(
+            status: RunStatus.success,
+            exitCode: 0,
+            resultsRootPath: '/tmp/results',
+            runWorkdirPath: '/tmp/results/20260313-120000',
+            logPath: '/tmp/results/20260313-120000/migration-log.jsonl',
+            checkpointPath: '/tmp/results/checkpoints/state.jsonl',
+            summaryPath: '/tmp/results/20260313-120000/summary.json',
+            failedTagsPath: '/tmp/results/20260313-120000/failed-tags.txt',
+            retryCommand: '',
+            preflightChecks: <PreflightCheck>[
+              PreflightCheck(
+                status: PreflightCheckStatus.warning,
+                code: 'missing-settings-profile',
+                message: 'Settings profile work was not found in effective settings.',
+                hint:
+                    'The run can continue if tokens were resolved elsewhere, but profile-backed settings will not apply.',
+                field: 'settings_profile',
+              ),
+            ],
+            failures: <RunFailure>[],
+          ),
+        ),
+      );
+
+      expect(exitCode, 0);
+      expect(output.stderrLines, isEmpty);
+    });
+
+    test('cli preserves non-zero exit when the real run service blocks on preflight errors', () async {
+      final BufferConsoleOutput output = BufferConsoleOutput();
+
+      final int exitCode = await CliRunner.run(
+        <String>[
+          commandMigrate,
+          '--source-provider',
+          'github',
+          '--source-url',
+          'https://github.com/acme/source',
+          '--target-provider',
+          'gitlab',
+          '--target-url',
+          'https://gitlab.com/acme/target',
+          '--no-banner',
+        ],
+        output: output,
+      );
+
+      expect(exitCode, 1);
+      expect(output.stderrLines, isEmpty);
     });
 
     test('demo command honors custom log path and keeps banner hidden on non-terminal output', () async {

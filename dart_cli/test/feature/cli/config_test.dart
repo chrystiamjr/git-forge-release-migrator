@@ -11,6 +11,20 @@ import 'package:test/test.dart';
 
 void main() {
   group('config', () {
+    test('parseCliRequest without args returns root usage help', () {
+      final CliRequest request = CliRequestParser.parseCliRequest(<String>[]);
+
+      expect(request.command, 'help');
+      expect(request.usage, contains('Usage: $publicCommandName <command> [options]'));
+    });
+
+    test('parseCliRequest root --help returns root usage help', () {
+      final CliRequest request = CliRequestParser.parseCliRequest(<String>['--help']);
+
+      expect(request.command, 'help');
+      expect(request.usage, contains('Commands:'));
+    });
+
     test('parseCliRequest builds migrate runtime', () {
       final CliRequest request = CliRequestParser.parseCliRequest(<String>[
         commandMigrate,
@@ -95,6 +109,27 @@ void main() {
       expect(options.force, isTrue);
     });
 
+    test('parseCliRequest setup --help returns setup usage', () {
+      final CliRequest request = CliRequestParser.parseCliRequest(<String>[commandSetup, '--help']);
+
+      expect(request.command, 'help');
+      expect(request.usage, contains('Usage: $publicCommandName setup [options]'));
+    });
+
+    test('parseCliRequest migrate --help returns root usage', () {
+      final CliRequest request = CliRequestParser.parseCliRequest(<String>[commandMigrate, '--help']);
+
+      expect(request.command, 'help');
+      expect(request.usage, contains('Usage: $publicCommandName <command> [options]'));
+    });
+
+    test('parseCliRequest demo --help returns root usage', () {
+      final CliRequest request = CliRequestParser.parseCliRequest(<String>[commandDemo, '--help']);
+
+      expect(request.command, 'help');
+      expect(request.usage, contains('Usage: $publicCommandName <command> [options]'));
+    });
+
     test('buildRootParser registers settings command', () {
       final ArgParser parser = CliParserCatalog.buildRootParser();
       expect(parser.commands.containsKey(commandSettings), isTrue);
@@ -123,6 +158,81 @@ void main() {
         ]),
         throwsArgumentError,
       );
+    });
+
+    test('parseCliRequest rejects invalid migrate session-token-mode', () {
+      expect(
+        () => CliRequestParser.parseCliRequest(<String>[
+          commandMigrate,
+          '--source-provider',
+          'github',
+          '--source-url',
+          'https://github.com/o/r',
+          '--source-token',
+          's',
+          '--target-provider',
+          'gitlab',
+          '--target-url',
+          'https://gitlab.com/g/p',
+          '--target-token',
+          't',
+          '--session-token-mode',
+          'invalid',
+        ]),
+        throwsA(
+          isA<ArgumentError>().having(
+            (ArgumentError error) => error.message,
+            'message',
+            '--session-token-mode must be one of: env, plain',
+          ),
+        ),
+      );
+    });
+
+    test('parseCliRequest rejects invalid worker bounds for migrate', () {
+      expect(
+        () => CliRequestParser.parseCliRequest(<String>[
+          commandMigrate,
+          '--source-provider',
+          'github',
+          '--source-url',
+          'https://github.com/o/r',
+          '--source-token',
+          's',
+          '--target-provider',
+          'gitlab',
+          '--target-url',
+          'https://gitlab.com/g/p',
+          '--target-token',
+          't',
+          '--download-workers',
+          '0',
+        ]),
+        throwsArgumentError,
+      );
+    });
+
+    test('parseCliRequest allows missing resolved tokens so structured preflight can report them later', () {
+      final Directory tempWorkdir = createTempDir('gfrm-dart-preflight-missing-token-');
+
+      final CliRequest request = CliRequestParser.parseCliRequest(
+          <String>[
+            commandMigrate,
+            '--source-provider',
+            'github',
+            '--source-url',
+            'https://github.com/o/r',
+            '--target-provider',
+            'gitlab',
+            '--target-url',
+            'https://gitlab.com/g/p',
+          ],
+          cwd: tempWorkdir.path,
+          env: <String, String>{});
+
+      final RuntimeOptions options = request.options!;
+      expect(options.sourceToken, isEmpty);
+      expect(options.targetToken, isEmpty);
     });
 
     test('parseCliRequest loads resume session', () {
@@ -162,6 +272,71 @@ void main() {
       expect(options.targetToken, 'target-token');
       expect(options.downloadWorkers, 7);
       expect(options.commandName, commandResume);
+    });
+
+    test('parseCliRequest resume rejects sessions without repository urls', () {
+      final Directory temp = createTempDir('gfrm-dart-resume-missing-urls-');
+      final String sessionPath = '${temp.path}/session.json';
+
+      SessionStore.saveSession(
+        sessionPath,
+        <String, dynamic>{
+          'source_provider': 'github',
+          'target_provider': 'gitlab',
+          'source_token': 'source-token',
+          'target_token': 'target-token',
+        },
+      );
+
+      expect(
+        () => CliRequestParser.parseCliRequest(<String>[
+          commandResume,
+          '--session-file',
+          sessionPath,
+        ]),
+        throwsA(
+          isA<ArgumentError>().having(
+            (ArgumentError error) => error.message,
+            'message',
+            'Session file is missing source_url/target_url',
+          ),
+        ),
+      );
+    });
+
+    test('parseCliRequest resume rejects invalid session-token-mode override', () {
+      final Directory temp = createTempDir('gfrm-dart-resume-invalid-mode-');
+      final String sessionPath = '${temp.path}/session.json';
+
+      SessionStore.saveSession(
+        sessionPath,
+        <String, dynamic>{
+          'source_provider': 'github',
+          'source_url': 'https://github.com/acme/src',
+          'target_provider': 'gitlab',
+          'target_url': 'https://gitlab.com/acme/dst',
+          'source_token': 'source-token',
+          'target_token': 'target-token',
+          'session_token_mode': 'plain',
+        },
+      );
+
+      expect(
+        () => CliRequestParser.parseCliRequest(<String>[
+          commandResume,
+          '--session-file',
+          sessionPath,
+          '--session-token-mode',
+          'bogus',
+        ]),
+        throwsA(
+          isA<ArgumentError>().having(
+            (ArgumentError error) => error.message,
+            'message',
+            '--session-token-mode must be one of: env, plain',
+          ),
+        ),
+      );
     });
 
     test('parseCliRequest honors --no-save-session for migrate and resume', () {
@@ -421,6 +596,73 @@ void main() {
       expect(options.targetToken, 'target-from-session');
     });
 
+    test('parseCliRequest resume preserves session defaults when optional flags are not passed', () {
+      final Directory temp = createTempDir('gfrm-dart-resume-session-defaults-');
+      final String sessionPath = '${temp.path}/session.json';
+
+      SessionStore.saveSession(
+        sessionPath,
+        <String, dynamic>{
+          'source_provider': 'github',
+          'source_url': 'https://github.com/acme/src',
+          'target_provider': 'gitlab',
+          'target_url': 'https://gitlab.com/acme/dst',
+          'source_token': 'source-token',
+          'target_token': 'target-token',
+          'session_token_mode': 'plain',
+          'from_tag': 'v1.0.0',
+          'to_tag': 'v2.0.0',
+          'download_workers': 5,
+          'release_workers': 2,
+          'skip_tag_migration': true,
+        },
+      );
+
+      final CliRequest request = CliRequestParser.parseCliRequest(<String>[
+        commandResume,
+        '--session-file',
+        sessionPath,
+      ]);
+
+      final RuntimeOptions options = request.options!;
+      expect(options.fromTag, 'v1.0.0');
+      expect(options.toTag, 'v2.0.0');
+      expect(options.downloadWorkers, 5);
+      expect(options.releaseWorkers, 2);
+      expect(options.skipTagMigration, isTrue);
+    });
+
+    test('parseCliRequest resume falls back to default session env names when session omits them', () {
+      final Directory temp = createTempDir('gfrm-dart-resume-default-envs-');
+      final String sessionPath = '${temp.path}/session.json';
+
+      SessionStore.saveSession(
+        sessionPath,
+        <String, dynamic>{
+          'source_provider': 'github',
+          'source_url': 'https://github.com/acme/src',
+          'target_provider': 'gitlab',
+          'target_url': 'https://gitlab.com/acme/dst',
+          'session_token_mode': 'env',
+        },
+      );
+
+      final CliRequest request = CliRequestParser.parseCliRequest(
+        <String>[
+          commandResume,
+          '--session-file',
+          sessionPath,
+        ],
+        env: <String, String>{},
+      );
+
+      final RuntimeOptions options = request.options!;
+      expect(options.sessionSourceTokenEnv, defaultSourceTokenEnv);
+      expect(options.sessionTargetTokenEnv, defaultTargetTokenEnv);
+      expect(options.sourceToken, isEmpty);
+      expect(options.targetToken, isEmpty);
+    });
+
     test('parseCliRequest resume falls back to settings when session env refs are unavailable', () {
       final Directory temp = createTempDir('gfrm-dart-resume-settings-fallback-');
       final String sessionPath = '${temp.path}/session.json';
@@ -561,6 +803,36 @@ void main() {
       expect(options.demoReleases, 10);
       expect(options.demoSleepSeconds, closeTo(0.5, 0.001));
       expect(options.downloadWorkers, 2);
+    });
+
+    test('parseCliRequest rejects invalid demo release count', () {
+      expect(
+        () => CliRequestParser.parseCliRequest(<String>[
+          commandDemo,
+          '--source-provider',
+          'github',
+          '--target-provider',
+          'gitlab',
+          '--demo-releases',
+          '0',
+        ]),
+        throwsArgumentError,
+      );
+    });
+
+    test('parseCliRequest rejects invalid demo sleep seconds', () {
+      expect(
+        () => CliRequestParser.parseCliRequest(<String>[
+          commandDemo,
+          '--source-provider',
+          'github',
+          '--target-provider',
+          'gitlab',
+          '--demo-sleep-seconds',
+          '-1',
+        ]),
+        throwsArgumentError,
+      );
     });
   });
 }

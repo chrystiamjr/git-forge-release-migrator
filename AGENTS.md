@@ -167,7 +167,7 @@ Main code lives in `dart_cli/lib/src/`.
 - `config/arg_parsers.dart`
 - `config/validators.dart`
 - `config/types/*`
-- `application/{run_service,run_request,run_result,run_failure}.dart`
+- `application/{preflight_check,preflight_service,run_service,run_request,run_result,run_failure}.dart`
 - `models/runtime_options.dart`
 - `models/migration_context.dart`
 - `migrations/engine.dart`
@@ -189,7 +189,9 @@ Application-layer orchestration rules:
 - `cli.dart` remains the terminal-facing adapter and should delegate `migrate`/`resume` orchestration to the
   application layer.
 - `application/run_service.dart` owns typed run orchestration for `migrate` and `resume`, including run preparation,
-  session persistence, engine coordination, summary finalization, and typed result mapping.
+  structured preflight, session persistence, engine coordination, summary finalization, and typed result mapping.
+- `application/preflight_service.dart` owns reusable startup readiness checks and should return typed `PreflightCheck`
+  data that both CLI and future GUI flows can consume.
 - `migrations/engine.dart` remains the execution core; do not move CLI parsing or provider-specific behavior into the
   application layer.
 

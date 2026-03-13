@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'application/preflight_check.dart';
 import 'application/run_request.dart';
 import 'application/run_result.dart';
 import 'application/run_service.dart';
@@ -283,11 +284,35 @@ RunRequest _buildRunRequest(RuntimeOptions options) {
 }
 
 int _renderRunResult(ConsoleLogger logger, RunResult result) {
+  for (final PreflightCheck check in result.preflightChecks) {
+    if (check.status == PreflightCheckStatus.warning) {
+      logger.warn(_formatPreflightCheck(check));
+    }
+
+    if (check.status == PreflightCheckStatus.error) {
+      logger.error(_formatPreflightCheck(check));
+    }
+  }
+
   if (!result.isSuccess && result.failures.isNotEmpty) {
-    logger.error(result.failures.first.message);
+    final bool alreadyRenderedPreflightError = result.preflightChecks.any(
+      (PreflightCheck check) =>
+          check.status == PreflightCheckStatus.error && check.message == result.failures.first.message,
+    );
+    if (!alreadyRenderedPreflightError) {
+      logger.error(result.failures.first.message);
+    }
   }
 
   return result.exitCode;
+}
+
+String _formatPreflightCheck(PreflightCheck check) {
+  if (check.hint == null || check.hint!.trim().isEmpty) {
+    return check.message;
+  }
+
+  return '${check.message} Hint: ${check.hint}';
 }
 
 final class CliRunner {

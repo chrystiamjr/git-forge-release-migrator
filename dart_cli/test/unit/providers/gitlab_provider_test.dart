@@ -1,4 +1,9 @@
+import 'dart:io';
+
+import 'package:dio/dio.dart';
 import 'package:gfrm_dart/src/core/adapters/provider_adapter.dart';
+import 'package:gfrm_dart/src/core/exceptions/authentication_error.dart';
+import 'package:gfrm_dart/src/core/exceptions/http_request_error.dart';
 import 'package:gfrm_dart/src/core/types/canonical_link.dart';
 import 'package:gfrm_dart/src/core/types/canonical_release.dart';
 import 'package:gfrm_dart/src/core/types/canonical_source.dart';
@@ -6,6 +11,114 @@ import 'package:gfrm_dart/src/core/types/phase.dart';
 import 'package:gfrm_dart/src/providers/gitlab.dart';
 import '../../support/http_stubs.dart';
 import 'package:test/test.dart';
+
+final class _QueuePostDio implements Dio {
+  _QueuePostDio(this._responses);
+
+  final List<Response<dynamic>> _responses;
+  FormData? lastFormData;
+  Options? lastOptions;
+  String? lastUrl;
+
+  @override
+  Transformer transformer = BackgroundTransformer();
+
+  @override
+  Future<Response<T>> post<T>(
+    String path, {
+    Object? data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+    CancelToken? cancelToken,
+    ProgressCallback? onSendProgress,
+    ProgressCallback? onReceiveProgress,
+  }) async {
+    lastUrl = path;
+    lastFormData = data as FormData?;
+    lastOptions = options;
+    if (_responses.isEmpty) {
+      throw StateError('No queued response for $path');
+    }
+
+    return _responses.removeAt(0) as Response<T>;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+Response<dynamic> _postResponse(String path, int statusCode, {dynamic data}) {
+  return Response<dynamic>(
+    requestOptions: RequestOptions(path: path),
+    statusCode: statusCode,
+    data: data,
+  );
+}
+
+final class _RecordingGitLabAdapter extends GitLabAdapter {
+  _RecordingGitLabAdapter({
+    this.uploadOutcomes = const <Object>[],
+    this.authDownloadOutcomes = const <bool>[],
+    this.noAuthDownloadOutcomes = const <bool>[],
+  });
+
+  final List<Object> uploadOutcomes;
+  final List<bool> authDownloadOutcomes;
+  final List<bool> noAuthDownloadOutcomes;
+  final List<String> authCandidates = <String>[];
+  final List<String> noAuthCandidates = <String>[];
+  List<Map<String, dynamic>>? recordedLinks;
+  String? recordedDescription;
+
+  int _uploadIndex = 0;
+  int _authIndex = 0;
+  int _noAuthIndex = 0;
+
+  @override
+  Future<String> uploadFile(ProviderRef ref, String token, String filepath) async {
+    final Object next = uploadOutcomes[_uploadIndex];
+    _uploadIndex += 1;
+    if (next is AuthenticationError) {
+      throw next;
+    }
+    if (next is Exception) {
+      throw next;
+    }
+    if (next is Error) {
+      throw next;
+    }
+    return next as String;
+  }
+
+  @override
+  Future<void> createOrUpdateRelease(
+    ProviderRef ref,
+    String token,
+    String tag,
+    String name,
+    String description,
+    List<Map<String, dynamic>> links,
+  ) async {
+    recordedDescription = description;
+    recordedLinks = links;
+  }
+
+  @override
+  Future<bool> downloadWithAuth(String token, String url, String destination) async {
+    authCandidates.add(url);
+    final bool next = _authIndex < authDownloadOutcomes.length ? authDownloadOutcomes[_authIndex] : false;
+    _authIndex += 1;
+    return next;
+  }
+
+  @override
+  Future<bool> downloadNoAuth(String url, String destination) async {
+    noAuthCandidates.add(url);
+    final bool next = _noAuthIndex < noAuthDownloadOutcomes.length ? noAuthDownloadOutcomes[_noAuthIndex] : false;
+    _noAuthIndex += 1;
+    return next;
+  }
+}
 
 void main() {
   group('GitLabAdapter', () {
@@ -157,6 +270,26 @@ void main() {
       expect(() => adapter.parseUrl('ftp://gitlab.com/group/project'), throwsArgumentError);
     });
 
+    test('buildReleaseDownloadApiUrl returns empty string for mismatched release tag', () {
+      final GitLabAdapter adapter = GitLabAdapter();
+      final ProviderRef ref = adapter.parseUrl('https://gitlab.com/acme/project');
+
+      final String url = adapter.buildReleaseDownloadApiUrl(
+        ref,
+        'v1.2.3',
+        'https://gitlab.com/acme/project/-/releases/v9.9.9/downloads/bin/app.zip',
+      );
+
+      expect(url, isEmpty);
+    });
+
+    test('buildProjectUploadApiUrl returns empty string when upload format is invalid', () {
+      final GitLabAdapter adapter = GitLabAdapter();
+      final ProviderRef ref = adapter.parseUrl('https://gitlab.com/acme/project');
+
+      expect(adapter.buildProjectUploadApiUrl(ref, 'https://gitlab.com/acme/project/uploads/no-secret'), isEmpty);
+    });
+
     test('toCanonicalRelease uses tag name when release name is null', () {
       final GitLabAdapter adapter = GitLabAdapter();
 
@@ -299,6 +432,19 @@ void main() {
         final ProviderRef ref = adapter.parseUrl('https://gitlab.com/acme/project');
 
         expect(await adapter.releaseByTag(ref, 'token', 'v1.0.0'), isNull);
+      });
+
+      test('releaseByTag rethrows AuthenticationError', () async {
+        final ScriptedHttpClientHelper stub = ScriptedHttpClientHelper(
+          jsonResponse: AuthenticationError('auth failed'),
+        );
+        final GitLabAdapter adapter = GitLabAdapter(http: stub);
+        final ProviderRef ref = adapter.parseUrl('https://gitlab.com/acme/project');
+
+        await expectLater(
+          () => adapter.releaseByTag(ref, 'token', 'v1.0.0'),
+          throwsA(isA<AuthenticationError>()),
+        );
       });
 
       test('createOrUpdateRelease creates when release does not exist', () async {
@@ -516,6 +662,241 @@ void main() {
 
         final List<String> tags = await adapter.listTags(ref, 'token');
         expect(tags, hasLength(100));
+      });
+    });
+
+    group('POST operations', () {
+      test('createTag posts tag data and succeeds on 2xx status', () async {
+        final _QueuePostDio dio = _QueuePostDio(<Response<dynamic>>[
+          _postResponse('https://gitlab.com/api/v4/projects/acme%2Fproject/repository/tags', 201),
+        ]);
+        final GitLabAdapter adapter = GitLabAdapter(dio: dio);
+        final ProviderRef ref = adapter.parseUrl('https://gitlab.com/acme/project');
+
+        await adapter.createTag(ref, 'secret', 'v1.0.0', 'abc123', message: 'annotated');
+
+        expect(dio.lastUrl, contains('/repository/tags'));
+        expect(dio.lastFormData, isNotNull);
+        expect(dio.lastOptions?.headers?['PRIVATE-TOKEN'], 'secret');
+      });
+
+      test('createTag throws HttpRequestError on non-2xx status', () async {
+        final _QueuePostDio dio = _QueuePostDio(<Response<dynamic>>[
+          _postResponse('https://gitlab.com/api/v4/projects/acme%2Fproject/repository/tags', 500),
+        ]);
+        final GitLabAdapter adapter = GitLabAdapter(dio: dio);
+        final ProviderRef ref = adapter.parseUrl('https://gitlab.com/acme/project');
+
+        await expectLater(
+          () => adapter.createTag(ref, 'secret', 'v1.0.0', 'abc123'),
+          throwsA(isA<HttpRequestError>()),
+        );
+      });
+
+      test('uploadFile returns absolute url when GitLab responds with a relative path', () async {
+        final Directory temp = Directory.systemTemp.createTempSync('gfrm-gitlab-upload-success-');
+        addTearDown(() => temp.deleteSync(recursive: true));
+        final File asset = File('${temp.path}/asset.zip')..writeAsStringSync('payload');
+        final _QueuePostDio dio = _QueuePostDio(<Response<dynamic>>[
+          _postResponse(
+            'https://gitlab.com/api/v4/projects/acme%2Fproject/uploads',
+            201,
+            data: <String, dynamic>{'url': '/uploads/secret/asset.zip'},
+          ),
+        ]);
+        final GitLabAdapter adapter = GitLabAdapter(dio: dio);
+        final ProviderRef ref = adapter.parseUrl('https://gitlab.com/acme/project');
+
+        final String uploaded = await adapter.uploadFile(ref, 'secret', asset.path);
+
+        expect(uploaded, 'https://gitlab.com/uploads/secret/asset.zip');
+      });
+
+      test('uploadFile throws AuthenticationError on unauthorized response', () async {
+        final Directory temp = Directory.systemTemp.createTempSync('gfrm-gitlab-upload-auth-');
+        addTearDown(() => temp.deleteSync(recursive: true));
+        final File asset = File('${temp.path}/asset.zip')..writeAsStringSync('payload');
+        final _QueuePostDio dio = _QueuePostDio(<Response<dynamic>>[
+          _postResponse('https://gitlab.com/api/v4/projects/acme%2Fproject/uploads', 401),
+        ]);
+        final GitLabAdapter adapter = GitLabAdapter(dio: dio);
+        final ProviderRef ref = adapter.parseUrl('https://gitlab.com/acme/project');
+
+        await expectLater(
+          () => adapter.uploadFile(ref, 'secret', asset.path),
+          throwsA(isA<AuthenticationError>()),
+        );
+      });
+
+      test('uploadFile throws HttpRequestError on non-auth failure', () async {
+        final Directory temp = Directory.systemTemp.createTempSync('gfrm-gitlab-upload-error-');
+        addTearDown(() => temp.deleteSync(recursive: true));
+        final File asset = File('${temp.path}/asset.zip')..writeAsStringSync('payload');
+        final _QueuePostDio dio = _QueuePostDio(<Response<dynamic>>[
+          _postResponse('https://gitlab.com/api/v4/projects/acme%2Fproject/uploads', 500),
+        ]);
+        final GitLabAdapter adapter = GitLabAdapter(dio: dio);
+        final ProviderRef ref = adapter.parseUrl('https://gitlab.com/acme/project');
+
+        await expectLater(
+          () => adapter.uploadFile(ref, 'secret', asset.path),
+          throwsA(isA<HttpRequestError>()),
+        );
+      });
+
+      test('uploadFile throws HttpRequestError when response payload has no url', () async {
+        final Directory temp = Directory.systemTemp.createTempSync('gfrm-gitlab-upload-missing-url-');
+        addTearDown(() => temp.deleteSync(recursive: true));
+        final File asset = File('${temp.path}/asset.zip')..writeAsStringSync('payload');
+        final _QueuePostDio dio = _QueuePostDio(<Response<dynamic>>[
+          _postResponse(
+            'https://gitlab.com/api/v4/projects/acme%2Fproject/uploads',
+            201,
+            data: <String, dynamic>{'path': '/uploads/secret/asset.zip'},
+          ),
+        ]);
+        final GitLabAdapter adapter = GitLabAdapter(dio: dio);
+        final ProviderRef ref = adapter.parseUrl('https://gitlab.com/acme/project');
+
+        await expectLater(
+          () => adapter.uploadFile(ref, 'secret', asset.path),
+          throwsA(isA<HttpRequestError>()),
+        );
+      });
+
+      test('publishRelease filters failed uploads and forwards notes plus successful links', () async {
+        final Directory temp = Directory.systemTemp.createTempSync('gfrm-gitlab-publish-release-');
+        addTearDown(() => temp.deleteSync(recursive: true));
+        final File notesFile = File('${temp.path}/notes.md')..writeAsStringSync('release notes');
+        final File assetA = File('${temp.path}/asset-a.zip')..writeAsStringSync('a');
+        final File assetB = File('${temp.path}/asset-b.zip')..writeAsStringSync('b');
+        final _RecordingGitLabAdapter adapter = _RecordingGitLabAdapter(
+          uploadOutcomes: <Object>[
+            'https://gitlab.com/uploads/a.zip',
+            Exception('upload failed'),
+          ],
+        );
+        final ProviderRef ref = adapter.parseUrl('https://gitlab.com/acme/project');
+
+        final String result = await adapter.publishRelease(
+          PublishReleaseInput(
+            providerRef: ref,
+            token: 'secret',
+            tag: 'v1.0.0',
+            releaseName: 'Release v1.0.0',
+            notesFile: notesFile,
+            downloadedFiles: <String>[assetA.path, assetB.path],
+            expectedAssets: 2,
+            existingInfo: const ExistingReleaseInfo(exists: false, shouldRetry: false, reason: ''),
+          ),
+        );
+
+        expect(result, 'ok');
+        expect(adapter.recordedDescription, 'release notes');
+        expect(adapter.recordedLinks, hasLength(1));
+        expect(adapter.recordedLinks!.single['url'], 'https://gitlab.com/uploads/a.zip');
+      });
+
+      test('publishRelease rethrows AuthenticationError from uploadFile', () async {
+        final Directory temp = Directory.systemTemp.createTempSync('gfrm-gitlab-publish-auth-');
+        addTearDown(() => temp.deleteSync(recursive: true));
+        final File notesFile = File('${temp.path}/notes.md')..writeAsStringSync('release notes');
+        final File asset = File('${temp.path}/asset.zip')..writeAsStringSync('a');
+        final _RecordingGitLabAdapter adapter = _RecordingGitLabAdapter(
+          uploadOutcomes: <Object>[AuthenticationError('auth failed')],
+        );
+        final ProviderRef ref = adapter.parseUrl('https://gitlab.com/acme/project');
+
+        await expectLater(
+          () => adapter.publishRelease(
+            PublishReleaseInput(
+              providerRef: ref,
+              token: 'secret',
+              tag: 'v1.0.0',
+              releaseName: 'Release v1.0.0',
+              notesFile: notesFile,
+              downloadedFiles: <String>[asset.path],
+              expectedAssets: 1,
+              existingInfo: const ExistingReleaseInfo(exists: false, shouldRetry: false, reason: ''),
+            ),
+          ),
+          throwsA(isA<AuthenticationError>()),
+        );
+      });
+
+      test('downloadCanonicalLink falls back to no-auth private-token URL after auth candidates fail', () async {
+        final _RecordingGitLabAdapter adapter = _RecordingGitLabAdapter(
+          authDownloadOutcomes: <bool>[false, false],
+          noAuthDownloadOutcomes: <bool>[true],
+        );
+        final ProviderRef ref = adapter.parseUrl('https://gitlab.com/acme/project');
+
+        final bool downloaded = await adapter.downloadCanonicalLink(
+          DownloadLinkInput(
+            providerRef: ref,
+            token: 'secret',
+            tag: 'v1.0.0',
+            link: CanonicalLink(
+              name: 'asset.zip',
+              url: '/acme/project/uploads/secret/path/to/asset.zip',
+              directUrl: '',
+              type: 'other',
+            ),
+            outputPath: '/tmp/asset.zip',
+          ),
+        );
+
+        expect(downloaded, isTrue);
+        expect(adapter.authCandidates, hasLength(2));
+        expect(adapter.noAuthCandidates.single, contains('private_token=secret'));
+      });
+
+      test('downloadCanonicalSource falls back to no-auth private-token URL after auth download fails', () async {
+        final _RecordingGitLabAdapter adapter = _RecordingGitLabAdapter(
+          authDownloadOutcomes: <bool>[false],
+          noAuthDownloadOutcomes: <bool>[true],
+        );
+        final ProviderRef ref = adapter.parseUrl('https://gitlab.com/acme/project');
+
+        final bool downloaded = await adapter.downloadCanonicalSource(
+          DownloadSourceInput(
+            providerRef: ref,
+            token: 'secret',
+            tag: 'v1.0.0',
+            source: CanonicalSource(
+              name: 'asset.txt',
+              url: '/acme/project/uploads/secret/path/to/asset.txt',
+              format: 'txt',
+            ),
+            outputPath: '/tmp/asset.txt',
+          ),
+        );
+
+        expect(downloaded, isTrue);
+        expect(adapter.authCandidates, hasLength(1));
+        expect(adapter.noAuthCandidates.single, contains('private_token=secret'));
+      });
+
+      test('downloadCanonicalSource returns false when no source URL is available', () async {
+        final _RecordingGitLabAdapter adapter = _RecordingGitLabAdapter();
+        final ProviderRef ref = adapter.parseUrl('https://gitlab.com/acme/project');
+
+        final bool downloaded = await adapter.downloadCanonicalSource(
+          DownloadSourceInput(
+            providerRef: ref,
+            token: 'secret',
+            tag: 'v1.0.0',
+            source: CanonicalSource(
+              name: 'asset.txt',
+              url: '',
+              format: 'txt',
+            ),
+            outputPath: '/tmp/asset.txt',
+          ),
+        );
+
+        expect(downloaded, isFalse);
+        expect(adapter.noAuthCandidates, isEmpty);
       });
     });
   });
