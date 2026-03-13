@@ -22,6 +22,7 @@ jobs:
     env:
       HAS_APP_REVIEW_CREDS: ${{ secrets.REVIEW_BOT_APP_ID != '' && secrets.REVIEW_BOT_APP_PRIVATE_KEY != '' }}
       HAS_BOT_TOKEN: ${{ secrets.GH_REVIEW_BOT_TOKEN != '' }}
+      HAS_GH_TOKEN: ${{ secrets.GH_TOKEN != '' }}
 
     steps:
       - name: Checkout repository context
@@ -66,17 +67,17 @@ jobs:
             exit 0
           fi
 
-          if [[ -n "${{ github.token }}" ]]; then
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-            echo "identity=github_actions_token" >> "$GITHUB_OUTPUT"
-            echo "GH_TOKEN=${{ github.token }}" >> "$GITHUB_ENV"
-            exit 0
-          fi
-
           if [[ "${HAS_BOT_TOKEN}" == "true" ]]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
             echo "identity=bot_token" >> "$GITHUB_OUTPUT"
             echo "GH_TOKEN=${{ secrets.GH_REVIEW_BOT_TOKEN }}" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          if [[ "${HAS_GH_TOKEN}" == "true" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "identity=gh_token" >> "$GITHUB_OUTPUT"
+            echo "GH_TOKEN=${{ secrets.GH_TOKEN }}" >> "$GITHUB_ENV"
             exit 0
           fi
 
@@ -86,7 +87,7 @@ jobs:
         if: steps.pr.outputs.number != '' && steps.review-token.outputs.configured != 'true'
         run: |
           echo "Automated PR review skipped because no review bot credentials were configured."
-          echo "Configure REVIEW_BOT_APP_ID + REVIEW_BOT_APP_PRIVATE_KEY, rely on GITHUB_TOKEN, or set GH_REVIEW_BOT_TOKEN."
+          echo "Configure REVIEW_BOT_APP_ID + REVIEW_BOT_APP_PRIVATE_KEY, GH_REVIEW_BOT_TOKEN, or GH_TOKEN."
 
       - name: Run automated review analysis
         if: steps.pr.outputs.number != '' && steps.review-token.outputs.configured == 'true'
@@ -128,3 +129,14 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           REVIEW_RESULT_PATH: ${{ env.REVIEW_RESULT_PATH }}
         run: node scripts/publish-pr-review.mjs
+
+      - name: Fail job on blocking automated review verdict
+        if: always() && steps.pr.outputs.number != '' && steps.review-token.outputs.configured == 'true'
+        env:
+          REVIEW_RESULT_PATH: ${{ env.REVIEW_RESULT_PATH }}
+        run: |
+          VERDICT="$(node -e "const fs=require('fs'); const p=process.env.REVIEW_RESULT_PATH; const r=JSON.parse(fs.readFileSync(p, 'utf8')); process.stdout.write(String(r.verdict || ''))")"
+          if [[ "${VERDICT}" == "request_changes" ]]; then
+            echo "Automated PR review found blocking issues."
+            exit 1
+          fi

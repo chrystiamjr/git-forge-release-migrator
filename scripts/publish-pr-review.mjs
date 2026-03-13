@@ -47,6 +47,14 @@ async function githubRequest(path, init = {}) {
   return response.json();
 }
 
+function isSelfReviewRequestChangesError(error) {
+  const message = String(error?.message || '');
+  return (
+    message.includes('GitHub API 422') &&
+    message.includes('Review Can not request changes on your own pull request')
+  );
+}
+
 async function paginate(path) {
   const items = [];
   let page = 1;
@@ -134,12 +142,25 @@ async function main() {
   }
 
   if (result.verdict === 'request_changes') {
-    await submitReview(
-      owner,
-      repo,
-      'REQUEST_CHANGES',
-      `Issues found — see inline comments.\n\n${result.marker}`,
-    );
+    try {
+      await submitReview(
+        owner,
+        repo,
+        'REQUEST_CHANGES',
+        `Issues found — see inline comments.\n\n${result.marker}`,
+      );
+    } catch (error) {
+      if (!isSelfReviewRequestChangesError(error)) {
+        throw error;
+      }
+
+      await submitReview(
+        owner,
+        repo,
+        'COMMENT',
+        `Issues found — see inline comments. GitHub rejected a formal request-changes review for this PR identity, so this automated review was published as a comment instead.\n\n${result.marker}`,
+      );
+    }
     return;
   }
 
