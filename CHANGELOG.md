@@ -1,3 +1,13 @@
+## [0.4.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.3.1...v0.4.0) (2026-03-13)
+
+### Features
+
+* **dart:** add structured preflight checks ([970ac35](https://github.com/chrystiamjr/git-forge-release-migrator/commit/970ac355047242d1825c018e1fcb716c31bde7f5))
+
+### Bug Fixes
+
+* **dart:** address structured preflight review feedback ([cfaeb46](https://github.com/chrystiamjr/git-forge-release-migrator/commit/cfaeb46020c5a7613f070c0c2a7f1fe66f63fe87))
+
 ## [0.3.1](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.3.0...v0.3.1) (2026-03-13)
 
 ## [0.3.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.2.0...v0.3.0) (2026-03-13)
