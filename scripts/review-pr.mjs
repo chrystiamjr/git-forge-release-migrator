@@ -326,22 +326,42 @@ function parseAddedLines(patch = '') {
 }
 
 function getFirstCommentableLine(file) {
+  if (!file.patch) {
+    return 1;
+  }
+
   const firstAddedLine = parseAddedLines(file.patch)[0];
   return firstAddedLine?.line ?? null;
 }
 
-function isPlaceholderSecret(text) {
-  const normalized = text.toLowerCase();
-  return [
-    'example',
-    'sample',
-    'placeholder',
-    'changeme',
-    'your_',
-    'dummy',
-    'fake',
-    'test-key',
-  ].some((token) => normalized.includes(token));
+function hasMissingPatch(file) {
+  return (
+    !file.patch &&
+    file.status !== 'removed' &&
+    typeof file.changes === 'number' &&
+    file.changes > 0
+  );
+}
+
+export function buildMissingPatchFindings(files) {
+  const findings = [];
+
+  for (const file of files) {
+    if (!hasMissingPatch(file)) {
+      continue;
+    }
+
+    addFinding(findings, {
+      rule: 'missing_patch_manual_review_required',
+      severity: 'blocking',
+      path: file.filename,
+      line: getFirstCommentableLine(file),
+      message:
+        'GitHub omitted patch data for this changed file. Automated inline checks cannot safely inspect this diff, so manual review is required before approval.',
+    });
+  }
+
+  return findings;
 }
 
 function addFinding(findings, finding) {
@@ -402,17 +422,13 @@ function classifySemverPatternChange(text) {
   return 'unknown';
 }
 
-function buildSecretFindings(files) {
+export function buildSecretFindings(files) {
   const findings = [];
 
   for (const file of files) {
     const addedLines = parseAddedLines(file.patch);
 
     for (const addedLine of addedLines) {
-      if (isPlaceholderSecret(addedLine.text)) {
-        continue;
-      }
-
       for (const pattern of SECRET_PATTERNS) {
         if (!pattern.regex.test(addedLine.text)) {
           continue;
@@ -834,6 +850,7 @@ export async function runReview() {
   ]);
 
   const findings = [
+    ...buildMissingPatchFindings(files),
     ...buildSecretFindings(files),
     ...buildInvariantContractFindings(files),
     ...buildDartTestFindings(files),

@@ -229,6 +229,7 @@ void main() {
 
     test('returns validation failure with preflight message for unsupported command', () async {
       final Directory temp = createTempDir('gfrm-run-service-invalid-command-');
+      final String resultsRootPath = '${temp.path}/results';
       final RunService service = RunService(
         logger: createSilentLogger(),
         registryFactory: (_) => throw StateError('registry should not be used for invalid command'),
@@ -238,7 +239,7 @@ void main() {
         RunRequest(
           options: buildRuntimeOptions(
             commandName: 'settings',
-            workdir: '${temp.path}/results',
+            workdir: resultsRootPath,
           ),
         ),
       );
@@ -248,6 +249,7 @@ void main() {
       expect(result.preflightMessages, hasLength(1));
       expect(result.preflightMessages.single, contains('RunService supports migrate and resume only'));
       expect(result.failures.single.retryable, isFalse);
+      expect(Directory(resultsRootPath).existsSync(), isFalse);
     });
 
     test('saves plain session payload and emits runtime header details', () async {

@@ -5,6 +5,8 @@ import {
   buildContractDocsFindings,
   buildDartTestFindings,
   buildInvariantContractFindings,
+  buildMissingPatchFindings,
+  buildSecretFindings,
   buildTargetedCoverageFindings,
   selectApplicableRule,
   summarizeCheckState,
@@ -109,6 +111,52 @@ test('buildDartTestFindings blocks new production Dart files without tests', () 
   assert.equal(findings.length, 1);
   assert.equal(findings[0].severity, 'blocking');
   assert.equal(findings[0].rule, 'missing_dart_tests_for_new_source');
+});
+
+test('buildDartTestFindings still reports missing-test risk when GitHub omits patch', () => {
+  const findings = buildDartTestFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/new_engine.dart',
+      status: 'added',
+      changes: 48,
+      patch: undefined,
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].severity, 'blocking');
+  assert.equal(findings[0].line, 1);
+});
+
+test('buildMissingPatchFindings blocks changed files when GitHub omits patch data', () => {
+  const findings = buildMissingPatchFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/migrations/engine.dart',
+      status: 'modified',
+      changes: 27,
+      patch: undefined,
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'missing_patch_manual_review_required');
+  assert.equal(findings[0].severity, 'blocking');
+  assert.equal(findings[0].line, 1);
+});
+
+test('buildSecretFindings does not suppress realistic token-like values with placeholder words', () => {
+  const findings = buildSecretFindings([
+    buildPatchedFile({
+      filename: 'README.md',
+      status: 'modified',
+      changes: 2,
+      patch: '@@ -1,1 +1,1 @@\n+export GH_TOKEN=ghp_example12345678901234567890',
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'secret_github_token');
+  assert.equal(findings[0].severity, 'blocking');
 });
 
 test('buildDartTestFindings emits only a note for large modified Dart files without tests', () => {

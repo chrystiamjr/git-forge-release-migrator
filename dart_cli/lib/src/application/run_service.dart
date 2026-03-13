@@ -40,6 +40,7 @@ class RunService {
 
       final ProviderRegistry registry = _registryFactory(options);
       registry.requireSupportedPair(options.sourceProvider, options.targetProvider);
+      _prepareRunDirectories(prepared);
 
       final ProviderAdapter sourceAdapter = registry.get(options.sourceProvider);
       final ProviderAdapter targetAdapter = registry.get(options.targetProvider);
@@ -219,12 +220,7 @@ final class _PreparedRun {
 
 _PreparedRun _prepareRun(RuntimeOptions options) {
   final Directory resultsRoot = Directory(options.effectiveWorkdir());
-  if (!resultsRoot.existsSync()) {
-    resultsRoot.createSync(recursive: true);
-  }
-
   final Directory runWorkdir = _allocateRunWorkdir(resultsRoot);
-  runWorkdir.createSync(recursive: true);
 
   final RuntimeOptions withWorkdir = options.copyWith(
     workdir: runWorkdir.path,
@@ -238,6 +234,16 @@ _PreparedRun _prepareRun(RuntimeOptions options) {
     resultsRoot: resultsRoot,
     runWorkdir: runWorkdir,
   );
+}
+
+void _prepareRunDirectories(_PreparedRun prepared) {
+  if (!prepared.resultsRoot.existsSync()) {
+    prepared.resultsRoot.createSync(recursive: true);
+  }
+
+  if (!prepared.runWorkdir.existsSync()) {
+    prepared.runWorkdir.createSync(recursive: true);
+  }
 }
 
 void _saveSessionIfEnabled(RuntimeOptions options, ConsoleLogger logger) {
