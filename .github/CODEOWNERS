@@ -1,2 +1,2 @@
-# Require envolvosystems-bot review on all pull requests to main
-* @envolvosystems-bot
+# Require bot and maintainer review ownership on all pull requests to main
+* @envolvosystems-bot @chrystiamjr
