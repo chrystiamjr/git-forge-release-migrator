@@ -2,10 +2,23 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  isInlineCommentPermissionError,
   isSelfReviewApproveError,
   isSelfReviewRequestChangesError,
   publishReviewResult,
 } from './publish-pr-review.mjs';
+
+test('isInlineCommentPermissionError detects personal access token comment rejection', () => {
+  assert.equal(
+    isInlineCommentPermissionError(
+      new Error(
+        'GitHub API 403 for /repos/org/repo/pulls/39/comments: {"message":"Resource not accessible by personal access token"}',
+      ),
+    ),
+    true,
+  );
+  assert.equal(isInlineCommentPermissionError(new Error('GitHub API 403 for /repos/org/repo/issues/39/comments')), false);
+});
 
 test('isSelfReviewApproveError detects self-approval rejection', () => {
   assert.equal(
@@ -73,6 +86,36 @@ test('publishReviewResult falls back to comment when self request-changes is rej
     ['REQUEST_CHANGES', 'COMMENT'],
   );
   assert.match(calls[1].body, /formal request-changes review/);
+});
+
+test('publishReviewResult includes finding summary when inline comments are unavailable', async () => {
+  const calls = [];
+
+  await publishReviewResult(
+    {
+      verdict: 'request_changes',
+      marker: '<!-- auto-pr-review -->',
+      findings: [
+        {
+          severity: 'blocking',
+          message: 'Workflow still checks out main instead of the PR head SHA.',
+          path: '.github/workflows/auto-pr-review.yml',
+          line: 31,
+        },
+      ],
+    },
+    async (event, body) => {
+      calls.push({ event, body });
+    },
+    { inlineCommentsPublished: false },
+  );
+
+  assert.deepEqual(
+    calls.map((call) => call.event),
+    ['REQUEST_CHANGES'],
+  );
+  assert.match(calls[0].body, /Inline comments could not be published with this token/);
+  assert.match(calls[0].body, /auto-pr-review\.yml:31/);
 });
 
 test('publishReviewResult rethrows unrelated approval failures', async () => {

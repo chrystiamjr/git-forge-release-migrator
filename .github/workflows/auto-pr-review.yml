@@ -25,19 +25,6 @@ jobs:
       HAS_GH_TOKEN: ${{ secrets.GH_TOKEN != '' }}
 
     steps:
-      - name: Checkout repository context
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: .nvmrc
-
-      - name: Configure review result path
-        run: echo "REVIEW_RESULT_PATH=${RUNNER_TEMP}/auto-pr-review.json" >> "$GITHUB_ENV"
-
       - name: Resolve PR number
         id: pr
         run: |
@@ -47,6 +34,30 @@ jobs:
           else
             echo "No pull request is associated with this workflow_run."
           fi
+
+      - name: Resolve checkout target
+        id: checkout-target
+        run: |
+          REPOSITORY="${{ github.event.workflow_run.pull_requests[0].head.repo.full_name || github.repository }}"
+          REF="${{ github.event.workflow_run.pull_requests[0].head.sha || github.event.repository.default_branch }}"
+
+          echo "repository=${REPOSITORY}" >> "$GITHUB_OUTPUT"
+          echo "ref=${REF}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout repository context
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ steps.checkout-target.outputs.repository }}
+          ref: ${{ steps.checkout-target.outputs.ref }}
+          fetch-depth: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Configure review result path
+        run: echo "REVIEW_RESULT_PATH=${RUNNER_TEMP}/auto-pr-review.json" >> "$GITHUB_ENV"
 
       - name: Create GitHub App token
         id: app-token
