@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 
 const REVIEW_RESULT_PATH = process.env.REVIEW_RESULT_PATH || 'review-result.json';
 const GH_TOKEN = process.env.GH_TOKEN;
@@ -47,12 +48,17 @@ async function githubRequest(path, init = {}) {
   return response.json();
 }
 
-function isSelfReviewRequestChangesError(error) {
+export function isSelfReviewRequestChangesError(error) {
   const message = String(error?.message || '');
   return (
     message.includes('GitHub API 422') &&
     message.includes('Review Can not request changes on your own pull request')
   );
+}
+
+export function isSelfReviewApproveError(error) {
+  const message = String(error?.message || '');
+  return message.includes('GitHub API 422') && message.includes('Review Can not approve your own pull request');
 }
 
 async function paginate(path) {
@@ -129,6 +135,39 @@ async function loadReviewResult() {
   return JSON.parse(raw);
 }
 
+export async function publishReviewResult(result, submitReview) {
+  if (result.verdict === 'request_changes') {
+    try {
+      await submitReview('REQUEST_CHANGES', `Issues found — see inline comments.\n\n${result.marker}`);
+    } catch (error) {
+      if (!isSelfReviewRequestChangesError(error)) {
+        throw error;
+      }
+
+      await submitReview(
+        'COMMENT',
+        `Issues found — see inline comments. GitHub rejected a formal request-changes review for this PR identity, so this automated review was published as a comment instead.\n\n${result.marker}`,
+      );
+    }
+    return;
+  }
+
+  if (result.verdict === 'approve') {
+    try {
+      await submitReview('APPROVE', `Automated review complete.\n\n${result.marker}`);
+    } catch (error) {
+      if (!isSelfReviewApproveError(error)) {
+        throw error;
+      }
+
+      await submitReview(
+        'COMMENT',
+        `Automated review completed with no blocking findings. GitHub rejected a formal approval for this PR identity, so this automated review was published as a comment instead.\n\n${result.marker}`,
+      );
+    }
+  }
+}
+
 async function main() {
   assertRequiredEnv();
 
@@ -141,35 +180,12 @@ async function main() {
     await postInlineFinding(owner, repo, result.head_sha, finding, result.marker);
   }
 
-  if (result.verdict === 'request_changes') {
-    try {
-      await submitReview(
-        owner,
-        repo,
-        'REQUEST_CHANGES',
-        `Issues found — see inline comments.\n\n${result.marker}`,
-      );
-    } catch (error) {
-      if (!isSelfReviewRequestChangesError(error)) {
-        throw error;
-      }
-
-      await submitReview(
-        owner,
-        repo,
-        'COMMENT',
-        `Issues found — see inline comments. GitHub rejected a formal request-changes review for this PR identity, so this automated review was published as a comment instead.\n\n${result.marker}`,
-      );
-    }
-    return;
-  }
-
-  if (result.verdict === 'approve') {
-    await submitReview(owner, repo, 'APPROVE', `Automated review complete.\n\n${result.marker}`);
-  }
+  await publishReviewResult(result, (event, body) => submitReview(owner, repo, event, body));
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+if (process.argv[1] && fileURLToPath(import.meta.url) == process.argv[1]) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}
