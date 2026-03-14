@@ -357,6 +357,18 @@ test('buildTargetedCoverageFindings adds a note when token resolution changes la
   assert.equal(findings[0].severity, 'note');
 });
 
+test('buildTargetedCoverageFindings ignores internal refactors without contract-facing signals', () => {
+  const findings = buildTargetedCoverageFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/application/run_service.dart',
+      changes: 10,
+      patch: "@@ -14,0 +15,2 @@\n+import 'run_paths.dart';\n+final PreparedPaths paths = createRunPaths(runtimeOptions);",
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
 test('buildTargetedCoverageFindings stays quiet when matching focused tests changed', () => {
   const findings = buildTargetedCoverageFindings([
     buildPatchedFile({
@@ -387,6 +399,41 @@ test('buildContractDocsFindings blocks summary contract changes without docs syn
   assert.equal(findings.length, 1);
   assert.equal(findings[0].rule, 'summary_contract_docs_gap');
   assert.equal(findings[0].severity, 'blocking');
+});
+
+test('buildContractDocsFindings still blocks when only unrelated docs in the group changed', () => {
+  const findings = buildContractDocsFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/migrations/summary.dart',
+      changes: 14,
+      patch: "@@ -1,1 +1,1 @@\n+const String retryCommand = 'gfrm resume --session migration-results/latest/session.json';",
+    }),
+    buildPatchedFile({
+      filename: 'website/docs/intro.md',
+      changes: 2,
+      patch: '@@ -1,1 +1,1 @@\n+Small copy edit for onboarding text.',
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'summary_contract_docs_gap');
+});
+
+test('buildContractDocsFindings stays quiet when matching docs change includes contract signal', () => {
+  const findings = buildContractDocsFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/migrations/summary.dart',
+      changes: 14,
+      patch: "@@ -1,1 +1,1 @@\n+const String retryCommand = 'gfrm resume --session migration-results/latest/session.json';",
+    }),
+    buildPatchedFile({
+      filename: 'website/docs/guides/resume-and-retry.md',
+      changes: 4,
+      patch: '@@ -1,1 +1,1 @@\n+Use gfrm resume from the retry_command saved in summary.json.',
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
 });
 
 test('buildContractDocsFindings ignores internal refactors without contract-facing signals', () => {

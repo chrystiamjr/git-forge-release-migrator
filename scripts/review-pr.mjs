@@ -39,6 +39,14 @@ const TARGETED_TEST_GROUPS = [
       'dart_cli/test/feature/cli/runner_test.dart',
       'dart_cli/test/unit/application/run_service_test.dart',
     ],
+    signalPatterns: [
+      /schema_version/,
+      /summary\.json/,
+      /failed-tags\.txt/,
+      /retry_command/,
+      /gfrm resume/,
+      /--settings-profile/,
+    ],
     message:
       'Summary/retry contract code changed without touching the summary or runner coverage that validates schema_version, retry_command, and failed-tags behavior.',
   },
@@ -58,6 +66,16 @@ const TARGETED_TEST_GROUPS = [
       'dart_cli/test/unit/cli/settings_setup_command_handler_test.dart',
       'dart_cli/test/unit/config/validators_test.dart',
     ],
+    signalPatterns: [
+      /token_env/,
+      /token_plain/,
+      /settings-profile/,
+      /source-token/,
+      /target-token/,
+      /session-token-mode/,
+      /SOURCE_TOKEN/,
+      /TARGET_TOKEN/,
+    ],
     message:
       'Token resolution or settings profile code changed without updating the focused config/settings coverage that protects precedence and compatibility flags.',
   },
@@ -74,6 +92,13 @@ const TARGETED_TEST_GROUPS = [
       'dart_cli/test/unit/migrations/tag_phase_test.dart',
       'dart_cli/test/unit/migrations/release_phase_test.dart',
       'dart_cli/test/feature/migrations/engine_test.dart',
+    ],
+    signalPatterns: [
+      /semverTagPattern/,
+      /skip-tags/,
+      /skipTag/,
+      /selectedTags/,
+      /skipTagMigration/,
     ],
     message:
       'Release selection or migration phase code changed without updating the focused coverage that protects semver-only selection, tags-first flow, and resume semantics.',
@@ -102,13 +127,21 @@ const CONTRACT_DOC_GROUPS = [
       'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/getting-started/first-migration.md',
       'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/intro.md',
     ],
-    signalPatterns: [
+    codeSignalPatterns: [
       /schema_version/,
       /summary\.json/,
       /failed-tags\.txt/,
       /retry_command/,
       /gfrm resume/,
       /--settings-profile/,
+    ],
+    docSignalPatterns: [
+      /summary\.json/i,
+      /failed-tags\.txt/i,
+      /retry_command/i,
+      /gfrm resume/i,
+      /\bresume\b/i,
+      /settings-profile/i,
     ],
     message:
       'Summary/retry contract code changed without updating the public docs that describe summary.json, failed-tags.txt, or resume behavior.',
@@ -137,7 +170,7 @@ const CONTRACT_DOC_GROUPS = [
       'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/commands/resume.md',
       'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/commands/settings.md',
     ],
-    signalPatterns: [
+    codeSignalPatterns: [
       /token_env/,
       /token_plain/,
       /settings-profile/,
@@ -146,6 +179,15 @@ const CONTRACT_DOC_GROUPS = [
       /session-token-mode/,
       /SOURCE_TOKEN/,
       /TARGET_TOKEN/,
+    ],
+    docSignalPatterns: [
+      /token_env/i,
+      /token_plain/i,
+      /settings-profile/i,
+      /source-token/i,
+      /target-token/i,
+      /session token/i,
+      /environment aliases/i,
     ],
     message:
       'Token/profile contract code changed without updating the public docs that describe token_env, token_plain, hidden overrides, or settings-profile behavior.',
@@ -174,13 +216,19 @@ const CONTRACT_DOC_GROUPS = [
       'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/getting-started/quick-start.md',
       'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/intro.md',
     ],
-    signalPatterns: [
+    codeSignalPatterns: [
       /semverTagPattern/,
       /skip-tags/,
-      /skipTag/,
       /selectedTags/,
-      /release/i,
-      /resume/i,
+      /skipTagMigration/,
+      /skipReleases/,
+    ],
+    docSignalPatterns: [
+      /\bskip-tags\b/i,
+      /\bsemver\b/i,
+      /\btags-first\b/i,
+      /\bresume\b/i,
+      /release selection/i,
     ],
     message:
       'Release-selection or skip-tags behavior changed without updating the public docs that describe semver-only selection, tags-first flow, or resume flags.',
@@ -411,11 +459,6 @@ function hasChangedExactPath(files, candidatePaths) {
   return files.some((file) => candidateSet.has(file.filename));
 }
 
-function findFirstChangedFile(files, candidatePaths) {
-  const candidateSet = new Set(candidatePaths);
-  return files.find((file) => candidateSet.has(file.filename)) ?? null;
-}
-
 function fileMatchesSignalPatterns(file, signalPatterns = []) {
   if (!Array.isArray(signalPatterns) || signalPatterns.length === 0) {
     return true;
@@ -424,6 +467,26 @@ function fileMatchesSignalPatterns(file, signalPatterns = []) {
   return parseAddedLines(file.patch).some((addedLine) =>
     signalPatterns.some((pattern) => pattern.test(addedLine.text)),
   );
+}
+
+function findFirstSignalMatchedFile(files, candidatePaths, signalPatterns = []) {
+  return (
+    files.find((file) => candidatePaths.includes(file.filename) && fileMatchesSignalPatterns(file, signalPatterns)) ?? null
+  );
+}
+
+function hasRelevantDocUpdate(files, candidatePaths, signalPatterns = []) {
+  return files.some((file) => {
+    if (!candidatePaths.includes(file.filename)) {
+      return false;
+    }
+
+    if (!file.patch) {
+      return true;
+    }
+
+    return fileMatchesSignalPatterns(file, signalPatterns);
+  });
 }
 
 function extractDartRegexPattern(text) {
@@ -602,11 +665,11 @@ export function buildTargetedCoverageFindings(files) {
   const findings = [];
 
   for (const group of TARGETED_TEST_GROUPS) {
-    if (!hasChangedExactPath(files, group.codePaths) || hasChangedExactPath(files, group.testPaths)) {
+    if (hasChangedExactPath(files, group.testPaths)) {
       continue;
     }
 
-    const anchorFile = findFirstChangedFile(files, group.codePaths);
+    const anchorFile = findFirstSignalMatchedFile(files, group.codePaths, group.signalPatterns);
     const line = anchorFile ? getFirstCommentableLine(anchorFile) : null;
 
     if (!anchorFile || line === null) {
@@ -685,16 +748,14 @@ export function buildContractDocsFindings(files) {
   const findings = [];
 
   for (const group of CONTRACT_DOC_GROUPS) {
-    if (hasChangedExactPath(files, group.docPaths)) {
-      continue;
-    }
-
-    const anchorFile =
-      files.find((file) => group.codePaths.includes(file.filename) && fileMatchesSignalPatterns(file, group.signalPatterns)) ??
-      null;
+    const anchorFile = findFirstSignalMatchedFile(files, group.codePaths, group.codeSignalPatterns);
     const line = anchorFile ? getFirstCommentableLine(anchorFile) : null;
 
     if (!anchorFile || line === null) {
+      continue;
+    }
+
+    if (hasRelevantDocUpdate(files, group.docPaths, group.docSignalPatterns ?? group.codeSignalPatterns ?? [])) {
       continue;
     }
 
