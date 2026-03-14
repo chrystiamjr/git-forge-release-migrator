@@ -1,3 +1,9 @@
+## [0.6.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.5.0...v0.6.0) (2026-03-14)
+
+### Features
+
+* **runtime-events:** add RuntimeEventEnvelope skeleton ([bfd3029](https://github.com/chrystiamjr/git-forge-release-migrator/commit/bfd3029e3944924951044cfe7e38ffe68d1a175c))
+
 ## [0.5.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.4.0...v0.5.0) (2026-03-14)
 
 ### Features
