@@ -375,7 +375,7 @@ test('buildTargetedCoverageFindings stays quiet when matching focused tests chan
   assert.deepEqual(findings, []);
 });
 
-test('buildContractDocsFindings adds a note when summary contract changes without docs sync', () => {
+test('buildContractDocsFindings blocks summary contract changes without docs sync', () => {
   const findings = buildContractDocsFindings([
     buildPatchedFile({
       filename: 'dart_cli/lib/src/migrations/summary.dart',
@@ -386,5 +386,5 @@ test('buildContractDocsFindings adds a note when summary contract changes withou
 
   assert.equal(findings.length, 1);
   assert.equal(findings[0].rule, 'summary_contract_docs_gap');
-  assert.equal(findings[0].severity, 'note');
+  assert.equal(findings[0].severity, 'blocking');
 });

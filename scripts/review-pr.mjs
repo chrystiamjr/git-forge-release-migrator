@@ -662,7 +662,7 @@ export function buildContractDocsFindings(files) {
 
     addFinding(findings, {
       rule: group.rule,
-      severity: 'note',
+      severity: 'blocking',
       path: anchorFile.filename,
       line,
       message: group.message,
