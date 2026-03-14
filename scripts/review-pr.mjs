@@ -25,6 +25,26 @@ const STRICT_SEMVER_PATTERN_EQUIVALENTS = new Set([
   '^v(\\d+)\\.(\\d+)\\.(\\d+)$',
   '^v([0-9]+)\\.([0-9]+)\\.([0-9]+)$',
 ]);
+const ADDED_LINES_CACHE = new Map();
+
+function expandDocPaths(paths) {
+  const expanded = new Set();
+
+  for (const path of paths) {
+    expanded.add(path);
+
+    if (path.startsWith('website/docs/')) {
+      expanded.add(
+        path.replace(
+          /^website\/docs\//,
+          'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/',
+        ),
+      );
+    }
+  }
+
+  return [...expanded];
+}
 
 const TARGETED_TEST_GROUPS = [
   {
@@ -103,6 +123,103 @@ const TARGETED_TEST_GROUPS = [
     message:
       'Release selection or migration phase code changed without updating the focused coverage that protects semver-only selection, tags-first flow, and resume semantics.',
   },
+  {
+    rule: 'artifact_session_test_gap',
+    codePaths: [
+      'dart_cli/lib/src/application/run_paths.dart',
+      'dart_cli/lib/src/application/run_service.dart',
+      'dart_cli/lib/src/models/runtime_options.dart',
+      'dart_cli/lib/src/cli/runtime_support.dart',
+    ],
+    testPaths: [
+      'dart_cli/test/feature/cli/runner_test.dart',
+      'dart_cli/test/feature/migrations/engine_test.dart',
+      'dart_cli/test/unit/application/run_paths_test.dart',
+      'dart_cli/test/unit/application/run_service_test.dart',
+      'dart_cli/test/unit/models/runtime_options_test.dart',
+      'dart_cli/test/unit/internal/private_entrypoints_test.dart',
+    ],
+    signalPatterns: [
+      /migration-results/,
+      /migration-log\.jsonl/,
+      /checkpoints\/state\.jsonl/,
+      /session-file/,
+      /last-session\.json/,
+      /resultsRootPath/,
+      /runWorkdirPath/,
+    ],
+    message:
+      'Artifact/session layout code changed without updating the focused coverage that protects migration-results paths, checkpoint locations, or session-file defaults.',
+  },
+  {
+    rule: 'command_surface_test_gap',
+    codePaths: [
+      'dart_cli/lib/src/config/arg_parsers.dart',
+      'dart_cli/lib/src/config.dart',
+      'dart_cli/lib/src/cli.dart',
+    ],
+    testPaths: [
+      'dart_cli/test/feature/cli/config_test.dart',
+      'dart_cli/test/feature/cli/runner_test.dart',
+      'dart_cli/test/unit/config/arg_parsers_test.dart',
+    ],
+    signalPatterns: [
+      /addCommand\(command(?:Migrate|Resume|Demo|Setup|Settings)/,
+      /Usage:\s*\$publicCommandName/,
+      /settings <action>/,
+      /demo-releases/,
+      /demo-sleep-seconds/,
+    ],
+    message:
+      'Public CLI command or usage surface changed without updating the focused parser/runner coverage that protects migrate, resume, demo, setup, and settings entrypoints.',
+  },
+  {
+    rule: 'settings_actions_test_gap',
+    codePaths: [
+      'dart_cli/lib/src/config/arg_parsers.dart',
+      'dart_cli/lib/src/core/settings.dart',
+      'dart_cli/lib/src/cli/settings_setup_command_handler.dart',
+      'dart_cli/lib/src/config.dart',
+    ],
+    testPaths: [
+      'dart_cli/test/feature/cli/config_test.dart',
+      'dart_cli/test/feature/cli/settings_flow_test.dart',
+      'dart_cli/test/unit/cli/settings_setup_command_handler_test.dart',
+      'dart_cli/test/unit/core/settings_test.dart',
+    ],
+    signalPatterns: [
+      /settingsAction(?:Init|SetTokenEnv|SetTokenPlain|UnsetToken|Show)/,
+      /set-token-env/,
+      /set-token-plain/,
+      /unset-token/,
+      /settings show/i,
+    ],
+    message:
+      'Settings command actions changed without updating the focused coverage that protects init, set-token-env, set-token-plain, unset-token, or show behavior.',
+  },
+  {
+    rule: 'exit_code_contract_test_gap',
+    codePaths: [
+      'dart_cli/lib/src/cli.dart',
+      'dart_cli/lib/src/application/run_service.dart',
+      'dart_cli/lib/src/application/run_result.dart',
+      'dart_cli/lib/src/cli/runtime_support.dart',
+    ],
+    testPaths: [
+      'dart_cli/test/feature/cli/runner_test.dart',
+      'dart_cli/test/unit/application/run_service_test.dart',
+      'dart_cli/test/unit/internal/private_entrypoints_test.dart',
+    ],
+    signalPatterns: [
+      /exitCode/,
+      /RunStatus\.(?:success|partialFailure|validationFailure|runtimeFailure)/,
+      /\breturn 0;/,
+      /\breturn 1;/,
+      /isSuccess/,
+    ],
+    message:
+      'Exit-code or run-status mapping changed without updating the focused coverage that protects success, validation failure, partial failure, and runtime failure outcomes.',
+  },
 ];
 
 const CONTRACT_DOC_GROUPS = [
@@ -113,7 +230,7 @@ const CONTRACT_DOC_GROUPS = [
       'dart_cli/lib/src/application/run_service.dart',
       'dart_cli/lib/src/cli.dart',
     ],
-    docPaths: [
+    docPaths: expandDocPaths([
       'README.md',
       'dart_cli/README.md',
       'website/docs/configuration/artifacts-and-sessions.md',
@@ -121,12 +238,7 @@ const CONTRACT_DOC_GROUPS = [
       'website/docs/reference/file-locations.md',
       'website/docs/getting-started/first-migration.md',
       'website/docs/intro.md',
-      'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/configuration/artifacts-and-sessions.md',
-      'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/guides/resume-and-retry.md',
-      'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/reference/file-locations.md',
-      'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/getting-started/first-migration.md',
-      'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/intro.md',
-    ],
+    ]),
     codeSignalPatterns: [
       /schema_version/,
       /summary\.json/,
@@ -154,7 +266,7 @@ const CONTRACT_DOC_GROUPS = [
       'dart_cli/lib/src/core/settings.dart',
       'dart_cli/lib/src/cli/settings_setup_command_handler.dart',
     ],
-    docPaths: [
+    docPaths: expandDocPaths([
       'README.md',
       'dart_cli/README.md',
       'website/docs/configuration/tokens-and-auth.md',
@@ -163,13 +275,7 @@ const CONTRACT_DOC_GROUPS = [
       'website/docs/commands/migrate.md',
       'website/docs/commands/resume.md',
       'website/docs/commands/settings.md',
-      'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/configuration/tokens-and-auth.md',
-      'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/configuration/settings-profiles.md',
-      'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/reference/environment-aliases.md',
-      'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/commands/migrate.md',
-      'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/commands/resume.md',
-      'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/commands/settings.md',
-    ],
+    ]),
     codeSignalPatterns: [
       /token_env/,
       /token_plain/,
@@ -202,7 +308,7 @@ const CONTRACT_DOC_GROUPS = [
       'dart_cli/lib/src/config.dart',
       'dart_cli/lib/src/config/arg_parsers.dart',
     ],
-    docPaths: [
+    docPaths: expandDocPaths([
       'README.md',
       'dart_cli/README.md',
       'website/docs/commands/migrate.md',
@@ -210,12 +316,7 @@ const CONTRACT_DOC_GROUPS = [
       'website/docs/configuration/http-and-runtime.md',
       'website/docs/getting-started/quick-start.md',
       'website/docs/intro.md',
-      'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/commands/migrate.md',
-      'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/commands/resume.md',
-      'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/configuration/http-and-runtime.md',
-      'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/getting-started/quick-start.md',
-      'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/intro.md',
-    ],
+    ]),
     codeSignalPatterns: [
       /semverTagPattern/,
       /skip-tags/,
@@ -232,6 +333,112 @@ const CONTRACT_DOC_GROUPS = [
     ],
     message:
       'Release-selection or skip-tags behavior changed without updating the public docs that describe semver-only selection, tags-first flow, or resume flags.',
+  },
+  {
+    rule: 'artifact_session_docs_gap',
+    codePaths: [
+      'dart_cli/lib/src/application/run_paths.dart',
+      'dart_cli/lib/src/application/run_service.dart',
+      'dart_cli/lib/src/models/runtime_options.dart',
+      'dart_cli/lib/src/cli/runtime_support.dart',
+    ],
+    docPaths: expandDocPaths([
+      'README.md',
+      'dart_cli/README.md',
+      'website/docs/configuration/artifacts-and-sessions.md',
+      'website/docs/reference/file-locations.md',
+      'website/docs/guides/resume-and-retry.md',
+      'website/docs/getting-started/first-migration.md',
+      'website/docs/intro.md',
+    ]),
+    codeSignalPatterns: [
+      /migration-results/,
+      /migration-log\.jsonl/,
+      /checkpoints\/state\.jsonl/,
+      /session-file/,
+      /last-session\.json/,
+      /resultsRootPath/,
+      /runWorkdirPath/,
+    ],
+    docSignalPatterns: [
+      /migration-results/i,
+      /migration-log\.jsonl/i,
+      /checkpoints\/state\.jsonl/i,
+      /session-file/i,
+      /last-session\.json/i,
+      /file locations/i,
+      /artifacts/i,
+    ],
+    message:
+      'Artifact/session layout changed without updating the public docs that describe migration-results paths, file locations, or session-file defaults.',
+  },
+  {
+    rule: 'command_surface_docs_gap',
+    codePaths: [
+      'dart_cli/lib/src/config/arg_parsers.dart',
+      'dart_cli/lib/src/config.dart',
+      'dart_cli/lib/src/cli.dart',
+    ],
+    docPaths: expandDocPaths([
+      'README.md',
+      'dart_cli/README.md',
+      'website/docs/commands/migrate.md',
+      'website/docs/commands/resume.md',
+      'website/docs/commands/demo.md',
+      'website/docs/commands/settings.md',
+      'website/docs/getting-started/quick-start.md',
+      'website/docs/getting-started/first-migration.md',
+      'website/docs/guides/common-migrations.md',
+      'website/docs/intro.md',
+    ]),
+    codeSignalPatterns: [
+      /addCommand\(command(?:Migrate|Resume|Demo|Setup|Settings)/,
+      /Usage:\s*\$publicCommandName/,
+      /settings <action>/,
+      /demo-releases/,
+      /demo-sleep-seconds/,
+    ],
+    docSignalPatterns: [
+      /gfrm (?:migrate|resume|demo|setup|settings)/i,
+      /settings <action>/i,
+      /demo-releases/i,
+      /demo-sleep-seconds/i,
+      /quick start/i,
+    ],
+    message:
+      'Public CLI command or usage surface changed without updating the public docs that describe migrate, resume, demo, setup, or settings entrypoints.',
+  },
+  {
+    rule: 'settings_actions_docs_gap',
+    codePaths: [
+      'dart_cli/lib/src/config/arg_parsers.dart',
+      'dart_cli/lib/src/core/settings.dart',
+      'dart_cli/lib/src/cli/settings_setup_command_handler.dart',
+      'dart_cli/lib/src/config.dart',
+    ],
+    docPaths: expandDocPaths([
+      'README.md',
+      'dart_cli/README.md',
+      'website/docs/commands/settings.md',
+      'website/docs/configuration/tokens-and-auth.md',
+      'website/docs/configuration/settings-profiles.md',
+    ]),
+    codeSignalPatterns: [
+      /settingsAction(?:Init|SetTokenEnv|SetTokenPlain|UnsetToken|Show)/,
+      /set-token-env/,
+      /set-token-plain/,
+      /unset-token/,
+      /settings show/i,
+    ],
+    docSignalPatterns: [
+      /set-token-env/i,
+      /set-token-plain/i,
+      /unset-token/i,
+      /settings show/i,
+      /gfrm settings init/i,
+    ],
+    message:
+      'Settings command actions changed without updating the public docs that describe init, set-token-env, set-token-plain, unset-token, or show behavior.',
   },
 ];
 
@@ -377,6 +584,10 @@ async function paginate(path) {
 }
 
 function parseAddedLines(patch = '') {
+  if (ADDED_LINES_CACHE.has(patch)) {
+    return ADDED_LINES_CACHE.get(patch);
+  }
+
   const addedLines = [];
   const lines = patch.split('\n');
   let newLine = 0;
@@ -401,6 +612,7 @@ function parseAddedLines(patch = '') {
     }
   }
 
+  ADDED_LINES_CACHE.set(patch, addedLines);
   return addedLines;
 }
 
