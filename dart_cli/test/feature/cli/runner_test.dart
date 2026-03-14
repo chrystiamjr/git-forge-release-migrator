@@ -8,6 +8,7 @@ import 'package:gfrm_dart/src/application/run_request.dart';
 import 'package:gfrm_dart/src/application/run_result.dart';
 import 'package:gfrm_dart/src/application/run_service.dart';
 import 'package:gfrm_dart/src/core/logging.dart';
+import 'package:gfrm_dart/src/core/settings.dart';
 import 'package:gfrm_dart/src/models/runtime_options.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -199,6 +200,34 @@ void main() {
       expect(output.stderrLines, isEmpty);
     });
 
+    test('settings show runs through cli handler branch and prints masked payload', () async {
+      final BufferConsoleOutput output = BufferConsoleOutput();
+      final Directory temp = createTempDir('gfrm-runner-settings-show-');
+
+      SettingsManager.writeSettingsFile(
+        '${temp.path}/.gfrm/settings.yaml',
+        <String, dynamic>{
+          'profiles': <String, dynamic>{
+            'default': <String, dynamic>{
+              'providers': <String, dynamic>{
+                'github': <String, dynamic>{'token_plain': 'secret-token'},
+              },
+            },
+          },
+        },
+      );
+
+      final int exitCode = await IOOverrides.runZoned<Future<int>>(
+        () => CliRunner.run(<String>[commandSettings, settingsActionShow], output: output),
+        getCurrentDirectory: () => temp,
+      );
+
+      expect(exitCode, 0);
+      expect(output.stderrLines, isEmpty);
+      expect(output.stdoutLines.join('\n'), contains('"profile": "default"'));
+      expect(output.stdoutLines.join('\n'), contains('"token_plain": "***"'));
+    });
+
     test('setup help command prints setup usage and exits successfully', () async {
       final BufferConsoleOutput output = BufferConsoleOutput();
 
@@ -206,6 +235,30 @@ void main() {
 
       expect(exitCode, 0);
       expect(output.stdoutLines.single, contains('Usage: gfrm setup [options]'));
+      expect(output.stderrLines, isEmpty);
+    });
+
+    test('setup command runs through cli handler branch and writes local settings when assumed yes', () async {
+      final BufferConsoleOutput output = BufferConsoleOutput();
+      final Directory temp = createTempDir('gfrm-runner-setup-');
+
+      final int exitCode = await IOOverrides.runZoned<Future<int>>(
+        () => CliRunner.run(
+          <String>[
+            commandSetup,
+            '--yes',
+            '--local',
+            '--force',
+            '--profile',
+            'work',
+          ],
+          output: output,
+        ),
+        getCurrentDirectory: () => temp,
+      );
+
+      expect(exitCode, 0);
+      expect(File('${temp.path}/.gfrm/settings.yaml').existsSync(), isTrue);
       expect(output.stderrLines, isEmpty);
     });
 
@@ -511,6 +564,62 @@ void main() {
       expect(output.stderrLines, isEmpty);
     });
 
+    test('cli renders non-preflight failure message and hintless preflight errors', () async {
+      final BufferConsoleOutput output = BufferConsoleOutput();
+
+      final int exitCode = await CliRunner.run(
+        <String>[
+          commandMigrate,
+          '--source-provider',
+          'github',
+          '--source-url',
+          'https://github.com/acme/source',
+          '--source-token',
+          'src-token',
+          '--target-provider',
+          'gitlab',
+          '--target-url',
+          'https://gitlab.com/acme/target',
+          '--target-token',
+          'dst-token',
+          '--no-banner',
+        ],
+        output: output,
+        runServiceFactory: (ConsoleLogger logger) => _FakeRunService(
+          logger: logger,
+          result: const RunResult(
+            status: RunStatus.runtimeFailure,
+            exitCode: 1,
+            resultsRootPath: '/tmp/results',
+            runWorkdirPath: '/tmp/results/20260313-120000',
+            logPath: '/tmp/results/20260313-120000/migration-log.jsonl',
+            checkpointPath: '/tmp/results/checkpoints/state.jsonl',
+            summaryPath: '/tmp/results/20260313-120000/summary.json',
+            failedTagsPath: '/tmp/results/20260313-120000/failed-tags.txt',
+            retryCommand: '',
+            preflightChecks: <PreflightCheck>[
+              PreflightCheck(
+                status: PreflightCheckStatus.error,
+                code: 'unsupported-provider-pair',
+                message: 'Provider pair github->github is unsupported.',
+                field: 'provider_pair',
+              ),
+            ],
+            failures: <RunFailure>[
+              RunFailure(
+                scope: RunFailure.scopeExecution,
+                code: 'runtime-failed',
+                message: 'Something exploded later in execution.',
+                retryable: true,
+              ),
+            ],
+          ),
+        ),
+      );
+
+      expect(exitCode, 1);
+    });
+
     test('demo command honors custom log path and keeps banner hidden on non-terminal output', () async {
       final BufferConsoleOutput output = BufferConsoleOutput(hasTerminal: false);
       final Directory temp = createTempDir('gfrm-demo-custom-log-');
@@ -556,6 +665,42 @@ void main() {
       final Map<String, dynamic> summary = jsonDecode(summaryFile.readAsStringSync()) as Map<String, dynamic>;
       expect((summary['counts'] as Map<String, dynamic>)['tags_skipped'], 2);
       expect((summary['paths'] as Map<String, dynamic>)['jsonl_log'], customLogPath);
+    });
+
+    test('demo command logs empty token markers when tokens are omitted', () async {
+      final BufferConsoleOutput output = BufferConsoleOutput();
+      final Directory temp = createTempDir('gfrm-demo-empty-tokens-');
+      final Directory resultsRoot = Directory('${temp.path}/results');
+
+      final int exitCode = await CliRunner.run(
+        <String>[
+          commandDemo,
+          '--source-provider',
+          'github',
+          '--source-url',
+          'https://github.com/acme/source',
+          '--target-provider',
+          'gitlab',
+          '--target-url',
+          'https://gitlab.com/acme/target',
+          '--workdir',
+          resultsRoot.path,
+          '--skip-tags',
+          '--demo-releases',
+          '2',
+          '--demo-sleep-seconds',
+          '0',
+          '--no-banner',
+        ],
+        output: output,
+      );
+
+      expect(exitCode, 0);
+
+      final File summaryFile = _findSingleFile(resultsRoot, 'summary.json');
+      final Map<String, dynamic> summary = jsonDecode(summaryFile.readAsStringSync()) as Map<String, dynamic>;
+      expect((summary['counts'] as Map<String, dynamic>)['tags_skipped'], 2);
+      expect((summary['counts'] as Map<String, dynamic>)['releases_created'], 2);
     });
   });
 }

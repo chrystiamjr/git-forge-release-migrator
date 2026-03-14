@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:gfrm_dart/src/core/exceptions/authentication_error.dart';
+import 'package:gfrm_dart/src/core/exceptions/http_request_error.dart';
 import 'package:gfrm_dart/src/core/http.dart';
 import 'package:gfrm_dart/src/core/types/http_config.dart';
 import 'package:test/test.dart';
@@ -18,6 +19,8 @@ final class _QueueDio implements Dio {
 
   int requestCalls = 0;
   int downloadCalls = 0;
+  Object? lastRequestData;
+  Options? lastRequestOptions;
   @override
   Transformer transformer = BackgroundTransformer();
 
@@ -32,6 +35,8 @@ final class _QueueDio implements Dio {
     ProgressCallback? onReceiveProgress,
   }) async {
     requestCalls += 1;
+    lastRequestData = data;
+    lastRequestOptions = options;
     if (_requestResults.isEmpty) {
       throw StateError('No queued request result for $path');
     }
@@ -90,6 +95,13 @@ final class _QueueDio implements Dio {
   @override
   dynamic noSuchMethod(Invocation invocation) {
     return super.noSuchMethod(invocation);
+  }
+}
+
+final class _ThrowingTransformer extends BackgroundTransformer {
+  @override
+  Future<dynamic> transformResponse(RequestOptions options, ResponseBody responseBody) {
+    throw const FormatException('boom');
   }
 }
 
@@ -194,6 +206,98 @@ void main() {
       expect(dio.requestCalls, 2);
     });
 
+    test('requestJson retries 403 response with rate-limit header and waits before succeeding', () async {
+      final _QueueDio dio = _QueueDio(
+        requestResults: <dynamic>[
+          _response(
+            'https://example.com/api',
+            403,
+            data: 'temporarily blocked',
+            headers: <String, List<String>>{
+              'x-ratelimit-remaining': <String>['0'],
+            },
+          ),
+          _response('https://example.com/api', 200, data: '{"ok":true}'),
+        ],
+      );
+      final List<Duration> delays = <Duration>[];
+      final HttpClientHelper helper = HttpClientHelper(
+        dio: dio,
+        delay: (Duration duration) async {
+          delays.add(duration);
+        },
+      );
+
+      final dynamic result = await helper.requestJson(
+        'https://example.com/api',
+        retries: 2,
+        retryDelay: const Duration(milliseconds: 250),
+      );
+
+      expect((result as Map<String, dynamic>)['ok'], isTrue);
+      expect(delays, <Duration>[const Duration(milliseconds: 250)]);
+      expect(dio.requestCalls, 2);
+    });
+
+    test('requestJson retries 403 response with retry-after header and succeeds', () async {
+      final _QueueDio dio = _QueueDio(
+        requestResults: <dynamic>[
+          _response(
+            'https://example.com/api',
+            403,
+            data: 'temporarily blocked',
+            headers: <String, List<String>>{
+              'retry-after': <String>['1'],
+            },
+          ),
+          _response('https://example.com/api', 200, data: '{"ok":true}'),
+        ],
+      );
+      final List<Duration> delays = <Duration>[];
+      final HttpClientHelper helper = HttpClientHelper(
+        dio: dio,
+        delay: (Duration duration) async {
+          delays.add(duration);
+        },
+      );
+
+      final dynamic result = await helper.requestJson(
+        'https://example.com/api',
+        retries: 2,
+        retryDelay: const Duration(milliseconds: 250),
+      );
+
+      expect((result as Map<String, dynamic>)['ok'], isTrue);
+      expect(delays, <Duration>[const Duration(milliseconds: 250)]);
+      expect(dio.requestCalls, 2);
+    });
+
+    test('requestJson retries 403 response with ratelimit-remaining header and succeeds', () async {
+      final _QueueDio dio = _QueueDio(
+        requestResults: <dynamic>[
+          _response(
+            'https://example.com/api',
+            403,
+            data: 'temporarily blocked',
+            headers: <String, List<String>>{
+              'ratelimit-remaining': <String>['0'],
+            },
+          ),
+          _response('https://example.com/api', 200, data: '{"ok":true}'),
+        ],
+      );
+      final HttpClientHelper helper = HttpClientHelper(dio: dio);
+
+      final dynamic result = await helper.requestJson(
+        'https://example.com/api',
+        retries: 2,
+        retryDelay: Duration.zero,
+      );
+
+      expect((result as Map<String, dynamic>)['ok'], isTrue);
+      expect(dio.requestCalls, 2);
+    });
+
     test('requestJson uses injected delay before retrying retryable responses', () async {
       final _QueueDio dio = _QueueDio(
         requestResults: <dynamic>[
@@ -218,6 +322,26 @@ void main() {
       expect((result as Map<String, dynamic>)['ok'], isTrue);
       expect(dio.requestCalls, 2);
       expect(delays, <Duration>[const Duration(milliseconds: 250)]);
+    });
+
+    test('requestJson keeps request method and content type when json payload is sent', () async {
+      final _QueueDio dio = _QueueDio(
+        requestResults: <dynamic>[_response('https://example.com/api', 200, data: '{"ok":true}')],
+      );
+      final HttpClientHelper helper = HttpClientHelper(dio: dio);
+
+      final dynamic result = await helper.requestJson(
+        'https://example.com/api',
+        method: 'POST',
+        jsonData: <String, dynamic>{'hello': 'world'},
+        retries: 1,
+        retryDelay: Duration.zero,
+      );
+
+      expect((result as Map<String, dynamic>)['ok'], isTrue);
+      expect(dio.lastRequestData, <String, dynamic>{'hello': 'world'});
+      expect(dio.lastRequestOptions!.method, 'POST');
+      expect(dio.lastRequestOptions!.headers!['Content-Type'], 'application/json');
     });
 
     test('requestJson throws AuthenticationError on non-rate-limit 403', () async {
@@ -293,6 +417,23 @@ void main() {
       expect(result, 'not-json');
     });
 
+    test('requestJson returns empty map when transformer fails and fallback body is non-string', () async {
+      final _QueueDio dio = _QueueDio(
+        requestResults: <dynamic>[
+          _response('https://example.com/api', 200, data: <String, dynamic>{'unexpected': true}),
+        ],
+      )..transformer = _ThrowingTransformer();
+      final HttpClientHelper helper = HttpClientHelper(dio: dio);
+
+      final dynamic result = await helper.requestJson(
+        'https://example.com/api',
+        retries: 1,
+        retryDelay: Duration.zero,
+      );
+
+      expect(result, <String, dynamic>{});
+    });
+
     test('requestJson throws AuthenticationError on DioException 403 without rate-limit signals', () async {
       final _QueueDio dio = _QueueDio(
         requestResults: <dynamic>[
@@ -309,6 +450,50 @@ void main() {
         ),
         throwsA(isA<AuthenticationError>()),
       );
+    });
+
+    test('requestJson throws AuthenticationError on DioException 401 responses', () async {
+      final _QueueDio dio = _QueueDio(
+        requestResults: <dynamic>[
+          _dioException('https://example.com/api', 401, data: 'unauthorized'),
+        ],
+      );
+      final HttpClientHelper helper = HttpClientHelper(dio: dio);
+
+      await expectLater(
+        () => helper.requestJson(
+          'https://example.com/api',
+          retries: 1,
+          retryDelay: Duration.zero,
+        ),
+        throwsA(isA<AuthenticationError>()),
+      );
+    });
+
+    test('requestJson throws HttpRequestError after retryable responses are exhausted', () async {
+      final _QueueDio dio = _QueueDio(
+        requestResults: <dynamic>[
+          _response('https://example.com/api', 500, data: 'server error'),
+          _response('https://example.com/api', 502, data: 'still broken'),
+        ],
+      );
+      final List<Duration> delays = <Duration>[];
+      final HttpClientHelper helper = HttpClientHelper(
+        dio: dio,
+        delay: (Duration duration) async {
+          delays.add(duration);
+        },
+      );
+
+      await expectLater(
+        () => helper.requestJson(
+          'https://example.com/api',
+          retries: 2,
+          retryDelay: const Duration(milliseconds: 250),
+        ),
+        throwsA(isA<HttpRequestError>()),
+      );
+      expect(delays, <Duration>[const Duration(milliseconds: 250)]);
     });
 
     test('requestStatus returns response status when request succeeds', () async {
@@ -364,6 +549,22 @@ void main() {
       expect(delays, <Duration>[const Duration(milliseconds: 500)]);
     });
 
+    test('requestStatus forwards custom headers on the request', () async {
+      final _QueueDio dio = _QueueDio(
+        requestResults: <dynamic>[_response('https://example.com/status', 204)],
+      );
+      final HttpClientHelper helper = HttpClientHelper(dio: dio);
+
+      final int status = await helper.requestStatus(
+        'https://example.com/status',
+        headers: <String, String>{'Authorization': 'Bearer token'},
+      );
+
+      expect(status, 204);
+      expect(dio.lastRequestOptions!.headers!['Authorization'], 'Bearer token');
+      expect(dio.lastRequestOptions!.method, 'GET');
+    });
+
     test('downloadFile retries rate-limit 403 and succeeds', () async {
       final Directory temp = Directory.systemTemp.createTempSync('gfrm-http-download-');
       addTearDown(() => temp.deleteSync(recursive: true));
@@ -393,6 +594,43 @@ void main() {
       expect(ok, isTrue);
       expect(File(destination).existsSync(), isTrue);
       expect(dio.downloadCalls, 2);
+    });
+
+    test('downloadFile retries on x-ratelimit-remaining response header and succeeds', () async {
+      final Directory temp = Directory.systemTemp.createTempSync('gfrm-http-download-rate-limit-header-');
+      addTearDown(() => temp.deleteSync(recursive: true));
+
+      final _QueueDio dio = _QueueDio(
+        downloadResults: <dynamic>[
+          _response(
+            'https://example.com/file.zip',
+            403,
+            headers: <String, List<String>>{
+              'x-ratelimit-remaining': <String>['0'],
+            },
+          ),
+          _response('https://example.com/file.zip', 200),
+        ],
+      );
+      final List<Duration> delays = <Duration>[];
+      final HttpClientHelper helper = HttpClientHelper(
+        dio: dio,
+        delay: (Duration duration) async {
+          delays.add(duration);
+        },
+      );
+      final String destination = '${temp.path}/file.zip';
+
+      final bool ok = await helper.downloadFile(
+        'https://example.com/file.zip',
+        destination,
+        retries: 2,
+        backoff: const Duration(milliseconds: 250),
+      );
+
+      expect(ok, isTrue);
+      expect(delays, <Duration>[const Duration(milliseconds: 250)]);
+      expect(File(destination).existsSync(), isTrue);
     });
 
     test('downloadFile honors retry-after seconds before next retry', () async {
@@ -577,6 +815,44 @@ void main() {
       expect(delays, <Duration>[const Duration(seconds: 1)]);
     });
 
+    test('downloadFile retries DioException 403 with blank retry-after and x-ratelimit header', () async {
+      final Directory temp = Directory.systemTemp.createTempSync('gfrm-http-download-blank-retry-after-');
+      addTearDown(() => temp.deleteSync(recursive: true));
+
+      final _QueueDio dio = _QueueDio(
+        downloadResults: <dynamic>[
+          _dioException(
+            'https://example.com/file.zip',
+            403,
+            headers: <String, List<String>>{
+              'retry-after': <String>[''],
+              'x-ratelimit-remaining': <String>['0'],
+            },
+          ),
+          _response('https://example.com/file.zip', 200),
+        ],
+      );
+      final List<Duration> delays = <Duration>[];
+      final HttpClientHelper helper = HttpClientHelper(
+        dio: dio,
+        delay: (Duration duration) async {
+          delays.add(duration);
+        },
+      );
+      final String destination = '${temp.path}/file.zip';
+
+      final bool ok = await helper.downloadFile(
+        'https://example.com/file.zip',
+        destination,
+        retries: 2,
+        backoff: const Duration(milliseconds: 250),
+      );
+
+      expect(ok, isTrue);
+      expect(delays, <Duration>[const Duration(milliseconds: 250)]);
+      expect(File(destination).existsSync(), isTrue);
+    });
+
     test('downloadFile returns false on DioException 404 without retrying', () async {
       final Directory temp = Directory.systemTemp.createTempSync('gfrm-http-download-not-found-');
       addTearDown(() => temp.deleteSync(recursive: true));
@@ -598,6 +874,92 @@ void main() {
 
       expect(ok, isFalse);
       expect(dio.downloadCalls, 1);
+    });
+
+    test('downloadFile returns false on DioException 403 without rate-limit signals', () async {
+      final Directory temp = Directory.systemTemp.createTempSync('gfrm-http-download-dio-forbidden-');
+      addTearDown(() => temp.deleteSync(recursive: true));
+
+      final _QueueDio dio = _QueueDio(
+        downloadResults: <dynamic>[
+          _dioException('https://example.com/file.zip', 403),
+        ],
+      );
+      final HttpClientHelper helper = HttpClientHelper(dio: dio);
+      final String destination = '${temp.path}/file.zip';
+
+      final bool ok = await helper.downloadFile(
+        'https://example.com/file.zip',
+        destination,
+        retries: 2,
+        backoff: Duration.zero,
+      );
+
+      expect(ok, isFalse);
+      expect(dio.downloadCalls, 1);
+      expect(File(destination).existsSync(), isFalse);
+    });
+
+    test('downloadFile retries retryable non-auth responses and returns false after exhaustion', () async {
+      final Directory temp = Directory.systemTemp.createTempSync('gfrm-http-download-exhausted-');
+      addTearDown(() => temp.deleteSync(recursive: true));
+
+      final _QueueDio dio = _QueueDio(
+        downloadResults: <dynamic>[
+          _response('https://example.com/file.zip', 500),
+          _response('https://example.com/file.zip', 500),
+        ],
+      );
+      final List<Duration> delays = <Duration>[];
+      final HttpClientHelper helper = HttpClientHelper(
+        dio: dio,
+        delay: (Duration duration) async {
+          delays.add(duration);
+        },
+      );
+      final String destination = '${temp.path}/file.zip';
+
+      final bool ok = await helper.downloadFile(
+        'https://example.com/file.zip',
+        destination,
+        retries: 2,
+        backoff: const Duration(milliseconds: 250),
+      );
+
+      expect(ok, isFalse);
+      expect(delays, <Duration>[const Duration(milliseconds: 250)]);
+      expect(dio.downloadCalls, 2);
+    });
+
+    test('downloadFile retries retryable Dio exceptions and returns false after exhaustion', () async {
+      final Directory temp = Directory.systemTemp.createTempSync('gfrm-http-download-dio-exhausted-');
+      addTearDown(() => temp.deleteSync(recursive: true));
+
+      final _QueueDio dio = _QueueDio(
+        downloadResults: <dynamic>[
+          _dioException('https://example.com/file.zip', 500),
+          _dioException('https://example.com/file.zip', 500),
+        ],
+      );
+      final List<Duration> delays = <Duration>[];
+      final HttpClientHelper helper = HttpClientHelper(
+        dio: dio,
+        delay: (Duration duration) async {
+          delays.add(duration);
+        },
+      );
+      final String destination = '${temp.path}/file.zip';
+
+      final bool ok = await helper.downloadFile(
+        'https://example.com/file.zip',
+        destination,
+        retries: 2,
+        backoff: const Duration(milliseconds: 250),
+      );
+
+      expect(ok, isFalse);
+      expect(delays, <Duration>[const Duration(milliseconds: 250)]);
+      expect(dio.downloadCalls, 2);
     });
   });
 }

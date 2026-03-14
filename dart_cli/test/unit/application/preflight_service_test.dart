@@ -1,5 +1,6 @@
 import 'package:gfrm_dart/src/application/preflight_check.dart';
 import 'package:gfrm_dart/src/application/preflight_service.dart';
+import 'package:gfrm_dart/src/models/runtime_options.dart';
 import 'package:gfrm_dart/src/core/adapters/provider_adapter.dart';
 import 'package:gfrm_dart/src/core/types/canonical_release.dart';
 import 'package:gfrm_dart/src/providers/registry.dart';
@@ -136,6 +137,39 @@ void main() {
 
       expect(PreflightService.hasBlockingErrors(checks), isTrue);
       expect(checks.where((PreflightCheck check) => check.isBlocking), hasLength(2));
+    });
+
+    test('evaluateCommand accepts migrate and resume but rejects other commands', () {
+      final PreflightService service = PreflightService();
+
+      final List<PreflightCheck> migrateChecks =
+          service.evaluateCommand(buildRuntimeOptions(commandName: commandMigrate));
+      final List<PreflightCheck> resumeChecks =
+          service.evaluateCommand(buildRuntimeOptions(commandName: commandResume));
+      final List<PreflightCheck> settingsChecks =
+          service.evaluateCommand(buildRuntimeOptions(commandName: commandSettings));
+
+      expect(migrateChecks.single.status, PreflightCheckStatus.ok);
+      expect(resumeChecks.single.status, PreflightCheckStatus.ok);
+      expect(settingsChecks.single.status, PreflightCheckStatus.error);
+    });
+
+    test('firstBlockingError returns null when all checks are non-blocking', () {
+      final PreflightService service = PreflightService(
+        settingsLoader: () => <String, dynamic>{
+          'profiles': <String, dynamic>{
+            'default': <String, dynamic>{},
+          },
+        },
+      );
+
+      final List<PreflightCheck> checks = service.evaluateStartup(
+        buildRuntimeOptions(settingsProfile: 'missing-profile'),
+        _buildRegistry(),
+      );
+
+      expect(PreflightService.firstBlockingError(checks), isNull);
+      expect(PreflightService.hasBlockingErrors(checks), isFalse);
     });
 
     test('rethrows unexpected URL parsing failures', () {

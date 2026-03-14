@@ -476,5 +476,41 @@ void main() {
       expect(result.failures.single.message, contains('Provider pair github->github is unsupported.'));
       expect(result.preflightChecks.any((PreflightCheck check) => check.code == 'unsupported-provider-pair'), isTrue);
     });
+
+    test('maps argument errors from dependencies into validation failure results', () async {
+      final Directory temp = createTempDir('gfrm-run-service-argument-error-');
+      final RunService service = RunService(
+        logger: createSilentLogger(),
+        registryFactory: (_) => throw ArgumentError('bad runtime input'),
+      );
+
+      final RunResult result = await service.run(
+        RunRequest(
+          options: buildRuntimeOptions(workdir: '${temp.path}/results'),
+        ),
+      );
+
+      expect(result.status, RunStatus.validationFailure);
+      expect(result.failures.single.code, 'invalid-request');
+      expect(result.failures.single.message, contains('bad runtime input'));
+    });
+
+    test('maps unexpected dependency failures into runtime failure results', () async {
+      final Directory temp = createTempDir('gfrm-run-service-unexpected-error-');
+      final RunService service = RunService(
+        logger: createSilentLogger(),
+        registryFactory: (_) => throw StateError('unexpected boom'),
+      );
+
+      final RunResult result = await service.run(
+        RunRequest(
+          options: buildRuntimeOptions(workdir: '${temp.path}/results'),
+        ),
+      );
+
+      expect(result.status, RunStatus.runtimeFailure);
+      expect(result.failures.single.code, 'runtime-failed');
+      expect(result.failures.single.message, contains('unexpected boom'));
+    });
   });
 }

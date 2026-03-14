@@ -229,6 +229,167 @@ void main() {
       expect(result, isEmpty);
     });
 
+    test('loadSettingsFile falls back to JSON when YAML parsing fails', () {
+      final Directory temp = Directory.systemTemp.createTempSync('gfrm-dart-settings-json-fallback-');
+      addTearDown(() => temp.deleteSync(recursive: true));
+
+      final String settingsPath = p.join(temp.path, 'settings.yaml');
+      File(settingsPath).writeAsStringSync('{"defaults":{"profile":"json-profile"}}');
+
+      final Map<String, dynamic> result = SettingsManager.loadSettingsFile(settingsPath);
+
+      expect((result['defaults'] as Map<String, dynamic>)['profile'], 'json-profile');
+    });
+
+    test('loadSettingsFile returns empty map when file is neither valid YAML nor JSON', () {
+      final Directory temp = Directory.systemTemp.createTempSync('gfrm-dart-settings-invalid-');
+      addTearDown(() => temp.deleteSync(recursive: true));
+
+      final String settingsPath = p.join(temp.path, 'settings.yaml');
+      File(settingsPath).writeAsStringSync('[');
+
+      final Map<String, dynamic> result = SettingsManager.loadSettingsFile(settingsPath);
+
+      expect(result, isEmpty);
+    });
+
+    test('readScopeSettings chooses local and global paths correctly', () {
+      final Directory home = Directory.systemTemp.createTempSync('gfrm-dart-settings-scope-home-');
+      final Directory cwd = Directory.systemTemp.createTempSync('gfrm-dart-settings-scope-cwd-');
+      addTearDown(() => home.deleteSync(recursive: true));
+      addTearDown(() => cwd.deleteSync(recursive: true));
+
+      final SettingsScopeData local = SettingsManager.readScopeSettings(local: true, cwd: cwd.path);
+      final SettingsScopeData global = SettingsManager.readScopeSettings(
+        local: false,
+        homeDir: home.path,
+        env: <String, String>{},
+      );
+
+      expect(local.path, SettingsManager.defaultLocalSettingsPath(cwd: cwd.path));
+      expect(global.path, SettingsManager.defaultGlobalSettingsPath(homeDir: home.path, env: <String, String>{}));
+    });
+
+    test('tokenEnvNameFromSettings returns trimmed configured env name', () {
+      final Map<String, dynamic> payload = <String, dynamic>{
+        'profiles': <String, dynamic>{
+          'work': <String, dynamic>{
+            'providers': <String, dynamic>{
+              'github': <String, dynamic>{'token_env': ' GH_WORK_TOKEN '},
+            },
+          },
+        },
+      };
+
+      expect(SettingsManager.tokenEnvNameFromSettings(payload, 'work', 'github'), 'GH_WORK_TOKEN');
+      expect(SettingsManager.tokenEnvNameFromSettings(payload, 'work', 'gitlab'), isEmpty);
+    });
+
+    test('envAliases keeps side env first and removes duplicates', () {
+      final List<String> aliases = SettingsManager.envAliases(
+        'github',
+        sideEnvName: 'GFRM_SOURCE_TOKEN',
+      );
+
+      expect(aliases.first, 'GFRM_SOURCE_TOKEN');
+      expect(aliases.where((String name) => name == 'GFRM_SOURCE_TOKEN'), hasLength(1));
+      expect(aliases, contains('GH_TOKEN'));
+    });
+
+    test('tokenFromEnvAliases returns empty string when no alias is populated', () {
+      final String resolved = SettingsManager.tokenFromEnvAliases(
+        'bitbucket',
+        env: <String, String>{'UNRELATED': 'value'},
+      );
+
+      expect(resolved, isEmpty);
+    });
+
+    test('defaultShellProfilePaths returns empty list when home is missing', () {
+      expect(SettingsManager.defaultShellProfilePaths(homeDir: ''), isEmpty);
+    });
+
+    test('defaultShellProfilePaths builds common shell files from home', () {
+      final List<String> paths = SettingsManager.defaultShellProfilePaths(homeDir: '/tmp/home');
+
+      expect(paths, hasLength(4));
+      expect(paths.first, '/tmp/home/.zshrc');
+      expect(paths.last, '/tmp/home/.bash_profile');
+    });
+
+    test('scanShellExportNames ignores unreadable and missing files', () {
+      final Directory temp = Directory.systemTemp.createTempSync('gfrm-dart-shell-scan-missing-');
+      addTearDown(() => temp.deleteSync(recursive: true));
+
+      final String missing = p.join(temp.path, '.missingrc');
+
+      final Set<String> names = SettingsManager.scanShellExportNames(paths: <String>[missing]);
+
+      expect(names, isEmpty);
+    });
+
+    test('suggestEnvName returns first known alias and empty when none match', () {
+      expect(SettingsManager.suggestEnvName('github', <String>{'GH_TOKEN', 'OTHER'}), 'GH_TOKEN');
+      expect(SettingsManager.suggestEnvName('gitlab', <String>{'OTHER'}), isEmpty);
+    });
+
+    test('unsetProviderToken is a no-op when profile or provider blocks are absent', () {
+      final Map<String, dynamic> payload = <String, dynamic>{
+        'profiles': <String, dynamic>{
+          'work': <String, dynamic>{},
+        },
+      };
+
+      final Map<String, dynamic> unchanged = SettingsManager.unsetProviderToken(
+        payload,
+        profile: 'work',
+        provider: 'github',
+      );
+
+      expect(unchanged, same(payload));
+      expect(((unchanged['profiles'] as Map<String, dynamic>)['work'] as Map<String, dynamic>), isEmpty);
+    });
+
+    test('maskSettingsSecrets also redacts token_plain inside nested lists', () {
+      final Map<String, dynamic> payload = <String, dynamic>{
+        'items': <dynamic>[
+          <String, dynamic>{'token_plain': 'secret-a'},
+          <String, dynamic>{'token_plain': ''},
+        ],
+      };
+
+      final Map<String, dynamic> masked = SettingsManager.maskSettingsSecrets(payload);
+      final List<dynamic> items = masked['items'] as List<dynamic>;
+
+      expect((items[0] as Map<String, dynamic>)['token_plain'], '***');
+      expect((items[1] as Map<String, dynamic>)['token_plain'], '');
+    });
+
+    test('httpConfigFromSettings parses string overrides and falls back to defaults', () {
+      final Map<String, dynamic> payload = <String, dynamic>{
+        'profiles': <String, dynamic>{
+          'work': <String, dynamic>{
+            'http': <String, dynamic>{
+              'connect_timeout_ms': '1500',
+              'receive_timeout_ms': '2500',
+              'max_retries': '4',
+              'retry_delay_ms': '300',
+            },
+          },
+        },
+      };
+
+      final HttpConfig work = SettingsManager.httpConfigFromSettings(payload, 'work');
+      final HttpConfig fallback = SettingsManager.httpConfigFromSettings(payload, 'missing');
+
+      expect(work.connectTimeoutMs, 1500);
+      expect(work.receiveTimeoutMs, 2500);
+      expect(work.maxRetries, 4);
+      expect(work.retryDelayMs, 300);
+      expect(fallback.connectTimeoutMs, 10000);
+      expect(fallback.maxRetries, 3);
+    });
+
     test('maskSettingsSecrets masks token_plain values', () {
       final Map<String, dynamic> settings = <String, dynamic>{
         'profiles': <String, dynamic>{

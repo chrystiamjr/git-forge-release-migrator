@@ -357,6 +357,74 @@ test('buildTargetedCoverageFindings adds a note when token resolution changes la
   assert.equal(findings[0].severity, 'note');
 });
 
+test('buildTargetedCoverageFindings adds a note when artifact/session layout changes lack focused tests', () => {
+  const findings = buildTargetedCoverageFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/application/run_paths.dart',
+      changes: 12,
+      patch: "@@ -1,1 +1,1 @@\n+return '$cwd/migration-results';",
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'artifact_session_test_gap');
+  assert.equal(findings[0].severity, 'note');
+});
+
+test('buildTargetedCoverageFindings adds a note when CLI command surface changes lack focused tests', () => {
+  const findings = buildTargetedCoverageFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/config/arg_parsers.dart',
+      changes: 14,
+      patch: "@@ -1,1 +1,1 @@\n+    parser.addCommand(commandDemo, _buildDemoParser());",
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'command_surface_test_gap');
+  assert.equal(findings[0].severity, 'note');
+});
+
+test('buildTargetedCoverageFindings adds a note when settings actions change lack focused tests', () => {
+  const findings = buildTargetedCoverageFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/cli/settings_setup_command_handler.dart',
+      changes: 18,
+      patch: "@@ -1,1 +1,1 @@\n+if (options.action == settingsActionUnsetToken) return _runUnsetToken(options);",
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'settings_actions_test_gap');
+  assert.equal(findings[0].severity, 'note');
+});
+
+test('buildTargetedCoverageFindings adds a note when exit code mapping changes lack focused tests', () => {
+  const findings = buildTargetedCoverageFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/application/run_result.dart',
+      changes: 10,
+      patch: '@@ -1,1 +1,1 @@\n+  final int exitCode;',
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'exit_code_contract_test_gap');
+  assert.equal(findings[0].severity, 'note');
+});
+
+test('buildTargetedCoverageFindings ignores internal refactors without contract-facing signals', () => {
+  const findings = buildTargetedCoverageFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/application/run_service.dart',
+      changes: 10,
+      patch: "@@ -14,0 +15,2 @@\n+import 'run_paths.dart';\n+final PreparedPaths paths = createRunPaths(runtimeOptions);",
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
 test('buildTargetedCoverageFindings stays quiet when matching focused tests changed', () => {
   const findings = buildTargetedCoverageFindings([
     buildPatchedFile({
@@ -375,7 +443,7 @@ test('buildTargetedCoverageFindings stays quiet when matching focused tests chan
   assert.deepEqual(findings, []);
 });
 
-test('buildContractDocsFindings adds a note when summary contract changes without docs sync', () => {
+test('buildContractDocsFindings blocks summary contract changes without docs sync', () => {
   const findings = buildContractDocsFindings([
     buildPatchedFile({
       filename: 'dart_cli/lib/src/migrations/summary.dart',
@@ -386,5 +454,111 @@ test('buildContractDocsFindings adds a note when summary contract changes withou
 
   assert.equal(findings.length, 1);
   assert.equal(findings[0].rule, 'summary_contract_docs_gap');
-  assert.equal(findings[0].severity, 'note');
+  assert.equal(findings[0].severity, 'blocking');
+});
+
+test('buildContractDocsFindings blocks artifact/session changes without docs sync', () => {
+  const findings = buildContractDocsFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/application/run_paths.dart',
+      changes: 16,
+      patch: "@@ -1,1 +1,1 @@\n+return '$cwd/migration-results';",
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'artifact_session_docs_gap');
+  assert.equal(findings[0].severity, 'blocking');
+});
+
+test('buildContractDocsFindings stays quiet for artifact/session changes when matching docs change includes contract signal', () => {
+  const findings = buildContractDocsFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/application/run_paths.dart',
+      changes: 16,
+      patch: "@@ -1,1 +1,1 @@\n+return '$cwd/migration-results';",
+    }),
+    buildPatchedFile({
+      filename: 'website/docs/reference/file-locations.md',
+      changes: 4,
+      patch: '@@ -1,1 +1,1 @@\n+Artifacts now live under migration-results/<timestamp>/ with session-file examples nearby.',
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
+test('buildContractDocsFindings blocks CLI command surface changes without docs sync', () => {
+  const findings = buildContractDocsFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/config/arg_parsers.dart',
+      changes: 12,
+      patch: "@@ -1,1 +1,1 @@\n+return 'Usage: $publicCommandName settings <action> [options]\\n';",
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'command_surface_docs_gap');
+  assert.equal(findings[0].severity, 'blocking');
+});
+
+test('buildContractDocsFindings blocks settings action changes without docs sync', () => {
+  const findings = buildContractDocsFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/core/settings.dart',
+      changes: 8,
+      patch: "@@ -1,1 +1,1 @@\n+const String settingsActionSetTokenEnv = 'set-token-env';",
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'settings_actions_docs_gap');
+  assert.equal(findings[0].severity, 'blocking');
+});
+
+test('buildContractDocsFindings still blocks when only unrelated docs in the group changed', () => {
+  const findings = buildContractDocsFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/migrations/summary.dart',
+      changes: 14,
+      patch: "@@ -1,1 +1,1 @@\n+const String retryCommand = 'gfrm resume --session migration-results/latest/session.json';",
+    }),
+    buildPatchedFile({
+      filename: 'website/docs/intro.md',
+      changes: 2,
+      patch: '@@ -1,1 +1,1 @@\n+Small copy edit for onboarding text.',
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'summary_contract_docs_gap');
+});
+
+test('buildContractDocsFindings stays quiet when matching docs change includes contract signal', () => {
+  const findings = buildContractDocsFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/migrations/summary.dart',
+      changes: 14,
+      patch: "@@ -1,1 +1,1 @@\n+const String retryCommand = 'gfrm resume --session migration-results/latest/session.json';",
+    }),
+    buildPatchedFile({
+      filename: 'website/docs/guides/resume-and-retry.md',
+      changes: 4,
+      patch: '@@ -1,1 +1,1 @@\n+Use gfrm resume from the retry_command saved in summary.json.',
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
+test('buildContractDocsFindings ignores internal refactors without contract-facing signals', () => {
+  const findings = buildContractDocsFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/application/run_service.dart',
+      changes: 6,
+      patch: "@@ -14,0 +15,2 @@\n+import 'run_paths.dart';\n+final PreparedPaths paths = createRunPaths(runtimeOptions);",
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
 });
