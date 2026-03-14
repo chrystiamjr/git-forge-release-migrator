@@ -1,3 +1,16 @@
+## [0.5.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.4.0...v0.5.0) (2026-03-14)
+
+### Features
+
+* **ci:** expand review contract signals and regression coverage ([b79e264](https://github.com/chrystiamjr/git-forge-release-migrator/commit/b79e26468cc7b3801764eaf859a672cccea510bd))
+
+### Bug Fixes
+
+* **ci:** avoid false contract doc gap findings ([ec527d4](https://github.com/chrystiamjr/git-forge-release-migrator/commit/ec527d47abe0e3186889c856acc3a0b331a4ea7e))
+* **ci:** handle self-review approval fallback ([313b6d5](https://github.com/chrystiamjr/git-forge-release-migrator/commit/313b6d5ae706a93cd4fe1702c346696653bc5ec8))
+* **ci:** harden automated PR review publishing ([915c26e](https://github.com/chrystiamjr/git-forge-release-migrator/commit/915c26eb65eb51f62aa136c78f748e1763151e70))
+* **ci:** tighten automated review contract signals ([1d75c14](https://github.com/chrystiamjr/git-forge-release-migrator/commit/1d75c1472e4f16fda2205301d6046a050bab4cd0))
+
 ## [0.4.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.3.1...v0.4.0) (2026-03-13)
 
 ### Features
