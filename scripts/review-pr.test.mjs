@@ -388,3 +388,15 @@ test('buildContractDocsFindings blocks summary contract changes without docs syn
   assert.equal(findings[0].rule, 'summary_contract_docs_gap');
   assert.equal(findings[0].severity, 'blocking');
 });
+
+test('buildContractDocsFindings ignores internal refactors without contract-facing signals', () => {
+  const findings = buildContractDocsFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/application/run_service.dart',
+      changes: 6,
+      patch: "@@ -14,0 +15,2 @@\n+import 'run_paths.dart';\n+final PreparedPaths paths = createRunPaths(runtimeOptions);",
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});

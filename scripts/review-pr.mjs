@@ -102,6 +102,14 @@ const CONTRACT_DOC_GROUPS = [
       'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/getting-started/first-migration.md',
       'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/intro.md',
     ],
+    signalPatterns: [
+      /schema_version/,
+      /summary\.json/,
+      /failed-tags\.txt/,
+      /retry_command/,
+      /gfrm resume/,
+      /--settings-profile/,
+    ],
     message:
       'Summary/retry contract code changed without updating the public docs that describe summary.json, failed-tags.txt, or resume behavior.',
   },
@@ -129,6 +137,16 @@ const CONTRACT_DOC_GROUPS = [
       'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/commands/resume.md',
       'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/commands/settings.md',
     ],
+    signalPatterns: [
+      /token_env/,
+      /token_plain/,
+      /settings-profile/,
+      /source-token/,
+      /target-token/,
+      /session-token-mode/,
+      /SOURCE_TOKEN/,
+      /TARGET_TOKEN/,
+    ],
     message:
       'Token/profile contract code changed without updating the public docs that describe token_env, token_plain, hidden overrides, or settings-profile behavior.',
   },
@@ -155,6 +173,14 @@ const CONTRACT_DOC_GROUPS = [
       'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/configuration/http-and-runtime.md',
       'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/getting-started/quick-start.md',
       'website/i18n/pt-BR/docusaurus-plugin-content-docs/current/intro.md',
+    ],
+    signalPatterns: [
+      /semverTagPattern/,
+      /skip-tags/,
+      /skipTag/,
+      /selectedTags/,
+      /release/i,
+      /resume/i,
     ],
     message:
       'Release-selection or skip-tags behavior changed without updating the public docs that describe semver-only selection, tags-first flow, or resume flags.',
@@ -388,6 +414,16 @@ function hasChangedExactPath(files, candidatePaths) {
 function findFirstChangedFile(files, candidatePaths) {
   const candidateSet = new Set(candidatePaths);
   return files.find((file) => candidateSet.has(file.filename)) ?? null;
+}
+
+function fileMatchesSignalPatterns(file, signalPatterns = []) {
+  if (!Array.isArray(signalPatterns) || signalPatterns.length === 0) {
+    return true;
+  }
+
+  return parseAddedLines(file.patch).some((addedLine) =>
+    signalPatterns.some((pattern) => pattern.test(addedLine.text)),
+  );
 }
 
 function extractDartRegexPattern(text) {
@@ -649,11 +685,13 @@ export function buildContractDocsFindings(files) {
   const findings = [];
 
   for (const group of CONTRACT_DOC_GROUPS) {
-    if (!hasChangedExactPath(files, group.codePaths) || hasChangedExactPath(files, group.docPaths)) {
+    if (hasChangedExactPath(files, group.docPaths)) {
       continue;
     }
 
-    const anchorFile = findFirstChangedFile(files, group.codePaths);
+    const anchorFile =
+      files.find((file) => group.codePaths.includes(file.filename) && fileMatchesSignalPatterns(file, group.signalPatterns)) ??
+      null;
     const line = anchorFile ? getFirstCommentableLine(anchorFile) : null;
 
     if (!anchorFile || line === null) {
