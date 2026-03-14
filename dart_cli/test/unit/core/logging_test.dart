@@ -126,6 +126,20 @@ void main() {
       expect(output.rawWrites, isEmpty);
     });
 
+    test('stopSpinner emits final message even when spinner was never started', () {
+      final BufferConsoleOutput output = BufferConsoleOutput();
+      final ConsoleLogger logger = ConsoleLogger(
+        quiet: false,
+        jsonOutput: false,
+        output: output,
+        silent: false,
+      );
+
+      logger.stopSpinner(finalMessage: 'done');
+
+      expect(output.stdoutLines, <String>['[INFO] done']);
+    });
+
     test('updateSpinner does nothing when spinner is not running', () {
       final BufferConsoleOutput output = BufferConsoleOutput(supportsAnsiEscapes: true);
       final ConsoleLogger logger = ConsoleLogger(
@@ -173,6 +187,27 @@ void main() {
 
       expect(output.rawWrites, isNotEmpty);
       expect(output.stdoutLines, contains('[INFO] done'));
+    });
+
+    test('updateSpinner refreshes output when spinner is active', () {
+      final BufferConsoleOutput output = BufferConsoleOutput(
+        hasTerminal: true,
+        supportsAnsiEscapes: true,
+      );
+      final ConsoleLogger logger = ConsoleLogger(
+        quiet: false,
+        jsonOutput: false,
+        output: output,
+        silent: false,
+      );
+
+      expect(logger.startSpinner('step 1'), isTrue);
+      final int writesBefore = output.rawWrites.length;
+
+      logger.updateSpinner('step 2');
+
+      expect(output.rawWrites.length, greaterThan(writesBefore));
+      expect(output.rawWrites.last, contains('step 2'));
     });
 
     test('spinner can start with warning prefix and emits warning final message', () {
@@ -234,6 +269,26 @@ void main() {
       expect(output.stderrLines.last, '[WARN] watch out');
     });
 
+    test('error stops an active spinner and emits to stderr', () {
+      final BufferConsoleOutput output = BufferConsoleOutput(
+        hasTerminal: true,
+        supportsAnsiEscapes: true,
+      );
+      final ConsoleLogger logger = ConsoleLogger(
+        quiet: false,
+        jsonOutput: false,
+        output: output,
+        silent: false,
+      );
+
+      expect(logger.startSpinner('loading'), isTrue);
+
+      logger.error('boom');
+
+      expect(output.rawWrites.last, contains('\r'));
+      expect(output.stderrLines.last, '[ERROR] boom');
+    });
+
     test('jsonOutput mode writes JSON to the correct streams', () {
       final BufferConsoleOutput output = BufferConsoleOutput();
       final ConsoleLogger logger = ConsoleLogger(
@@ -278,6 +333,21 @@ void main() {
       expect(logger.startSpinner('working...'), isFalse);
 
       expect(output.stdoutLines, <String>['[INFO] working...']);
+      expect(output.rawWrites, isEmpty);
+    });
+
+    test('startSpinner stays quiet when quiet mode suppresses fallback info output', () {
+      final BufferConsoleOutput output = BufferConsoleOutput(supportsAnsiEscapes: false);
+      final ConsoleLogger logger = ConsoleLogger(
+        quiet: true,
+        jsonOutput: false,
+        output: output,
+        silent: false,
+      );
+
+      expect(logger.startSpinner('working...'), isFalse);
+
+      expect(output.stdoutLines, isEmpty);
       expect(output.rawWrites, isEmpty);
     });
 

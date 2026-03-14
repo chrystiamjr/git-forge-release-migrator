@@ -57,6 +57,46 @@ void main() {
       expect(options.commandName, commandMigrate);
     });
 
+    test('parseCliRequest migrate preserves optional common runtime flags', () {
+      final CliRequest request = CliRequestParser.parseCliRequest(<String>[
+        commandMigrate,
+        '--source-provider',
+        'github',
+        '--source-url',
+        'https://github.com/o/r',
+        '--source-token',
+        's',
+        '--target-provider',
+        'gitlab',
+        '--target-url',
+        'https://gitlab.com/g/p',
+        '--target-token',
+        't',
+        '--workdir',
+        '/tmp/custom-results',
+        '--log-file',
+        '/tmp/custom-log.jsonl',
+        '--checkpoint-file',
+        '/tmp/checkpoints.jsonl',
+        '--tags-file',
+        '/tmp/tags.txt',
+        '--no-banner',
+        '--quiet',
+        '--json',
+        '--progress-bar',
+      ]);
+
+      final RuntimeOptions options = request.options!;
+      expect(options.workdir, '/tmp/custom-results');
+      expect(options.logFile, '/tmp/custom-log.jsonl');
+      expect(options.checkpointFile, '/tmp/checkpoints.jsonl');
+      expect(options.tagsFile, '/tmp/tags.txt');
+      expect(options.noBanner, isTrue);
+      expect(options.quiet, isTrue);
+      expect(options.jsonOutput, isTrue);
+      expect(options.progressBar, isTrue);
+    });
+
     test('parseCliRequest builds settings request', () {
       final CliRequest request = CliRequestParser.parseCliRequest(<String>[
         commandSettings,
@@ -77,6 +117,31 @@ void main() {
       expect(options.envName, 'GH_TOKEN');
       expect(options.profile, 'work');
       expect(options.localScope, isTrue);
+    });
+
+    test('parseCliRequest settings show preserves blank provider and defaults', () {
+      final CliRequest request = CliRequestParser.parseCliRequest(<String>[
+        commandSettings,
+        settingsActionShow,
+      ]);
+
+      expect(request.command, commandSettings);
+      expect(request.settings!.action, settingsActionShow);
+      expect(request.settings!.provider, isEmpty);
+      expect(request.settings!.localScope, isFalse);
+    });
+
+    test('parseCliRequest settings keeps unknown provider aliases empty for later validation', () {
+      final CliRequest request = CliRequestParser.parseCliRequest(<String>[
+        commandSettings,
+        settingsActionSetTokenEnv,
+        '--provider',
+        'azure',
+        '--env-name',
+        'AZ_TOKEN',
+      ]);
+
+      expect(request.settings!.provider, isEmpty);
     });
 
     test('parseCliRequest settings without action shows settings usage', () {
@@ -107,6 +172,16 @@ void main() {
       expect(options.localScope, isTrue);
       expect(options.assumeYes, isTrue);
       expect(options.force, isTrue);
+    });
+
+    test('parseCliRequest setup request keeps defaults when optional flags are absent', () {
+      final CliRequest request = CliRequestParser.parseCliRequest(<String>[commandSetup]);
+
+      expect(request.command, commandSetup);
+      expect(request.setup!.profile, isEmpty);
+      expect(request.setup!.localScope, isFalse);
+      expect(request.setup!.assumeYes, isFalse);
+      expect(request.setup!.force, isFalse);
     });
 
     test('parseCliRequest setup --help returns setup usage', () {
@@ -426,6 +501,30 @@ void main() {
       expect(options.settingsProfile, 'work');
     });
 
+    test('parseCliRequest migrate falls back to env aliases when settings are absent', () {
+      final CliRequest request = CliRequestParser.parseCliRequest(
+        <String>[
+          commandMigrate,
+          '--source-provider',
+          'github',
+          '--source-url',
+          'https://github.com/acme/src',
+          '--target-provider',
+          'gitlab',
+          '--target-url',
+          'https://gitlab.com/acme/dst',
+        ],
+        env: <String, String>{
+          'GH_TOKEN': 'source-from-alias',
+          'GL_TOKEN': 'target-from-alias',
+        },
+      );
+
+      final RuntimeOptions options = request.options!;
+      expect(options.sourceToken, 'source-from-alias');
+      expect(options.targetToken, 'target-from-alias');
+    });
+
     test('parseCliRequest migrate prefers settings token_env over token_plain', () {
       final Directory tempWorkdir = createTempDir('gfrm-dart-settings-env-workdir-');
       final String settingsPath = '${tempWorkdir.path}/.gfrm/settings.yaml';
@@ -663,6 +762,42 @@ void main() {
       expect(options.targetToken, isEmpty);
     });
 
+    test('parseCliRequest resume reads tokens from env vars declared in session context', () {
+      final Directory temp = createTempDir('gfrm-dart-resume-session-env-context-');
+      final String sessionPath = '${temp.path}/session.json';
+
+      SessionStore.saveSession(
+        sessionPath,
+        <String, dynamic>{
+          'source_provider': 'github',
+          'source_url': 'https://github.com/acme/src',
+          'target_provider': 'gitlab',
+          'target_url': 'https://gitlab.com/acme/dst',
+          'source_token_env': 'SESSION_SOURCE_TOKEN',
+          'target_token_env': 'SESSION_TARGET_TOKEN',
+          'session_token_mode': 'env',
+        },
+      );
+
+      final CliRequest request = CliRequestParser.parseCliRequest(
+        <String>[
+          commandResume,
+          '--session-file',
+          sessionPath,
+        ],
+        env: <String, String>{
+          'SESSION_SOURCE_TOKEN': 'source-from-session-env',
+          'SESSION_TARGET_TOKEN': 'target-from-session-env',
+        },
+      );
+
+      final RuntimeOptions options = request.options!;
+      expect(options.sourceToken, 'source-from-session-env');
+      expect(options.targetToken, 'target-from-session-env');
+      expect(options.sessionSourceTokenEnv, 'SESSION_SOURCE_TOKEN');
+      expect(options.sessionTargetTokenEnv, 'SESSION_TARGET_TOKEN');
+    });
+
     test('parseCliRequest resume falls back to settings when session env refs are unavailable', () {
       final Directory temp = createTempDir('gfrm-dart-resume-settings-fallback-');
       final String sessionPath = '${temp.path}/session.json';
@@ -708,6 +843,44 @@ void main() {
       final RuntimeOptions options = request.options!;
       expect(options.sourceToken, 'source-from-settings');
       expect(options.targetToken, 'target-from-settings');
+    });
+
+    test('parseCliRequest resume accepts session env names from CLI when session omits them', () {
+      final Directory temp = createTempDir('gfrm-dart-resume-cli-env-context-');
+      final String sessionPath = '${temp.path}/session.json';
+
+      SessionStore.saveSession(
+        sessionPath,
+        <String, dynamic>{
+          'source_provider': 'github',
+          'source_url': 'https://github.com/acme/src',
+          'target_provider': 'gitlab',
+          'target_url': 'https://gitlab.com/acme/dst',
+          'session_token_mode': 'env',
+        },
+      );
+
+      final CliRequest request = CliRequestParser.parseCliRequest(
+        <String>[
+          commandResume,
+          '--session-file',
+          sessionPath,
+          '--session-source-token-env',
+          'CLI_SOURCE_TOKEN',
+          '--session-target-token-env',
+          'CLI_TARGET_TOKEN',
+        ],
+        env: <String, String>{
+          'CLI_SOURCE_TOKEN': 'source-from-cli-env',
+          'CLI_TARGET_TOKEN': 'target-from-cli-env',
+        },
+      );
+
+      final RuntimeOptions options = request.options!;
+      expect(options.sourceToken, 'source-from-cli-env');
+      expect(options.targetToken, 'target-from-cli-env');
+      expect(options.sessionSourceTokenEnv, 'CLI_SOURCE_TOKEN');
+      expect(options.sessionTargetTokenEnv, 'CLI_TARGET_TOKEN');
     });
 
     test('parseCliRequest resume explicit hidden tokens override session, settings, and env aliases', () {
@@ -764,6 +937,133 @@ void main() {
       expect(options.targetToken, 'target-explicit');
     });
 
+    test('parseCliRequest resume uses default session path in current directory when omitted', () {
+      final Directory temp = createTempDir('gfrm-dart-resume-default-session-path-');
+      final Directory sessionsDir = Directory('${temp.path}/sessions')..createSync(recursive: true);
+      final String sessionPath = '${sessionsDir.path}/last-session.json';
+
+      SessionStore.saveSession(
+        sessionPath,
+        <String, dynamic>{
+          'source_provider': 'github',
+          'source_url': 'https://github.com/acme/src',
+          'target_provider': 'gitlab',
+          'target_url': 'https://gitlab.com/acme/dst',
+          'source_token': 'source-token',
+          'target_token': 'target-token',
+          'session_token_mode': 'plain',
+        },
+      );
+
+      final CliRequest request = IOOverrides.runZoned<CliRequest>(
+        () => CliRequestParser.parseCliRequest(<String>[commandResume]),
+        getCurrentDirectory: () => temp,
+      );
+
+      expect(request.options!.sessionFile, sessionPath);
+      expect(request.options!.sourceToken, 'source-token');
+      expect(request.options!.targetToken, 'target-token');
+    });
+
+    test('parseCliRequest resume lets CLI overrides replace session defaults', () {
+      final Directory temp = createTempDir('gfrm-dart-resume-overrides-');
+      final String sessionPath = '${temp.path}/session.json';
+
+      SessionStore.saveSession(
+        sessionPath,
+        <String, dynamic>{
+          'source_provider': 'github',
+          'source_url': 'https://github.com/acme/src',
+          'target_provider': 'gitlab',
+          'target_url': 'https://gitlab.com/acme/dst',
+          'source_token': 'source-token',
+          'target_token': 'target-token',
+          'session_token_mode': 'plain',
+          'from_tag': 'v1.0.0',
+          'to_tag': 'v2.0.0',
+          'download_workers': 5,
+          'release_workers': 2,
+          'skip_tag_migration': false,
+        },
+      );
+
+      final CliRequest request = CliRequestParser.parseCliRequest(<String>[
+        commandResume,
+        '--session-file',
+        sessionPath,
+        '--download-workers',
+        '7',
+        '--release-workers',
+        '3',
+        '--from-tag',
+        'v3.0.0',
+        '--to-tag',
+        'v4.0.0',
+        '--skip-tags',
+      ]);
+
+      final RuntimeOptions options = request.options!;
+      expect(options.downloadWorkers, 7);
+      expect(options.releaseWorkers, 3);
+      expect(options.fromTag, 'v3.0.0');
+      expect(options.toTag, 'v4.0.0');
+      expect(options.skipTagMigration, isTrue);
+    });
+
+    test('parseCliRequest resume prefers CLI settings profile over session profile', () {
+      final Directory temp = createTempDir('gfrm-dart-resume-settings-profile-override-');
+      final String sessionPath = '${temp.path}/session.json';
+      final String settingsPath = '${temp.path}/.gfrm/settings.yaml';
+
+      SessionStore.saveSession(
+        sessionPath,
+        <String, dynamic>{
+          'source_provider': 'github',
+          'source_url': 'https://github.com/acme/src',
+          'target_provider': 'gitlab',
+          'target_url': 'https://gitlab.com/acme/dst',
+          'session_token_mode': 'env',
+          'settings_profile': 'default',
+        },
+      );
+      SettingsManager.writeSettingsFile(
+        settingsPath,
+        <String, dynamic>{
+          'profiles': <String, dynamic>{
+            'default': <String, dynamic>{
+              'providers': <String, dynamic>{
+                'github': <String, dynamic>{'token_plain': 'source-default'},
+                'gitlab': <String, dynamic>{'token_plain': 'target-default'},
+              },
+            },
+            'work': <String, dynamic>{
+              'providers': <String, dynamic>{
+                'github': <String, dynamic>{'token_plain': 'source-work'},
+                'gitlab': <String, dynamic>{'token_plain': 'target-work'},
+              },
+            },
+          },
+        },
+      );
+
+      final CliRequest request = CliRequestParser.parseCliRequest(
+        <String>[
+          commandResume,
+          '--session-file',
+          sessionPath,
+          '--settings-profile',
+          'work',
+        ],
+        cwd: temp.path,
+        env: <String, String>{},
+      );
+
+      final RuntimeOptions options = request.options!;
+      expect(options.settingsProfile, 'work');
+      expect(options.sourceToken, 'source-work');
+      expect(options.targetToken, 'target-work');
+    });
+
     test('parseCliRequest builds demo runtime with defaults', () {
       final CliRequest request = CliRequestParser.parseCliRequest(<String>[
         commandDemo,
@@ -803,6 +1103,49 @@ void main() {
       expect(options.demoReleases, 10);
       expect(options.demoSleepSeconds, closeTo(0.5, 0.001));
       expect(options.downloadWorkers, 2);
+    });
+
+    test('parseCliRequest builds demo runtime with common flags and aliases', () {
+      final CliRequest request = CliRequestParser.parseCliRequest(<String>[
+        commandDemo,
+        '--source-provider',
+        'gh',
+        '--source-url',
+        'https://github.com/acme/src',
+        '--target-provider',
+        'gl',
+        '--target-url',
+        'https://gitlab.com/acme/dst',
+        '--skip-tags',
+        '--dry-run',
+        '--workdir',
+        '/tmp/demo-results',
+        '--log-file',
+        '/tmp/demo-log.jsonl',
+        '--checkpoint-file',
+        '/tmp/demo-checkpoints.jsonl',
+        '--tags-file',
+        '/tmp/demo-tags.txt',
+        '--no-banner',
+        '--quiet',
+        '--json',
+        '--progress-bar',
+      ]);
+
+      final RuntimeOptions options = request.options!;
+      expect(options.commandName, commandDemo);
+      expect(options.sourceProvider, 'github');
+      expect(options.targetProvider, 'gitlab');
+      expect(options.skipTagMigration, isTrue);
+      expect(options.dryRun, isTrue);
+      expect(options.workdir, '/tmp/demo-results');
+      expect(options.logFile, '/tmp/demo-log.jsonl');
+      expect(options.checkpointFile, '/tmp/demo-checkpoints.jsonl');
+      expect(options.tagsFile, '/tmp/demo-tags.txt');
+      expect(options.noBanner, isTrue);
+      expect(options.quiet, isTrue);
+      expect(options.jsonOutput, isTrue);
+      expect(options.progressBar, isTrue);
     });
 
     test('parseCliRequest rejects invalid demo release count', () {
