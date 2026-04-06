@@ -1,3 +1,9 @@
+## [0.7.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.6.0...v0.7.0) (2026-04-06)
+
+### Features
+
+* **dart:** add runtime event catalog contracts ([c693dd7](https://github.com/chrystiamjr/git-forge-release-migrator/commit/c693dd726114396f93d25abb8517b2e6ed1d5d5e))
+
 ## [0.6.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.5.0...v0.6.0) (2026-03-14)
 
 ### Features
