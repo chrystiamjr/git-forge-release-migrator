@@ -1,4 +1,5 @@
 import 'package:gfrm_dart/src/runtime_events/runtime_event_envelope.dart';
+import 'package:gfrm_dart/src/runtime_events/runtime_event_type.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -8,7 +9,7 @@ void main() {
         runId: 'run-001',
         sequence: 3,
         occurredAt: '2026-03-14T20:30:00Z',
-        eventType: 'run.started',
+        eventType: RuntimeEventType.runStarted.value,
         payload: <String, dynamic>{'source_provider': 'gitlab'},
       );
 
@@ -17,7 +18,7 @@ void main() {
         'run_id': 'run-001',
         'sequence': 3,
         'occurred_at': '2026-03-14T20:30:00Z',
-        'event_type': 'run.started',
+        'event_type': 'run_started',
         'payload': <String, dynamic>{'source_provider': 'gitlab'},
       });
     });
@@ -28,7 +29,7 @@ void main() {
         'run_id': 'run-abc',
         'sequence': 10,
         'occurred_at': '2026-03-14T20:31:00Z',
-        'event_type': 'tag.migrated',
+        'event_type': RuntimeEventType.tagMigrated.value,
         'payload': <String, dynamic>{'tag': 'v1.0.0', 'status': 'ok'},
       };
 
