@@ -62,7 +62,7 @@ jobs:
       - name: Create GitHub App token
         id: app-token
         if: steps.pr.outputs.number != '' && env.HAS_APP_REVIEW_CREDS == 'true'
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.REVIEW_BOT_APP_ID }}
           private-key: ${{ secrets.REVIEW_BOT_APP_PRIVATE_KEY }}
