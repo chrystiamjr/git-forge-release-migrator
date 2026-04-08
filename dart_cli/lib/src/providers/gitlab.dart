@@ -187,6 +187,24 @@ class GitLabAdapter extends ProviderAdapter {
   }
 
   @override
+  Future<bool> commitExists(ProviderRef ref, String token, String sha) async {
+    final String url = '${_buildProjectUrl(ref, forApi: true)}/repository/commits/${Uri.encodeComponent(sha)}';
+    try {
+      await _http.requestJson(
+        url,
+        headers: _headers(token),
+        retries: _config.maxRetries,
+        retryDelay: _config.retryDelay,
+      );
+      return true;
+    } on AuthenticationError {
+      rethrow;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
   Future<void> createTag(ProviderRef ref, String token, String tag, String sha, {String message = ''}) async {
     final String url = '${_buildProjectUrl(ref, forApi: true)}/repository/tags';
 

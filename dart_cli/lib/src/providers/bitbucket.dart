@@ -216,6 +216,23 @@ class BitbucketAdapter extends ProviderAdapter {
   }
 
   @override
+  Future<bool> commitExists(ProviderRef ref, String token, String sha) async {
+    try {
+      await _http.requestJson(
+        _repoApiUrl(ref, '/commit/${Uri.encodeComponent(sha)}'),
+        headers: _headers(token),
+        retries: _config.maxRetries,
+        retryDelay: _config.retryDelay,
+      );
+      return true;
+    } on AuthenticationError {
+      rethrow;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
   Future<void> createTag(ProviderRef ref, String token, String tag, String sha, {String message = ''}) async {
     final Map<String, dynamic> payload = <String, dynamic>{
       'name': tag,

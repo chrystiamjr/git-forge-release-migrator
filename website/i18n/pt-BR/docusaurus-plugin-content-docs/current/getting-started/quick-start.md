@@ -21,6 +21,7 @@ Fonte de verdade: [GitHub Releases](https://github.com/chrystiamjr/git-forge-rel
 ## 2. Verifique e rode `--help`
 
 Siga [Install and Verify](/getting-started/install-and-verify) para extrair o artefato e confirmar que o binário funciona.
+Use `./gfrm <comando> --help` quando precisar das flags específicas de `migrate`, `resume`, `setup` ou `settings`.
 
 ## 3. Faça o bootstrap dos settings
 
@@ -47,3 +48,5 @@ Isso grava os settings de token no config global por padrão.
 ```
 
 O `gfrm` retoma a partir da sessão salva e ignora o trabalho que já terminou.
+Se a execução parar antes da criação das tags porque o forge de destino não tem o histórico de commits necessário,
+consulte as orientações de remediação em `summary.json` antes de tentar novamente.

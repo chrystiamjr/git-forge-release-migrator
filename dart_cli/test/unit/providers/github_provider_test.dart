@@ -132,6 +132,7 @@ void main() {
         'assets': <Map<String, dynamic>>[
           <String, dynamic>{
             'name': 'app.zip',
+            'url': 'https://api.github.com/repos/acme/repo/releases/assets/42',
             'browser_download_url': 'https://github.com/acme/repo/releases/download/v1.2.3/app.zip',
           },
         ],
@@ -145,6 +146,8 @@ void main() {
       expect(canonical.commitSha, 'abc123');
       expect(canonical.assets.links, hasLength(1));
       expect(canonical.assets.links.first.name, 'app.zip');
+      expect(canonical.assets.links.first.url, 'https://github.com/acme/repo/releases/download/v1.2.3/app.zip');
+      expect(canonical.assets.links.first.directUrl, 'https://api.github.com/repos/acme/repo/releases/assets/42');
       expect(canonical.assets.sources, hasLength(2));
       expect(canonical.assets.sources.first.name, 'v1.2.3-source.zip');
       expect(canonical.assets.sources.last.name, 'v1.2.3-source.tar.gz');
@@ -350,6 +353,24 @@ void main() {
         final ProviderRef ref = adapter.parseUrl('https://github.com/acme/repo');
 
         expect(await adapter.tagExists(ref, 'token', 'v9.9.9'), isFalse);
+      });
+
+      test('commitExists returns true when commit lookup succeeds', () async {
+        final ScriptedHttpClientHelper stub =
+            ScriptedHttpClientHelper(jsonResponse: <String, dynamic>{'sha': 'abc123'});
+        final GitHubAdapter adapter = GitHubAdapter(http: stub);
+        final ProviderRef ref = adapter.parseUrl('https://github.com/acme/repo');
+
+        expect(await adapter.commitExists(ref, 'token', 'abc123'), isTrue);
+      });
+
+      test('commitExists returns false when commit lookup fails', () async {
+        final ScriptedHttpClientHelper stub =
+            ScriptedHttpClientHelper(jsonResponses: <dynamic>[Exception('missing commit')]);
+        final GitHubAdapter adapter = GitHubAdapter(http: stub);
+        final ProviderRef ref = adapter.parseUrl('https://github.com/acme/repo');
+
+        expect(await adapter.commitExists(ref, 'token', 'deadbeef'), isFalse);
       });
 
       test('releaseExists returns true when releaseByTag returns a map', () async {

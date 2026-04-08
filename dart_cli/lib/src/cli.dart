@@ -16,6 +16,19 @@ import 'models/runtime_options.dart';
 
 typedef RunServiceFactory = RunService Function(ConsoleLogger logger);
 
+bool _isRootHelpInvocation(List<String> argv) {
+  if (argv.isEmpty) {
+    return true;
+  }
+
+  if (argv.length == 1) {
+    final String flag = argv.first.trim();
+    return flag == '--help' || flag == '-h';
+  }
+
+  return false;
+}
+
 Future<int> _runCli(
   List<String> argv, {
   ConsoleOutput? output,
@@ -28,6 +41,9 @@ Future<int> _runCli(
   try {
     final CliRequest request = CliRequestParser.parseCliRequest(argv);
     if (request.command == 'help') {
+      if (_isRootHelpInvocation(argv)) {
+        CliRuntimeSupport.printBanner(resolvedOutput);
+      }
       resolvedOutput.writeOutLine(request.usage);
       return 0;
     }
@@ -56,9 +72,6 @@ Future<int> _runCli(
       jsonOutput: initialOptions.jsonOutput,
       output: resolvedOutput,
     );
-    if (!initialOptions.noBanner && !initialOptions.jsonOutput && !initialOptions.quiet) {
-      CliRuntimeSupport.printBanner(resolvedOutput);
-    }
 
     if (initialOptions.commandName == commandDemo) {
       final Directory resultsRoot = Directory(initialOptions.effectiveWorkdir());

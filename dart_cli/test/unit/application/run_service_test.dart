@@ -71,10 +71,12 @@ final class _TargetAdapter extends ProviderAdapter {
   _TargetAdapter({
     this.onCreateTag,
     this.onTagExists,
+    this.onCommitExists,
   });
 
   final Future<void> Function(ProviderRef, String, String, String, CanonicalRelease)? onCreateTag;
   final Future<bool> Function(ProviderRef, String, String)? onTagExists;
+  final Future<bool> Function(ProviderRef, String, String)? onCommitExists;
   final Set<String> _createdTags = <String>{};
 
   @override
@@ -108,6 +110,15 @@ final class _TargetAdapter extends ProviderAdapter {
     }
 
     return _createdTags.contains(tag);
+  }
+
+  @override
+  Future<bool> commitExists(ProviderRef ref, String token, String sha) async {
+    if (onCommitExists != null) {
+      return onCommitExists!(ref, token, sha);
+    }
+
+    return true;
   }
 
   @override
@@ -145,12 +156,14 @@ ProviderRegistry _buildRegistry({
   required List<Map<String, dynamic>> releases,
   Future<void> Function(ProviderRef, String, String, String, CanonicalRelease)? onCreateTag,
   Future<bool> Function(ProviderRef, String, String)? onTagExists,
+  Future<bool> Function(ProviderRef, String, String)? onCommitExists,
 }) {
   return ProviderRegistry(<String, ProviderAdapter>{
     'github': _SourceAdapter(releases: releases),
     'gitlab': _TargetAdapter(
       onCreateTag: onCreateTag,
       onTagExists: onTagExists,
+      onCommitExists: onCommitExists,
     ),
   });
 }
@@ -241,6 +254,36 @@ void main() {
       expect(result.exitCode, 1);
       expect(result.failures.single.scope, 'execution');
       expect(File(result.summaryPath).existsSync(), isFalse);
+    });
+
+    test('fails fast with summary when target commit history is missing', () async {
+      final Directory temp = createTempDir('gfrm-run-service-missing-target-history-');
+      final RunService service = RunService(
+        logger: createSilentLogger(),
+        registryFactory: (_) => _buildRegistry(
+          releases: <Map<String, dynamic>>[
+            buildMinimalReleasePayload('v1.0.0', commitSha: 'deadbeef'),
+          ],
+          onCreateTag: (_, __, ___, ____, _____) async {
+            fail('tag creation should not be attempted when target commit history is missing');
+          },
+          onCommitExists: (_, __, ___) async => false,
+        ),
+      );
+
+      final RunResult result = await service.run(
+        RunRequest(
+          options: buildRuntimeOptions(workdir: '${temp.path}/results'),
+        ),
+      );
+
+      expect(result.status, RunStatus.validationFailure);
+      expect(result.exitCode, 1);
+      expect(result.failures.single.code, 'missing-target-commit-history');
+      expect(result.failures.single.retryable, isTrue);
+      expect(File(result.summaryPath).existsSync(), isTrue);
+      expect(File(result.failedTagsPath).readAsStringSync(), 'v1.0.0\n');
+      expect(result.retryCommand, contains('gfrm resume --tags-file'));
     });
 
     test('returns validation failure with preflight message for unsupported command', () async {

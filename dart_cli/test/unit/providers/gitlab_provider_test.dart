@@ -398,6 +398,23 @@ void main() {
         expect(await adapter.tagCommitSha(ref, 'token', 'v1.0.0'), '');
       });
 
+      test('commitExists returns true when commit lookup succeeds', () async {
+        final ScriptedHttpClientHelper stub = ScriptedHttpClientHelper(jsonResponse: <String, dynamic>{'id': 'abc123'});
+        final GitLabAdapter adapter = GitLabAdapter(http: stub);
+        final ProviderRef ref = adapter.parseUrl('https://gitlab.com/acme/project');
+
+        expect(await adapter.commitExists(ref, 'token', 'abc123'), isTrue);
+      });
+
+      test('commitExists returns false when commit lookup fails', () async {
+        final ScriptedHttpClientHelper stub =
+            ScriptedHttpClientHelper(jsonResponses: <dynamic>[Exception('missing commit')]);
+        final GitLabAdapter adapter = GitLabAdapter(http: stub);
+        final ProviderRef ref = adapter.parseUrl('https://gitlab.com/acme/project');
+
+        expect(await adapter.commitExists(ref, 'token', 'deadbeef'), isFalse);
+      });
+
       test('releaseExists returns true when status is 200', () async {
         final ScriptedHttpClientHelper stub = ScriptedHttpClientHelper(statusCode: 200);
         final GitLabAdapter adapter = GitLabAdapter(http: stub);

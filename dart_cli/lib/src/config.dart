@@ -480,7 +480,8 @@ CliRequest _parseSettingsCommand(ArgResults root) {
   }
 
   if (_optionalBool(command, 'help')) {
-    return CliRequest(command: 'help', usage: CliParserCatalog.buildSettingsUsage());
+    final String actionName = command.name ?? '';
+    return CliRequest(command: 'help', usage: CliParserCatalog.buildSettingsActionUsage(actionName));
   }
 
   final String action = command.name ?? '';
@@ -538,15 +539,14 @@ CliRequest _parseCliRequest(
 
   final String commandName = commandResult.name ?? '';
   if (_optionalBool(commandResult, 'help')) {
-    if (commandName == commandSetup) {
-      return CliRequest(command: 'help', usage: CliParserCatalog.buildSetupUsage());
-    }
-
-    if (commandName == commandSettings) {
-      return CliRequest(command: 'help', usage: CliParserCatalog.buildSettingsUsage());
-    }
-
-    return CliRequest(command: 'help', usage: CliParserCatalog.buildUsage());
+    return switch (commandName) {
+      commandMigrate => CliRequest(command: 'help', usage: CliParserCatalog.buildMigrateUsage()),
+      commandResume => CliRequest(command: 'help', usage: CliParserCatalog.buildResumeUsage()),
+      commandDemo => CliRequest(command: 'help', usage: CliParserCatalog.buildDemoUsage()),
+      commandSetup => CliRequest(command: 'help', usage: CliParserCatalog.buildSetupUsage()),
+      commandSettings => CliRequest(command: 'help', usage: CliParserCatalog.buildSettingsUsage()),
+      _ => CliRequest(command: 'help', usage: CliParserCatalog.buildUsage()),
+    };
   }
 
   switch (commandName) {
