@@ -1,3 +1,9 @@
+## [0.7.1](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.7.0...v0.7.1) (2026-04-08)
+
+### Bug Fixes
+
+* **dart:** tighten CLI help and tag preflight ([ebbce0b](https://github.com/chrystiamjr/git-forge-release-migrator/commit/ebbce0bb3444401395de9ab9c2f5662a70257474))
+
 ## [0.7.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.6.0...v0.7.0) (2026-04-06)
 
 ### Features
