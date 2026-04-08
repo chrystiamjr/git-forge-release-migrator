@@ -32,3 +32,18 @@ Inspecione:
 - `migration-log.jsonl`
 
 Quando existem falhas, `summary.json` inclui um `retry_command` com `gfrm resume`.
+
+## Histórico ausente no destino
+
+Se `resume` ou `migrate` parar antes da criação das tags porque o forge de destino não contém o objeto de commit
+referenciado por uma tag da origem:
+
+- leia a dica de preflight em `summary.json`
+- inspecione `failed-tags.txt` para ver quais tags foram bloqueadas
+- alinhe o histórico do repositório antes de tentar novamente
+
+Padrões seguros de remediação:
+
+- espelhar o repositório de origem no destino quando o destino puder receber o histórico completo
+- publicar uma branch auxiliar com os objetos de commit ausentes quando a branch default atual precisar ser preservada
+- usar `--skip-tags` somente quando as tags solicitadas já existirem no forge de destino
