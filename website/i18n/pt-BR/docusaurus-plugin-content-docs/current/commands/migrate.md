@@ -62,3 +62,11 @@ gfrm migrate \
   --from-tag v1.0.0 \
   --to-tag v2.0.0
 ```
+
+## Help e checks de inicialização
+
+- `gfrm migrate --help` mostra uso e opções específicos de `migrate`.
+- O banner ASCII fica reservado para `gfrm` e `gfrm --help`.
+- Antes de criar tags, `gfrm migrate` verifica se o forge de destino já contém o objeto de commit referenciado por cada tag de origem que ainda precisa ser migrada.
+- Se o histórico necessário estiver ausente, o comando falha cedo com orientações de remediação, incluindo snippets Git para mirror/branch auxiliar e sugestões nativas de GitHub, GitLab ou Bitbucket.
+- `--skip-tags` só é um atalho seguro quando as tags solicitadas já existem no forge de destino.

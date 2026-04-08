@@ -6,6 +6,12 @@ import '../models/runtime_options.dart';
 final class CliParserCatalog {
   const CliParserCatalog._();
 
+  static const String _migrateDescription = 'Run migration from explicit source/target parameters.';
+  static const String _resumeDescription = 'Resume migration from stored session file.';
+  static const String _demoDescription = 'Run local demo simulation.';
+  static const String _setupDescription = 'Interactive bootstrap for settings profiles.';
+  static const String _settingsDescription = 'Manage token/profile settings.';
+
   static ArgParser buildRootParser() {
     final ArgParser parser = ArgParser();
     parser.addFlag('help', abbr: 'h', defaultsTo: false, negatable: false);
@@ -75,9 +81,38 @@ final class CliParserCatalog {
         '${parser.usage}';
   }
 
+  static String buildMigrateUsage() {
+    final ArgParser parser = _buildMigrateParser();
+    return 'Usage: $publicCommandName migrate [options]\n'
+        '\n'
+        '$_migrateDescription\n'
+        '\n'
+        '${parser.usage}';
+  }
+
+  static String buildResumeUsage() {
+    final ArgParser parser = _buildResumeParser();
+    return 'Usage: $publicCommandName resume [options]\n'
+        '\n'
+        '$_resumeDescription\n'
+        '\n'
+        '${parser.usage}';
+  }
+
+  static String buildDemoUsage() {
+    final ArgParser parser = _buildDemoParser();
+    return 'Usage: $publicCommandName demo [options]\n'
+        '\n'
+        '$_demoDescription\n'
+        '\n'
+        '${parser.usage}';
+  }
+
   static String buildSetupUsage() {
     final ArgParser parser = _buildSetupParser();
     return 'Usage: $publicCommandName setup [options]\n'
+        '\n'
+        '$_setupDescription\n'
         '\n'
         'Options:\n'
         '  --profile <name>  Target settings profile (default: auto-resolve).\n'
@@ -92,6 +127,8 @@ final class CliParserCatalog {
     final ArgParser parser = buildSettingsParser();
     return 'Usage: $publicCommandName settings <action> [options]\n'
         '\n'
+        '$_settingsDescription\n'
+        '\n'
         'Actions:\n'
         '  init            Bootstrap token env references for providers.\n'
         '  set-token-env   Set provider token via env variable name.\n'
@@ -100,6 +137,29 @@ final class CliParserCatalog {
         '  show            Show effective merged settings (masked).\n'
         '\n'
         '${parser.usage}';
+  }
+
+  static String buildSettingsActionUsage(String action) {
+    final ArgParser parser = buildSettingsParser();
+    final ArgParser? actionParser = parser.commands[action];
+    if (actionParser == null) {
+      return buildSettingsUsage();
+    }
+
+    final String description = switch (action) {
+      settingsActionInit => 'Bootstrap token env references for providers.',
+      settingsActionSetTokenEnv => 'Set provider token via env variable name.',
+      settingsActionSetTokenPlain => 'Set provider plain token value.',
+      settingsActionUnsetToken => 'Remove provider token from profile.',
+      settingsActionShow => 'Show effective merged settings (masked).',
+      _ => _settingsDescription,
+    };
+
+    return 'Usage: $publicCommandName settings $action [options]\n'
+        '\n'
+        '$description\n'
+        '\n'
+        '${actionParser.usage}';
   }
 
   static ArgParser _baseRuntimeFlags() {

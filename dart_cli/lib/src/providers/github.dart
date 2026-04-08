@@ -220,6 +220,18 @@ class GitHubAdapter extends ProviderAdapter {
   @override
   Future<String> tagCommitSha(ProviderRef ref, String token, String tag) => commitShaForRef(ref, token, tag);
 
+  @override
+  Future<bool> commitExists(ProviderRef ref, String token, String sha) async {
+    try {
+      await _apiJson(token, 'repos/${ref.resource}/git/commits/$sha');
+      return true;
+    } on AuthenticationError {
+      rethrow;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<String> commitShaForRef(ProviderRef ref, String token, String refName) async {
     final dynamic payload = await _apiJson(token, 'repos/${ref.resource}/commits/$refName');
     if (payload is! Map || payload['sha'] == null) {
@@ -369,11 +381,12 @@ class GitHubAdapter extends ProviderAdapter {
     final List<Map<String, dynamic>> rawAssets = _extractRawAssetMaps(payload);
     final List<Map<String, dynamic>> links = <Map<String, dynamic>>[];
     for (final Map<String, dynamic> asset in rawAssets) {
+      final String apiUrl = (asset['url'] ?? '').toString();
       final String browserUrl = (asset['browser_download_url'] ?? '').toString();
       links.add(<String, dynamic>{
         'name': (asset['name'] ?? '').toString(),
         'url': browserUrl,
-        'direct_url': browserUrl,
+        'direct_url': apiUrl,
         'type': 'package',
       });
     }

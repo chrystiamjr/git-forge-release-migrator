@@ -71,6 +71,12 @@ Supported public subcommands:
 - `setup`
 - `settings`
 
+CLI help behavior:
+
+- `gfrm` and `gfrm --help` print the root banner and quick-start usage.
+- `gfrm <command> --help` prints command-specific usage and options without the root banner.
+- `migrate` and `resume` fail fast before tag creation when the target forge is missing the commit object referenced by a source tag, and the CLI prints remediation guidance instead of waiting for a later provider-side `422`/not-found error.
+
 ## Developer Workflow
 
 Preferred local workflow (from repository root):

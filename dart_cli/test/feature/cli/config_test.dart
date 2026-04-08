@@ -191,18 +191,33 @@ void main() {
       expect(request.usage, contains('Usage: $publicCommandName setup [options]'));
     });
 
-    test('parseCliRequest migrate --help returns root usage', () {
+    test('parseCliRequest migrate --help returns migrate usage', () {
       final CliRequest request = CliRequestParser.parseCliRequest(<String>[commandMigrate, '--help']);
 
       expect(request.command, 'help');
-      expect(request.usage, contains('Usage: $publicCommandName <command> [options]'));
+      expect(request.usage, contains('Usage: $publicCommandName migrate [options]'));
     });
 
-    test('parseCliRequest demo --help returns root usage', () {
+    test('parseCliRequest resume --help returns resume usage', () {
+      final CliRequest request = CliRequestParser.parseCliRequest(<String>[commandResume, '--help']);
+
+      expect(request.command, 'help');
+      expect(request.usage, contains('Usage: $publicCommandName resume [options]'));
+    });
+
+    test('parseCliRequest demo --help returns demo usage', () {
       final CliRequest request = CliRequestParser.parseCliRequest(<String>[commandDemo, '--help']);
 
       expect(request.command, 'help');
-      expect(request.usage, contains('Usage: $publicCommandName <command> [options]'));
+      expect(request.usage, contains('Usage: $publicCommandName demo [options]'));
+    });
+
+    test('parseCliRequest settings action --help returns action usage', () {
+      final CliRequest request =
+          CliRequestParser.parseCliRequest(<String>[commandSettings, settingsActionShow, '--help']);
+
+      expect(request.command, 'help');
+      expect(request.usage, contains('Usage: $publicCommandName settings $settingsActionShow [options]'));
     });
 
     test('buildRootParser registers settings command', () {

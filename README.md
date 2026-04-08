@@ -33,6 +33,7 @@ names, logos, or other brand assets beyond truthful referential use. See [TRADEM
 1. Download the artifact for your OS
    from [GitHub Releases](https://github.com/chrystiamjr/git-forge-release-migrator/releases).
 2. Extract the archive and run `./gfrm --help` (or `./gfrm.exe --help` on Windows).
+   Use `./gfrm <command> --help` for command-specific flags such as `migrate` or `resume`.
 3. Configure tokens once with `./gfrm setup`.
 4. Run a migration with explicit source and target URLs.
 5. Use `./gfrm resume` if the run is interrupted.

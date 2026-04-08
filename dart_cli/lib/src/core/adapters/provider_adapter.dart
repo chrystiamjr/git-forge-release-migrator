@@ -52,6 +52,10 @@ abstract class ProviderAdapter {
     throw UnimplementedError('tagCommitSha not implemented for $name');
   }
 
+  Future<bool> commitExists(ProviderRef ref, String token, String sha) async {
+    return true;
+  }
+
   Future<void> createTag(ProviderRef ref, String token, String tag, String sha, {String message = ''}) async {
     throw UnimplementedError('createTag not implemented for $name');
   }

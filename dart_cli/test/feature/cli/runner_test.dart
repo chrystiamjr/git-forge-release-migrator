@@ -45,17 +45,31 @@ final class _FakeRunService extends RunService {
 
 void main() {
   group('CliRunner', () {
-    test('help command prints usage and exits successfully', () async {
-      final BufferConsoleOutput output = BufferConsoleOutput();
+    test('help command prints banner and root usage when terminal output is enabled', () async {
+      final BufferConsoleOutput output = BufferConsoleOutput(hasTerminal: true);
 
       final int exitCode = await CliRunner.run(<String>['--help'], output: output);
 
       expect(exitCode, 0);
-      expect(output.stdoutLines.single, contains('Usage: gfrm <command> [options]'));
+      expect(output.stdoutLines, contains('Quick commands:'));
+      expect(output.stdoutLines.last, contains('Usage: gfrm <command> [options]'));
       expect(output.stderrLines, isEmpty);
     });
 
-    test('demo command prints banner when terminal output is enabled', () async {
+    test('root invocation prints banner and root usage when terminal output is enabled', () async {
+      final BufferConsoleOutput output = BufferConsoleOutput(hasTerminal: true);
+
+      final int exitCode = await CliRunner.run(
+        <String>[],
+        output: output,
+      );
+
+      expect(exitCode, 0);
+      expect(output.stdoutLines, contains('Quick commands:'));
+      expect(output.stdoutLines.last, contains('Usage: gfrm <command> [options]'));
+    });
+
+    test('demo command does not print banner when terminal output is enabled', () async {
       final BufferConsoleOutput output = BufferConsoleOutput(hasTerminal: true);
       final Directory temp = createTempDir('gfrm-demo-banner-');
 
@@ -85,8 +99,8 @@ void main() {
       );
 
       expect(exitCode, 0);
-      expect(output.stdoutLines, contains('Quick commands:'));
-      expect(output.stdoutLines, contains('Migrate tags, releases, changelog and assets between Git forges.'));
+      expect(output.stdoutLines, isNot(contains('Quick commands:')));
+      expect(output.stdoutLines, isNot(contains('Migrate tags, releases, changelog and assets between Git forges.')));
     });
 
     test('demo command writes summary and notes using tags file input', () async {
@@ -238,6 +252,17 @@ void main() {
       expect(output.stderrLines, isEmpty);
     });
 
+    test('migrate help command prints migrate usage without banner', () async {
+      final BufferConsoleOutput output = BufferConsoleOutput(hasTerminal: true);
+
+      final int exitCode = await CliRunner.run(<String>[commandMigrate, '--help'], output: output);
+
+      expect(exitCode, 0);
+      expect(output.stdoutLines, isNot(contains('Quick commands:')));
+      expect(output.stdoutLines.single, contains('Usage: gfrm migrate [options]'));
+      expect(output.stderrLines, isEmpty);
+    });
+
     test('setup command runs through cli handler branch and writes local settings when assumed yes', () async {
       final BufferConsoleOutput output = BufferConsoleOutput();
       final Directory temp = createTempDir('gfrm-runner-setup-');
@@ -263,11 +288,12 @@ void main() {
     });
 
     test('invalid migrate invocation returns non-zero', () async {
-      final BufferConsoleOutput output = BufferConsoleOutput();
+      final BufferConsoleOutput output = BufferConsoleOutput(hasTerminal: true);
 
       final int exitCode = await CliRunner.run(<String>[commandMigrate], output: output);
 
       expect(exitCode, 1);
+      expect(output.stdoutLines, isNot(contains('Quick commands:')));
       expect(output.stderrLines.single, contains('Missing required option --source-provider'));
     });
 

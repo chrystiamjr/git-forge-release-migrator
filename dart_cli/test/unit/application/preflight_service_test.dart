@@ -1,12 +1,16 @@
 import 'package:gfrm_dart/src/application/preflight_check.dart';
+import 'package:gfrm_dart/src/application/missing_target_commit.dart';
 import 'package:gfrm_dart/src/application/preflight_service.dart';
+import 'package:gfrm_dart/src/models/migration_context.dart';
 import 'package:gfrm_dart/src/models/runtime_options.dart';
 import 'package:gfrm_dart/src/core/adapters/provider_adapter.dart';
 import 'package:gfrm_dart/src/core/types/canonical_release.dart';
 import 'package:gfrm_dart/src/providers/registry.dart';
 import 'package:test/test.dart';
 
+import '../../support/migration_context_fixture.dart';
 import '../../support/runtime_options_fixture.dart';
+import '../../support/temp_dir.dart';
 
 final class _SourceAdapter extends ProviderAdapter {
   @override
@@ -29,11 +33,15 @@ final class _SourceAdapter extends ProviderAdapter {
 
   @override
   CanonicalRelease toCanonicalRelease(Map<String, dynamic> payload) {
-    throw UnimplementedError();
+    return CanonicalRelease.fromMap(payload);
   }
 }
 
 final class _TargetAdapter extends ProviderAdapter {
+  _TargetAdapter({this.commitExistsResult = true});
+
+  final bool commitExistsResult;
+
   @override
   String get name => 'stub-target';
 
@@ -55,6 +63,11 @@ final class _TargetAdapter extends ProviderAdapter {
   @override
   CanonicalRelease toCanonicalRelease(Map<String, dynamic> payload) {
     throw UnimplementedError();
+  }
+
+  @override
+  Future<bool> commitExists(ProviderRef ref, String token, String sha) async {
+    return commitExistsResult;
   }
 }
 
@@ -182,6 +195,61 @@ void main() {
         ),
         throwsA(isA<StateError>()),
       );
+    });
+
+    test('findMissingTargetCommits returns tags whose commit does not exist in target', () async {
+      final PreflightService service = PreflightService();
+      final MigrationContext context = buildMigrationContext(
+        createTempDir('gfrm-preflight-missing-target-'),
+        _SourceAdapter(),
+        _TargetAdapter(commitExistsResult: false),
+        selectedTags: const <String>['v1.0.0'],
+        releases: const <Map<String, dynamic>>[
+          <String, dynamic>{
+            'tag_name': 'v1.0.0',
+            'name': 'v1.0.0',
+            'description_markdown': '',
+            'commit_sha': 'deadbeef',
+            'assets': <String, dynamic>{'links': <dynamic>[], 'sources': <dynamic>[]},
+          },
+        ],
+      );
+
+      final List<MissingTargetCommit> missing = await service.findMissingTargetCommits(context);
+
+      expect(missing, hasLength(1));
+      expect(missing.single.tag, 'v1.0.0');
+      expect(missing.single.commitSha, 'deadbeef');
+    });
+
+    test('buildMissingTargetCommitCheck includes remediation guidance', () {
+      final PreflightService service = PreflightService();
+      final MigrationContext context = buildMigrationContext(
+        createTempDir('gfrm-preflight-check-'),
+        _SourceAdapter(),
+        _TargetAdapter(commitExistsResult: false),
+        selectedTags: const <String>['v1.0.0'],
+        releases: const <Map<String, dynamic>>[
+          <String, dynamic>{
+            'tag_name': 'v1.0.0',
+            'name': 'v1.0.0',
+            'description_markdown': '',
+            'commit_sha': 'deadbeef',
+            'assets': <String, dynamic>{'links': <dynamic>[], 'sources': <dynamic>[]},
+          },
+        ],
+      );
+
+      final PreflightCheck check = service.buildMissingTargetCommitCheck(
+        context,
+        const <MissingTargetCommit>[MissingTargetCommit(tag: 'v1.0.0', commitSha: 'deadbeef')],
+      );
+
+      expect(check.status, PreflightCheckStatus.error);
+      expect(check.code, 'missing-target-commit-history');
+      expect(check.message, contains('v1.0.0 -> deadbeef'));
+      expect(check.hint, contains('git clone --mirror'));
+      expect(check.hint, contains('Use --skip-tags only if the target already has the requested tags.'));
     });
   });
 }

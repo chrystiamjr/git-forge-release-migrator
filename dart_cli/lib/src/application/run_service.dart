@@ -2,14 +2,18 @@ import 'dart:io';
 
 import '../core/adapters/provider_adapter.dart';
 import '../core/exceptions/migration_phase_error.dart';
+import '../core/jsonl.dart';
 import '../core/logging.dart';
+import '../core/types/phase.dart';
 import '../core/settings.dart';
 import '../migrations/engine.dart';
 import '../migrations/migration_execution_result.dart';
+import '../migrations/selection.dart';
 import '../migrations/summary.dart';
 import '../models/migration_context.dart';
 import '../models/runtime_options.dart';
 import '../providers/registry.dart';
+import 'missing_target_commit.dart';
 import 'preflight_check.dart';
 import 'preflight_service.dart';
 import 'run_failure.dart';
@@ -72,9 +76,27 @@ class RunService {
         prepared: prepared,
         logger: logger,
       );
+      final MigrationEngine engine = MigrationEngine(registry: registry, logger: logger);
+      final MigrationContext context =
+          await engine.createContext(runtime.options, runtime.sourceRef, runtime.targetRef);
+      final List<MissingTargetCommit> missingTargetCommits = await _preflightService.findMissingTargetCommits(context);
+      if (missingTargetCommits.isNotEmpty) {
+        final PreflightCheck check = _preflightService.buildMissingTargetCommitCheck(context, missingTargetCommits);
+        preflightChecks = <PreflightCheck>[
+          ...preflightChecks,
+          check,
+        ];
+        return await _contextPreflightFailureResult(
+          prepared: prepared,
+          checks: preflightChecks,
+          context: context,
+          missingTargetCommits: missingTargetCommits,
+        );
+      }
       final _ExecutionOutcome outcome = await _executeMigration(
         prepared: prepared,
-        registry: registry,
+        engine: engine,
+        context: context,
         runtime: runtime,
         preflightChecks: preflightChecks,
       );
@@ -194,6 +216,74 @@ class RunService {
     );
   }
 
+  Future<RunResult> _contextPreflightFailureResult({
+    required PreparedRun prepared,
+    required List<PreflightCheck> checks,
+    required MigrationContext context,
+    required List<MissingTargetCommit> missingTargetCommits,
+  }) async {
+    final PreflightCheck resolved = checks.last;
+    final TagMigrationCounts tagCounts = TagMigrationCounts()..failed = missingTargetCommits.length;
+    final ReleaseMigrationCounts releaseCounts = ReleaseMigrationCounts();
+    for (final MissingTargetCommit item in missingTargetCommits) {
+      context.failedTags.add(item.tag);
+      JsonlLogWriter.appendLog(
+        context.logPath,
+        status: 'tag_failed',
+        tag: item.tag,
+        message:
+            'Target ${SelectionService.capitalizeProvider(context.options.targetProvider)} is missing commit ${item.commitSha}',
+        assetCount: 0,
+        durationMs: 0,
+        dryRun: false,
+      );
+    }
+
+    try {
+      await SummaryWriter.writeSummary(
+        logger: logger,
+        options: context.options,
+        sourceRef: context.sourceRef,
+        targetRef: context.targetRef,
+        logPath: context.logPath,
+        checkpointPath: context.checkpointPath,
+        workdir: context.workdir,
+        failedTags: context.failedTags,
+        tagCounts: tagCounts,
+        releaseCounts: releaseCounts,
+      );
+    } catch (exc) {
+      return _failureResult(
+        status: RunStatus.runtimeFailure,
+        failure: RunFailure(
+          scope: RunFailure.scopeArtifactFinalization,
+          code: 'artifact-finalization-failed',
+          message: exc.toString(),
+          retryable: false,
+        ),
+        prepared: prepared,
+        retryCommand: '',
+        preflightChecks: checks,
+      );
+    }
+
+    return _failureResult(
+      status: RunStatus.validationFailure,
+      failure: RunFailure(
+        scope: RunFailure.scopeValidation,
+        code: resolved.code,
+        message: resolved.message,
+        retryable: true,
+      ),
+      prepared: prepared,
+      retryCommand: SummaryWriter.buildRetryCommand(
+        context.options,
+        File('${context.workdir.path}/failed-tags.txt'),
+      ),
+      preflightChecks: checks,
+    );
+  }
+
   static ProviderRegistry _defaultRegistryFactory(RuntimeOptions options) {
     final Map<String, dynamic> settingsPayload = SettingsManager.loadEffectiveSettings();
     final HttpConfig httpConfig = SettingsManager.httpConfigFromSettings(settingsPayload, options.settingsProfile);
@@ -202,12 +292,11 @@ class RunService {
 
   Future<_ExecutionOutcome> _executeMigration({
     required PreparedRun prepared,
-    required ProviderRegistry registry,
+    required MigrationEngine engine,
+    required MigrationContext context,
     required RunRuntime runtime,
     required List<PreflightCheck> preflightChecks,
   }) async {
-    final MigrationEngine engine = MigrationEngine(registry: registry, logger: logger);
-    final MigrationContext context = await engine.createContext(runtime.options, runtime.sourceRef, runtime.targetRef);
     final MigrationExecutionResult execution = await engine.execute(context);
 
     try {
