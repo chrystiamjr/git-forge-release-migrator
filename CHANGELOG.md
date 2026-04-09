@@ -1,3 +1,9 @@
+## [0.9.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.8.0...v0.9.0) (2026-04-09)
+
+### Features
+
+* **dart:** add pluggable runtime event sinks ([db5fc14](https://github.com/chrystiamjr/git-forge-release-migrator/commit/db5fc1443add23d99f543ff33d5c8a415342e8c6))
+
 ## [0.8.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.7.1...v0.8.0) (2026-04-09)
 
 ### Features
