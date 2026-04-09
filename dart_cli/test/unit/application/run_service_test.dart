@@ -16,6 +16,9 @@ import 'package:gfrm_dart/src/core/types/publish_release_input.dart';
 import 'package:gfrm_dart/src/models/runtime_options.dart';
 import 'package:gfrm_dart/src/providers/registry.dart';
 import 'package:gfrm_dart/src/runtime_events/in_memory_runtime_event_sink.dart';
+import 'package:gfrm_dart/src/runtime_events/runtime_event_envelope.dart';
+import 'package:gfrm_dart/src/runtime_events/runtime_event_sink.dart';
+import 'package:gfrm_dart/src/runtime_events/runtime_event_sink_failure_mode.dart';
 import 'package:test/test.dart';
 
 import '../../support/buffer_console_output.dart';
@@ -169,6 +172,24 @@ ProviderRegistry _buildRegistry({
   });
 }
 
+final class _ThrowingRuntimeEventSink implements RuntimeEventSink {
+  const _ThrowingRuntimeEventSink({
+    required this.id,
+    required this.failureMode,
+  });
+
+  @override
+  final String id;
+
+  @override
+  final RuntimeEventSinkFailureMode failureMode;
+
+  @override
+  void consume(RuntimeEventEnvelope envelope) {
+    throw StateError('sink failure: ${envelope.eventType}');
+  }
+}
+
 void main() {
   group('RunService', () {
     test('returns success result and keeps summary artifacts for successful migrate flow', () async {
@@ -221,6 +242,31 @@ void main() {
         'run_completed',
       ]);
       expect(sink.events.last.payload['status'], 'success');
+    });
+
+    test('continues when optional runtime sink fails', () async {
+      final Directory temp = createTempDir('gfrm-run-service-events-optional-sink-');
+      final InMemoryRuntimeEventSink sink = InMemoryRuntimeEventSink();
+      final RunService service = RunService(
+        logger: createSilentLogger(),
+        registryFactory: (_) => _buildRegistry(releases: <Map<String, dynamic>>[buildMinimalReleasePayload('v1.0.0')]),
+      );
+
+      final RunResult result = await service.run(
+        RunRequest(
+          options: buildRuntimeOptions(workdir: '${temp.path}/results'),
+          runtimeEventSinks: <RuntimeEventSink>[
+            const _ThrowingRuntimeEventSink(
+              id: 'optional-broken',
+              failureMode: RuntimeEventSinkFailureMode.optional,
+            ),
+            sink,
+          ],
+        ),
+      );
+
+      expect(result.status, RunStatus.success);
+      expect(sink.events.last.eventType, 'run_completed');
     });
 
     test('returns partial failure with retry command when migration writes failed tags', () async {
@@ -289,6 +335,34 @@ void main() {
       expect(result.status, RunStatus.runtimeFailure);
       expect(result.exitCode, 1);
       expect(result.failures.single.scope, 'execution');
+      expect(File(result.summaryPath).existsSync(), isFalse);
+    });
+
+    test('returns runtime failure when mandatory runtime sink fails', () async {
+      final Directory temp = createTempDir('gfrm-run-service-events-mandatory-sink-');
+      final InMemoryRuntimeEventSink sink = InMemoryRuntimeEventSink();
+      final RunService service = RunService(
+        logger: createSilentLogger(),
+        registryFactory: (_) => _buildRegistry(releases: <Map<String, dynamic>>[buildMinimalReleasePayload('v1.0.0')]),
+      );
+
+      final RunResult result = await service.run(
+        RunRequest(
+          options: buildRuntimeOptions(workdir: '${temp.path}/results'),
+          runtimeEventSinks: <RuntimeEventSink>[
+            sink,
+            const _ThrowingRuntimeEventSink(
+              id: 'mandatory-broken',
+              failureMode: RuntimeEventSinkFailureMode.mandatory,
+            ),
+          ],
+        ),
+      );
+
+      expect(result.status, RunStatus.runtimeFailure);
+      expect(result.failures.single.code, 'runtime-event-sink-failed');
+      expect(result.failures.single.phase, 'runtime_event_sink');
+      expect(sink.events.map((RuntimeEventEnvelope event) => event.eventType), <String>['run_failed']);
       expect(File(result.summaryPath).existsSync(), isFalse);
     });
 

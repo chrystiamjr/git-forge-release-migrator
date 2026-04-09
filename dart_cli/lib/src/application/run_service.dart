@@ -14,6 +14,7 @@ import '../models/migration_context.dart';
 import '../models/runtime_options.dart';
 import '../providers/registry.dart';
 import '../runtime_events/runtime_event_emitter.dart';
+import '../runtime_events/runtime_event_sink_dispatch_exception.dart';
 import '../runtime_events/runtime_event_type.dart';
 import '../runtime_events/serial_runtime_event_publisher.dart';
 import 'missing_target_commit.dart';
@@ -50,6 +51,9 @@ class RunService {
         runId: _runIdFromWorkdir(prepared.runWorkdir.path),
       ),
       sinks: request.runtimeEventSinks,
+      onSinkFailure: (RuntimeEventSinkDispatchException failure) {
+        logger.warn('Runtime event sink "${failure.sinkId}" failed: ${failure.cause}');
+      },
     );
     List<PreflightCheck> preflightChecks = const <PreflightCheck>[];
 
@@ -182,6 +186,27 @@ class RunService {
         totalTags: context.selectedTags.length,
       );
       return _successResult(prepared: prepared, preflightChecks: preflightChecks);
+    } on RuntimeEventSinkDispatchException catch (exc) {
+      _emitRunFailedBestEffort(
+        runtimeEventEmitter,
+        code: 'runtime-event-sink-failed',
+        message: exc.toString(),
+        retryable: false,
+        phase: 'runtime_event_sink',
+      );
+      return _failureResult(
+        status: RunStatus.runtimeFailure,
+        failure: RunFailure(
+          scope: RunFailure.scopeExecution,
+          code: 'runtime-event-sink-failed',
+          message: exc.toString(),
+          retryable: false,
+          phase: 'runtime_event_sink',
+        ),
+        prepared: prepared,
+        retryCommand: '',
+        preflightChecks: preflightChecks,
+      );
     } on ArgumentError catch (exc) {
       _emitRunFailed(
         runtimeEventEmitter,
@@ -549,6 +574,28 @@ class RunService {
     }
 
     runtimeEventEmitter.emit(
+      eventType: RuntimeEventType.runFailed,
+      payload: payload,
+    );
+  }
+
+  void _emitRunFailedBestEffort(
+    RuntimeEventEmitter runtimeEventEmitter, {
+    required String code,
+    required String message,
+    required bool retryable,
+    String? phase,
+  }) {
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'code': code,
+      'message': message,
+      'retryable': retryable,
+    };
+    if (phase != null && phase.isNotEmpty) {
+      payload['phase'] = phase;
+    }
+
+    runtimeEventEmitter.emitBestEffort(
       eventType: RuntimeEventType.runFailed,
       payload: payload,
     );

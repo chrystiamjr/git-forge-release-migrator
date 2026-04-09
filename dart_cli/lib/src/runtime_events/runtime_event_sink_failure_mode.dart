@@ -1,0 +1,4 @@
+enum RuntimeEventSinkFailureMode {
+  optional,
+  mandatory,
+}

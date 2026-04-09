@@ -21,9 +21,17 @@ They complement the operator-facing artifacts, but do not replace `summary.json`
 - event ordering is authoritative per run
 - supported sinks in this release: console, JSONL, in-memory, and reducer consumers
 - sink-specific formatting stays outside the ordered publisher
+- sinks now declare an explicit failure mode: `optional` or `mandatory`
 
 The JSONL sink is a runtime-event consumer implementation. The public run artifact for operators remains
 `migration-log.jsonl`.
+
+## Failure policy
+
+- `optional` sinks are best-effort: failures are logged and the run continues
+- `mandatory` sinks fail the run immediately when they cannot consume an event
+
+Use `mandatory` only when the consumer is part of the required runtime contract for your embedding layer.
 
 ## Event families
 

@@ -1,5 +1,6 @@
 import 'runtime_event_envelope.dart';
 import 'runtime_event_sink.dart';
+import 'runtime_event_sink_failure_mode.dart';
 
 typedef RuntimeEventReducer<TState> = TState Function(TState currentState, RuntimeEventEnvelope envelope);
 
@@ -8,11 +9,15 @@ final class ReducerRuntimeEventSink<TState> implements RuntimeEventSink {
     required this.id,
     required TState initialState,
     required RuntimeEventReducer<TState> reducer,
+    this.failureMode = RuntimeEventSinkFailureMode.optional,
   })  : _state = initialState,
         _reducer = reducer;
 
   @override
   final String id;
+
+  @override
+  final RuntimeEventSinkFailureMode failureMode;
 
   final RuntimeEventReducer<TState> _reducer;
   TState _state;
