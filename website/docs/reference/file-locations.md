@@ -17,3 +17,6 @@ title: File Locations
 - `migration-log.jsonl`
 - `summary.json`
 - `failed-tags.txt`
+
+These are the public reference files for diagnosis and retry. Runtime events may expose the same run state for
+observability, but operators should still read these files and follow `summary.json.retry_command` with `gfrm resume`.
