@@ -1,3 +1,9 @@
+## [0.8.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.7.1...v0.8.0) (2026-04-09)
+
+### Features
+
+* **dart:** add serial runtime event publisher ([ed3b7e0](https://github.com/chrystiamjr/git-forge-release-migrator/commit/ed3b7e0080636e87cacf96bb87cd871f2c4a64ab))
+
 ## [0.7.1](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.7.0...v0.7.1) (2026-04-08)
 
 ### Bug Fixes
