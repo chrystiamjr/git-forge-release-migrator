@@ -15,6 +15,9 @@ Required artifacts:
 - `summary.json`
 - `failed-tags.txt`
 
+These files remain the public operational contract for each run. Runtime events can mirror the same execution state for
+internal consumers, but operators should still treat these artifacts and `gfrm resume` as the source of truth.
+
 ## `summary.json`
 
 Expectations:
@@ -22,6 +25,7 @@ Expectations:
 - schema version `2`
 - executed command metadata
 - retry command when failures exist
+- artifact paths that match the files written for the run
 
 Common fields to inspect during triage:
 
@@ -31,6 +35,15 @@ Common fields to inspect during triage:
 
 When the target forge is missing commit history required for pending tags, `summary.json` records the preflight
 failure and should be read together with `failed-tags.txt`.
+
+## Runtime events
+
+This runtime also exposes an ordered event stream per run for observability, tests, and future GUI consumers.
+
+- supported sinks in this release: console, JSONL, in-memory, and reducer consumers
+- event payloads can mirror status changes and artifact paths such as `summary.json` and `failed-tags.txt`
+- runtime events complement observability, but they do not replace `summary.json`, `failed-tags.txt`,
+  `migration-log.jsonl`, or `gfrm resume`
 
 ## Session files
 

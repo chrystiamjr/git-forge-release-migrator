@@ -7,6 +7,8 @@ import 'package:gfrm_dart/src/core/types/canonical_release.dart';
 import 'package:gfrm_dart/src/core/types/phase.dart';
 import 'package:gfrm_dart/src/migrations/release_phase.dart';
 import 'package:gfrm_dart/src/models/migration_context.dart';
+import 'package:gfrm_dart/src/runtime_events/in_memory_runtime_event_sink.dart';
+import 'package:gfrm_dart/src/runtime_events/runtime_event_emitter.dart';
 import '../../support/logging.dart';
 import '../../support/migration_context_fixture.dart';
 import '../../support/provider_fixtures.dart';
@@ -140,6 +142,47 @@ void main() {
 
       expect(counts.created, 1);
       expect(publishCalled, isTrue);
+    });
+
+    test('emits release runtime events for dry-run flow', () async {
+      final Directory temp = createTempDir('gfrm-rel-phase-events-');
+      final InMemoryRuntimeEventSink sink = InMemoryRuntimeEventSink();
+      final MigrationContext ctx = buildMigrationContext(
+        temp,
+        _StubSourceAdapter(),
+        _StubTargetAdapter(tagExistsResult: true),
+        selectedTags: <String>['v1.0.0'],
+        targetTags: <String>{'v1.0.0'},
+        releases: <Map<String, dynamic>>[buildMinimalReleasePayload('v1.0.0')],
+        dryRun: true,
+      );
+      final MigrationContext eventfulContext = MigrationContext(
+        sourceRef: ctx.sourceRef,
+        targetRef: ctx.targetRef,
+        source: ctx.source,
+        target: ctx.target,
+        options: ctx.options,
+        logPath: ctx.logPath,
+        workdir: ctx.workdir,
+        checkpointPath: ctx.checkpointPath,
+        checkpointSignature: ctx.checkpointSignature,
+        checkpointState: ctx.checkpointState,
+        selectedTags: ctx.selectedTags,
+        targetTags: ctx.targetTags,
+        targetReleaseTags: ctx.targetReleaseTags,
+        failedTags: ctx.failedTags,
+        releases: ctx.releases,
+        runtimeEventEmitter: RuntimeEventEmitter(
+          publisher: ctx.runtimeEventEmitter.publisher,
+          sinks: <InMemoryRuntimeEventSink>[sink],
+        ),
+      );
+
+      final ReleaseMigrationCounts counts = await ReleasePhaseRunner(logger: logger).run(eventfulContext);
+
+      expect(counts.wouldCreate, 1);
+      expect(sink.events.single.payload['status'], 'would_create');
+      expect(sink.events.single.payload['tag'], 'v1.0.0');
     });
 
     test('skips release that is already processed via checkpoint', () async {

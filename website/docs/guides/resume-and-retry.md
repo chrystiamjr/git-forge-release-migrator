@@ -31,7 +31,9 @@ Inspect:
 - `summary.json`
 - `migration-log.jsonl`
 
-When failures exist, `summary.json` includes a `retry_command` that already uses `gfrm resume`.
+When failures exist, `summary.json` includes a `retry_command` that already uses `gfrm resume`. Treat that command and
+the written artifacts as the authoritative retry path, even when runtime completion or failure events are also
+available to internal consumers.
 
 ## Missing target history
 
@@ -40,6 +42,7 @@ referenced by a source tag:
 
 - read the preflight hint in `summary.json`
 - inspect `failed-tags.txt` to see which tags were blocked
+- inspect `migration-log.jsonl` when you need step-by-step execution context
 - align repository history before retrying
 
 Safe remediation patterns:
