@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import '../core/adapters/provider_adapter.dart';
+import '../runtime_events/runtime_event_emitter.dart';
 import 'runtime_options.dart';
 
 class MigrationContext {
@@ -20,6 +21,7 @@ class MigrationContext {
     required this.targetReleaseTags,
     required this.failedTags,
     required this.releases,
+    required this.runtimeEventEmitter,
   });
 
   final ProviderRef sourceRef;
@@ -37,4 +39,5 @@ class MigrationContext {
   final Set<String> targetReleaseTags;
   final Set<String> failedTags;
   final List<Map<String, dynamic>> releases;
+  final RuntimeEventEmitter runtimeEventEmitter;
 }

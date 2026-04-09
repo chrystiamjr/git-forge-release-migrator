@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:gfrm_dart/src/core/adapters/provider_adapter.dart';
 import 'package:gfrm_dart/src/models/migration_context.dart';
+import 'package:gfrm_dart/src/runtime_events/runtime_event_emitter.dart';
 
 import 'runtime_options_fixture.dart';
 
@@ -43,5 +44,8 @@ MigrationContext buildMigrationContext(
     targetReleaseTags: Set<String>.from(targetReleaseTags),
     failedTags: <String>{},
     releases: List<Map<String, dynamic>>.from(releases),
+    runtimeEventEmitter: RuntimeEventEmitter.noop(
+      runId: temp.path.split(Platform.pathSeparator).last,
+    ),
   );
 }

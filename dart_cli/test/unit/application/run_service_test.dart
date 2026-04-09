@@ -15,6 +15,7 @@ import 'package:gfrm_dart/src/core/types/existing_release_info.dart';
 import 'package:gfrm_dart/src/core/types/publish_release_input.dart';
 import 'package:gfrm_dart/src/models/runtime_options.dart';
 import 'package:gfrm_dart/src/providers/registry.dart';
+import 'package:gfrm_dart/src/runtime_events/in_memory_runtime_event_sink.dart';
 import 'package:test/test.dart';
 
 import '../../support/buffer_console_output.dart';
@@ -192,8 +193,39 @@ void main() {
       expect(result.retryCommand, isEmpty);
     });
 
+    test('emits ordered runtime events for successful migrate flow when sinks are registered', () async {
+      final Directory temp = createTempDir('gfrm-run-service-events-success-');
+      final InMemoryRuntimeEventSink sink = InMemoryRuntimeEventSink();
+      final RunService service = RunService(
+        logger: createSilentLogger(),
+        registryFactory: (_) => _buildRegistry(releases: <Map<String, dynamic>>[buildMinimalReleasePayload('v1.0.0')]),
+      );
+
+      final RunResult result = await service.run(
+        RunRequest(
+          options: buildRuntimeOptions(workdir: '${temp.path}/results'),
+          runtimeEventSinks: <InMemoryRuntimeEventSink>[sink],
+        ),
+      );
+
+      expect(result.status, RunStatus.success);
+      expect(sink.events.map((event) => event.sequence), <int>[1, 2, 3, 4, 5, 6, 7, 8]);
+      expect(sink.events.map((event) => event.eventType), <String>[
+        'run_started',
+        'preflight_completed',
+        'tag_migrated',
+        'release_migrated',
+        'artifact_written',
+        'artifact_written',
+        'artifact_written',
+        'run_completed',
+      ]);
+      expect(sink.events.last.payload['status'], 'success');
+    });
+
     test('returns partial failure with retry command when migration writes failed tags', () async {
       final Directory temp = createTempDir('gfrm-run-service-partial-');
+      final InMemoryRuntimeEventSink sink = InMemoryRuntimeEventSink();
       final RunService service = RunService(
         logger: createSilentLogger(),
         registryFactory: (_) => _buildRegistry(
@@ -205,6 +237,7 @@ void main() {
       final RunResult result = await service.run(
         RunRequest(
           options: buildRuntimeOptions(workdir: '${temp.path}/results'),
+          runtimeEventSinks: <InMemoryRuntimeEventSink>[sink],
         ),
       );
 
@@ -213,6 +246,9 @@ void main() {
       expect(result.retryCommand, contains('gfrm resume --tags-file'));
       expect(File(result.summaryPath).existsSync(), isTrue);
       expect(File(result.failedTagsPath).readAsStringSync(), 'v1.0.0\n');
+      expect(sink.events.last.eventType, 'run_completed');
+      expect(sink.events.last.payload['status'], 'partial_failure');
+      expect(sink.events.last.payload['retry_command'], contains('gfrm resume --tags-file'));
     });
 
     test('returns validation failure when no releases are selected', () async {
@@ -258,6 +294,7 @@ void main() {
 
     test('fails fast with summary when target commit history is missing', () async {
       final Directory temp = createTempDir('gfrm-run-service-missing-target-history-');
+      final InMemoryRuntimeEventSink sink = InMemoryRuntimeEventSink();
       final RunService service = RunService(
         logger: createSilentLogger(),
         registryFactory: (_) => _buildRegistry(
@@ -274,6 +311,7 @@ void main() {
       final RunResult result = await service.run(
         RunRequest(
           options: buildRuntimeOptions(workdir: '${temp.path}/results'),
+          runtimeEventSinks: <InMemoryRuntimeEventSink>[sink],
         ),
       );
 
@@ -284,6 +322,10 @@ void main() {
       expect(File(result.summaryPath).existsSync(), isTrue);
       expect(File(result.failedTagsPath).readAsStringSync(), 'v1.0.0\n');
       expect(result.retryCommand, contains('gfrm resume --tags-file'));
+      expect(sink.events[1].eventType, 'preflight_completed');
+      expect(sink.events[1].payload['status'], 'failed');
+      expect(sink.events.last.eventType, 'run_failed');
+      expect(sink.events.last.payload['code'], 'missing-target-commit-history');
     });
 
     test('returns validation failure with preflight message for unsupported command', () async {
@@ -317,6 +359,29 @@ void main() {
       final RunService service = RunService(
         logger: createSilentLogger(),
         registryFactory: (_) => _buildRegistry(releases: const <Map<String, dynamic>>[]),
+      );
+
+      final RunResult result = await service.run(
+        RunRequest(
+          options: buildRuntimeOptions(
+            workdir: '${temp.path}/results',
+            sourceProvider: 'github',
+            targetProvider: 'github',
+            migrationOrder: 'github-to-github',
+          ),
+        ),
+      );
+
+      expect(result.status, RunStatus.validationFailure);
+      expect(result.failures.single.code, 'unsupported-provider-pair');
+      expect(result.preflightChecks.any((PreflightCheck check) => check.code == 'unsupported-provider-pair'), isTrue);
+      expect(Directory('${temp.path}/results').existsSync(), isFalse);
+    });
+
+    test('uses default registry factory for startup preflight without touching network', () async {
+      final Directory temp = createTempDir('gfrm-run-service-default-registry-');
+      final RunService service = RunService(
+        logger: createSilentLogger(),
       );
 
       final RunResult result = await service.run(

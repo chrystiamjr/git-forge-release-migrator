@@ -9,6 +9,7 @@ import '../core/logging.dart';
 import '../core/types/canonical_release.dart';
 import '../core/types/phase.dart';
 import '../models/migration_context.dart';
+import '../runtime_events/runtime_event_type.dart';
 import 'release_asset_service.dart';
 import 'selection.dart';
 
@@ -35,6 +36,30 @@ class ReleasePhaseRunner {
       assetCount: assetCount,
       durationMs: durationMs,
       dryRun: dryRun,
+    );
+  }
+
+  void _emitReleaseEvent(
+    MigrationContext ctx, {
+    required String tag,
+    required String status,
+    int? assetCount,
+    String? message,
+  }) {
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'tag': tag,
+      'status': status,
+    };
+    if (assetCount != null) {
+      payload['asset_count'] = assetCount;
+    }
+    if (message != null && message.isNotEmpty) {
+      payload['message'] = message;
+    }
+
+    ctx.runtimeEventEmitter.emit(
+      eventType: RuntimeEventType.releaseMigrated,
+      payload: payload,
     );
   }
 
@@ -118,6 +143,12 @@ class ReleasePhaseRunner {
       durationMs: 0,
       dryRun: false,
     );
+    _emitReleaseEvent(
+      ctx,
+      tag: tag,
+      status: 'skipped_existing',
+      message: 'Checkpoint skip ($checkpointStatus)',
+    );
     logger.info('[$tag] checkpoint skip: release already processed');
     return true;
   }
@@ -140,6 +171,12 @@ class ReleasePhaseRunner {
         assetCount: 0,
         durationMs: 0,
         dryRun: false,
+      );
+      _emitReleaseEvent(
+        ctx,
+        tag: tag,
+        status: 'failed',
+        message: 'Release missing from ${SelectionService.capitalizeProvider(ctx.options.sourceProvider)} payload',
       );
       logger.warn('[$tag] failed: release missing in payload');
       return null;
@@ -193,6 +230,13 @@ class ReleasePhaseRunner {
       status: 'skipped_existing',
       message: 'Release already exists and is complete',
     );
+    _emitReleaseEvent(
+      ctx,
+      tag: tag,
+      status: 'skipped_existing',
+      assetCount: expectedAssets,
+      message: 'Release already exists and is complete',
+    );
     logger.info('[$tag] skip: release already exists and is complete');
     return true;
   }
@@ -213,6 +257,13 @@ class ReleasePhaseRunner {
       assetCount: 0,
       durationMs: 0,
       dryRun: false,
+    );
+    _emitReleaseEvent(
+      ctx,
+      tag: tag,
+      status: 'failed',
+      message:
+          'Tag missing in ${SelectionService.capitalizeProvider(ctx.options.targetProvider)} after tag migration step',
     );
     logger
         .warn('[$tag] failed: tag not available in ${SelectionService.capitalizeProvider(ctx.options.targetProvider)}');
@@ -239,6 +290,15 @@ class ReleasePhaseRunner {
       assetCount: expectedAssets,
       durationMs: 0,
       dryRun: true,
+    );
+    _emitReleaseEvent(
+      ctx,
+      tag: tag,
+      status: 'would_create',
+      assetCount: expectedAssets,
+      message: existingInfo.exists
+          ? 'Dry-run: release would be resumed (${existingInfo.reason})'
+          : 'Dry-run: release would be created',
     );
     return 'would_create';
   }
@@ -275,6 +335,12 @@ class ReleasePhaseRunner {
         durationMs: durationMs,
         dryRun: false,
       );
+      _emitReleaseEvent(
+        ctx,
+        tag: tag,
+        status: 'failed',
+        message: 'No release assets were downloaded',
+      );
       logger.warn('[$tag] failed: no assets downloaded');
       FileSystemUtils.cleanupDir(releaseDir.path);
       return 'failed';
@@ -302,6 +368,14 @@ class ReleasePhaseRunner {
         durationMs: durationMs,
         dryRun: false,
       );
+      _emitReleaseEvent(
+        ctx,
+        tag: tag,
+        status: 'failed',
+        assetCount: assetsResult.downloaded.length,
+        message:
+            'Release publish operation failed on ${SelectionService.capitalizeProvider(ctx.options.targetProvider)}',
+      );
       return 'failed';
     }
 
@@ -316,6 +390,13 @@ class ReleasePhaseRunner {
       assetCount: assetsResult.downloaded.length,
       durationMs: durationMs,
       dryRun: false,
+    );
+    _emitReleaseEvent(
+      ctx,
+      tag: tag,
+      status: finalStatus,
+      assetCount: assetsResult.downloaded.length,
+      message: finalMessage,
     );
     _checkpointMark(
       ctx.checkpointPath,

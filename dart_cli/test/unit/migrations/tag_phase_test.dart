@@ -7,6 +7,8 @@ import 'package:gfrm_dart/src/core/types/canonical_release.dart';
 import 'package:gfrm_dart/src/core/types/phase.dart';
 import 'package:gfrm_dart/src/migrations/tag_phase.dart';
 import 'package:gfrm_dart/src/models/migration_context.dart';
+import 'package:gfrm_dart/src/runtime_events/in_memory_runtime_event_sink.dart';
+import 'package:gfrm_dart/src/runtime_events/runtime_event_emitter.dart';
 import '../../support/logging.dart';
 import '../../support/migration_context_fixture.dart';
 import '../../support/temp_dir.dart';
@@ -166,6 +168,49 @@ void main() {
       expect(counts.created, 1);
       expect(counts.failed, 0);
       expect(createTagCalled, isTrue);
+    });
+
+    test('emits tag runtime events for created and dry-run flows', () async {
+      final Directory temp = createTempDir('gfrm-tag-phase-events-');
+      final InMemoryRuntimeEventSink sink = InMemoryRuntimeEventSink();
+      final MigrationContext ctx = buildMigrationContext(
+        temp,
+        _StubSourceAdapter(),
+        _StubTargetAdapter(),
+        selectedTags: <String>['v1.0.0', 'v1.1.0'],
+        releases: <Map<String, dynamic>>[
+          <String, dynamic>{'tag_name': 'v1.0.0', 'commit_sha': 'abc123'},
+          <String, dynamic>{'tag_name': 'v1.1.0', 'commit_sha': 'def456'},
+        ],
+        dryRun: true,
+      );
+
+      final MigrationContext eventfulContext = MigrationContext(
+        sourceRef: ctx.sourceRef,
+        targetRef: ctx.targetRef,
+        source: ctx.source,
+        target: ctx.target,
+        options: ctx.options,
+        logPath: ctx.logPath,
+        workdir: ctx.workdir,
+        checkpointPath: ctx.checkpointPath,
+        checkpointSignature: ctx.checkpointSignature,
+        checkpointState: ctx.checkpointState,
+        selectedTags: ctx.selectedTags,
+        targetTags: ctx.targetTags,
+        targetReleaseTags: ctx.targetReleaseTags,
+        failedTags: ctx.failedTags,
+        releases: ctx.releases,
+        runtimeEventEmitter: RuntimeEventEmitter(
+          publisher: ctx.runtimeEventEmitter.publisher,
+          sinks: <InMemoryRuntimeEventSink>[sink],
+        ),
+      );
+
+      final TagMigrationCounts counts = await TagPhaseRunner(logger: logger).run(eventfulContext);
+
+      expect(counts.wouldCreate, 2);
+      expect(sink.events.map((event) => event.payload['status']), <String>['would_create', 'would_create']);
     });
 
     test('skips tag already in targetTags set without calling tagExists', () async {

@@ -9,6 +9,7 @@ import '../core/types/phase.dart';
 import '../models/migration_context.dart';
 import '../models/runtime_options.dart';
 import '../providers/registry.dart';
+import '../runtime_events/runtime_event_emitter.dart';
 import 'migration_execution_result.dart';
 import 'release_phase.dart';
 import 'selection.dart';
@@ -25,6 +26,20 @@ class MigrationEngine {
   final ConsoleLogger logger;
 
   Future<MigrationContext> createContext(RuntimeOptions options, ProviderRef sourceRef, ProviderRef targetRef) async {
+    return createContextWithEmitter(
+      options,
+      sourceRef,
+      targetRef,
+      runtimeEventEmitter: RuntimeEventEmitter.noop(runId: _runIdFromWorkdir(options.effectiveWorkdir())),
+    );
+  }
+
+  Future<MigrationContext> createContextWithEmitter(
+    RuntimeOptions options,
+    ProviderRef sourceRef,
+    ProviderRef targetRef, {
+    required RuntimeEventEmitter runtimeEventEmitter,
+  }) async {
     registry.requireSupportedPair(options.sourceProvider, options.targetProvider);
     final ProviderAdapter source = registry.get(options.sourceProvider);
     final ProviderAdapter target = registry.get(options.targetProvider);
@@ -81,6 +96,7 @@ class MigrationEngine {
       targetReleaseTags: targetReleaseTags,
       failedTags: <String>{},
       releases: releases,
+      runtimeEventEmitter: runtimeEventEmitter,
     );
   }
 
@@ -113,5 +129,11 @@ class MigrationEngine {
     if (execution.tagCounts.failed > 0 || execution.releaseCounts.failed > 0) {
       throw MigrationPhaseError('Migration finished with failures');
     }
+  }
+
+  static String _runIdFromWorkdir(String workdirPath) {
+    final String normalizedPath =
+        workdirPath.endsWith(Platform.pathSeparator) ? workdirPath.substring(0, workdirPath.length - 1) : workdirPath;
+    return normalizedPath.split(Platform.pathSeparator).last;
   }
 }

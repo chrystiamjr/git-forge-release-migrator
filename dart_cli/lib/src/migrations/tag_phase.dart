@@ -5,6 +5,7 @@ import '../core/logging.dart';
 import '../core/types/canonical_release.dart';
 import '../core/types/phase.dart';
 import '../models/migration_context.dart';
+import '../runtime_events/runtime_event_type.dart';
 import 'selection.dart';
 
 class TagPhaseRunner {
@@ -29,6 +30,26 @@ class TagPhaseRunner {
       assetCount: assetCount,
       durationMs: durationMs,
       dryRun: dryRun,
+    );
+  }
+
+  void _emitTagEvent(
+    MigrationContext ctx, {
+    required String tag,
+    required String status,
+    String? message,
+  }) {
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'tag': tag,
+      'status': status,
+    };
+    if (message != null && message.isNotEmpty) {
+      payload['message'] = message;
+    }
+
+    ctx.runtimeEventEmitter.emit(
+      eventType: RuntimeEventType.tagMigrated,
+      payload: payload,
     );
   }
 
@@ -100,6 +121,12 @@ class TagPhaseRunner {
       durationMs: 0,
       dryRun: false,
     );
+    _emitTagEvent(
+      ctx,
+      tag: tag,
+      status: 'skipped_existing',
+      message: 'Checkpoint skip ($checkpointStatus)',
+    );
     logger.info('[$tag] checkpoint skip: tag already processed');
     return true;
   }
@@ -133,6 +160,12 @@ class TagPhaseRunner {
       key: checkpointKey,
       tag: tag,
       status: 'tag_skipped_existing',
+      message: 'Tag already exists in ${SelectionService.capitalizeProvider(ctx.options.targetProvider)}',
+    );
+    _emitTagEvent(
+      ctx,
+      tag: tag,
+      status: 'skipped_existing',
       message: 'Tag already exists in ${SelectionService.capitalizeProvider(ctx.options.targetProvider)}',
     );
     return true;
@@ -173,6 +206,12 @@ class TagPhaseRunner {
       durationMs: 0,
       dryRun: false,
     );
+    _emitTagEvent(
+      ctx,
+      tag: tag,
+      status: 'failed',
+      message: 'Tag commit SHA not found in ${SelectionService.capitalizeProvider(ctx.options.sourceProvider)}',
+    );
     logger.warn('[$tag] tag migration failed: commit SHA not found');
     return true;
   }
@@ -192,6 +231,12 @@ class TagPhaseRunner {
       assetCount: 0,
       durationMs: 0,
       dryRun: true,
+    );
+    _emitTagEvent(
+      ctx,
+      tag: tag,
+      status: 'would_create',
+      message: 'Dry-run: tag would be created',
     );
     return true;
   }
@@ -223,6 +268,12 @@ class TagPhaseRunner {
         durationMs: 0,
         dryRun: false,
       );
+      _emitTagEvent(
+        ctx,
+        tag: tag,
+        status: 'created',
+        message: 'Tag migrated successfully',
+      );
       _checkpointMark(
         ctx.checkpointPath,
         ctx.checkpointState,
@@ -245,6 +296,12 @@ class TagPhaseRunner {
           assetCount: 0,
           durationMs: 0,
           dryRun: false,
+        );
+        _emitTagEvent(
+          ctx,
+          tag: tag,
+          status: 'failed',
+          message: 'Tag creation failed: authentication error',
         );
         _checkpointMark(
           ctx.checkpointPath,
@@ -273,6 +330,12 @@ class TagPhaseRunner {
           status: 'tag_skipped_existing',
           message: 'Tag detected after create attempt',
         );
+        _emitTagEvent(
+          ctx,
+          tag: tag,
+          status: 'skipped_existing',
+          message: 'Tag detected after create attempt',
+        );
         return;
       }
 
@@ -286,6 +349,12 @@ class TagPhaseRunner {
         assetCount: 0,
         durationMs: 0,
         dryRun: false,
+      );
+      _emitTagEvent(
+        ctx,
+        tag: tag,
+        status: 'failed',
+        message: 'Failed to create tag in ${SelectionService.capitalizeProvider(ctx.options.targetProvider)}: $exc',
       );
       _checkpointMark(
         ctx.checkpointPath,
