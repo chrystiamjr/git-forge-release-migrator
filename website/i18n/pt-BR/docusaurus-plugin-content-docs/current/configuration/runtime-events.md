@@ -33,6 +33,24 @@ sendo `migration-log.jsonl`.
 
 Use `mandatory` só quando o consumidor fizer parte do contrato obrigatório de runtime da camada que embute o GFRM.
 
+## `RunState` derivado
+
+O sink reducer pode derivar um snapshot tipado de `RunState` a partir do stream ordenado de eventos.
+
+O modelo atual do snapshot inclui:
+
+- status de lifecycle
+- fase ativa
+- resumo de preflight
+- contadores de tags e releases
+- entradas de progresso por tag e por release
+- caminhos de artefatos
+- comando de retry e status final de conclusão
+- contexto da falha mais recente
+
+Esse estado serve para GUI, testes e diagnósticos in-process. Ele permanece provider-agnostic e seguro para replay
+porque é derivado apenas dos runtime events canônicos acima.
+
 ## Famílias de eventos
 
 Exemplos de runtime events expostos nesta entrega:

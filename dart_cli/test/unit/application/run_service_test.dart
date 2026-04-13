@@ -16,6 +16,7 @@ import 'package:gfrm_dart/src/core/types/publish_release_input.dart';
 import 'package:gfrm_dart/src/models/runtime_options.dart';
 import 'package:gfrm_dart/src/providers/registry.dart';
 import 'package:gfrm_dart/src/runtime_events/in_memory_runtime_event_sink.dart';
+import 'package:gfrm_dart/src/runtime_events/run_state_runtime_event_sink.dart';
 import 'package:gfrm_dart/src/runtime_events/runtime_event_envelope.dart';
 import 'package:gfrm_dart/src/runtime_events/runtime_event_sink.dart';
 import 'package:gfrm_dart/src/runtime_events/runtime_event_sink_failure_mode.dart';
@@ -295,6 +296,43 @@ void main() {
       expect(sink.events.last.eventType, 'run_completed');
       expect(sink.events.last.payload['status'], 'partial_failure');
       expect(sink.events.last.payload['retry_command'], contains('gfrm resume --tags-file'));
+    });
+
+    test('reduces successful runtime stream into typed run state snapshot', () async {
+      final Directory temp = createTempDir('gfrm-run-service-run-state-');
+      final RunStateRuntimeEventSink sink = RunStateRuntimeEventSink();
+      final RunService service = RunService(
+        logger: createSilentLogger(),
+        registryFactory: (_) => _buildRegistry(releases: <Map<String, dynamic>>[buildMinimalReleasePayload('v1.0.0')]),
+      );
+
+      final RunResult result = await service.run(
+        RunRequest(
+          options: buildRuntimeOptions(
+            workdir: '${temp.path}/results',
+            settingsProfile: 'desktop',
+          ),
+          runtimeEventSinks: <RunStateRuntimeEventSink>[sink],
+        ),
+      );
+
+      expect(result.status, RunStatus.success);
+      expect(sink.state.lifecycle.value, 'completed');
+      expect(sink.state.activePhase.value, 'completed');
+      expect(sink.state.sourceProvider, 'github');
+      expect(sink.state.targetProvider, 'gitlab');
+      expect(sink.state.mode, 'migrate');
+      expect(sink.state.settingsProfile, 'desktop');
+      expect(sink.state.tagCreatedCount, 1);
+      expect(sink.state.releaseCreatedCount, 1);
+      expect(sink.state.artifactPaths.summaryPath, result.summaryPath);
+      expect(sink.state.artifactPaths.failedTagsPath, result.failedTagsPath);
+      expect(sink.state.artifactPaths.migrationLogPath, result.logPath);
+      expect(sink.state.completionStatus, 'success');
+      expect(sink.state.retryCommand, isEmpty);
+      expect(sink.state.totalTags, 1);
+      expect(sink.state.failedTags, 0);
+      expect(sink.state.latestFailure, isNull);
     });
 
     test('returns validation failure when no releases are selected', () async {
