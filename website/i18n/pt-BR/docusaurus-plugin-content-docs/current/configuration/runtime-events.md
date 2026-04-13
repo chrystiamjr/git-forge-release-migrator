@@ -21,9 +21,17 @@ Eles complementam os artefatos voltados a operadores, mas não substituem `summa
 - a ordenação dos eventos é autoritativa dentro de cada execução
 - sinks suportados nesta entrega: console, JSONL, in-memory e reducer
 - a formatação específica de cada sink fica fora do publisher ordenado
+- sinks agora declaram um modo explícito de falha: `optional` ou `mandatory`
 
 O sink JSONL é uma implementação consumidora de runtime events. O artefato público da execução para operadores continua
 sendo `migration-log.jsonl`.
+
+## Política de falha
+
+- sinks `optional` operam em best-effort: falhas são registradas e a execução continua
+- sinks `mandatory` falham a execução imediatamente quando não conseguem consumir um evento
+
+Use `mandatory` só quando o consumidor fizer parte do contrato obrigatório de runtime da camada que embute o GFRM.
 
 ## Famílias de eventos
 

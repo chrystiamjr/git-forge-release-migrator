@@ -8,13 +8,33 @@ import 'package:gfrm_dart/src/runtime_events/jsonl_runtime_event_sink.dart';
 import 'package:gfrm_dart/src/runtime_events/reducer_runtime_event_sink.dart';
 import 'package:gfrm_dart/src/runtime_events/runtime_event_emitter.dart';
 import 'package:gfrm_dart/src/runtime_events/runtime_event_envelope.dart';
+import 'package:gfrm_dart/src/runtime_events/runtime_event_sink_dispatch_exception.dart';
 import 'package:gfrm_dart/src/runtime_events/runtime_event_sink.dart';
+import 'package:gfrm_dart/src/runtime_events/runtime_event_sink_failure_mode.dart';
 import 'package:gfrm_dart/src/runtime_events/runtime_event_type.dart';
 import 'package:gfrm_dart/src/runtime_events/serial_runtime_event_publisher.dart';
 import 'package:test/test.dart';
 
 import '../../support/buffer_console_output.dart';
 import '../../support/temp_dir.dart';
+
+final class _ThrowingRuntimeEventSink implements RuntimeEventSink {
+  const _ThrowingRuntimeEventSink({
+    required this.id,
+    required this.failureMode,
+  });
+
+  @override
+  final String id;
+
+  @override
+  final RuntimeEventSinkFailureMode failureMode;
+
+  @override
+  void consume(RuntimeEventEnvelope envelope) {
+    throw StateError('sink failure: ${envelope.eventType}');
+  }
+}
 
 void main() {
   group('RuntimeEventEmitter', () {
@@ -117,6 +137,69 @@ void main() {
       );
 
       expect(output.stdoutLines.single, '[INFO] [runtime-event #7] run_completed');
+    });
+
+    test('continues after optional sink failure and reports it', () {
+      final InMemoryRuntimeEventSink memorySink = InMemoryRuntimeEventSink();
+      final List<RuntimeEventSinkDispatchException> failures = <RuntimeEventSinkDispatchException>[];
+      final RuntimeEventEmitter emitter = RuntimeEventEmitter(
+        publisher: SerialRuntimeEventPublisher(
+          runId: 'run-emit',
+          timestampFactory: () => '2026-04-09T15:00:00Z',
+        ),
+        sinks: <RuntimeEventSink>[
+          const _ThrowingRuntimeEventSink(
+            id: 'optional-broken',
+            failureMode: RuntimeEventSinkFailureMode.optional,
+          ),
+          memorySink,
+        ],
+        onSinkFailure: failures.add,
+      );
+
+      emitter.emit(
+        eventType: RuntimeEventType.runStarted,
+        payload: <String, dynamic>{'mode': 'migrate'},
+      );
+
+      expect(memorySink.events.single.eventType, 'run_started');
+      expect(failures, hasLength(1));
+      expect(failures.single.sinkId, 'optional-broken');
+      expect(failures.single.failureMode, RuntimeEventSinkFailureMode.optional);
+    });
+
+    test('throws when mandatory sink fails', () {
+      final InMemoryRuntimeEventSink memorySink = InMemoryRuntimeEventSink();
+      final RuntimeEventEmitter emitter = RuntimeEventEmitter(
+        publisher: SerialRuntimeEventPublisher(
+          runId: 'run-emit',
+          timestampFactory: () => '2026-04-09T15:00:00Z',
+        ),
+        sinks: <RuntimeEventSink>[
+          memorySink,
+          const _ThrowingRuntimeEventSink(
+            id: 'mandatory-broken',
+            failureMode: RuntimeEventSinkFailureMode.mandatory,
+          ),
+        ],
+      );
+
+      expect(
+        () => emitter.emit(
+          eventType: RuntimeEventType.runStarted,
+          payload: <String, dynamic>{'mode': 'migrate'},
+        ),
+        throwsA(
+          isA<RuntimeEventSinkDispatchException>()
+              .having((RuntimeEventSinkDispatchException error) => error.sinkId, 'sinkId', 'mandatory-broken')
+              .having(
+                (RuntimeEventSinkDispatchException error) => error.failureMode,
+                'failureMode',
+                RuntimeEventSinkFailureMode.mandatory,
+              ),
+        ),
+      );
+      expect(memorySink.events, isEmpty);
     });
   });
 }
