@@ -1,3 +1,9 @@
+## [0.10.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.9.0...v0.10.0) (2026-04-13)
+
+### Features
+
+* **dart:** add mandatory runtime sink failure policy ([de2a26d](https://github.com/chrystiamjr/git-forge-release-migrator/commit/de2a26d0555804229a48bf81a3625eeff988a427))
+
 ## [0.9.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.8.0...v0.9.0) (2026-04-09)
 
 ### Features
