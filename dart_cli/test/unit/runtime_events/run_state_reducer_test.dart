@@ -1,3 +1,5 @@
+import 'package:gfrm_dart/src/runtime_events/run_state.dart';
+import 'package:gfrm_dart/src/runtime_events/run_state_reducer.dart';
 import 'package:gfrm_dart/src/runtime_events/run_state_runtime_event_sink.dart';
 import 'package:gfrm_dart/src/runtime_events/runtime_event_envelope.dart';
 import 'package:gfrm_dart/src/runtime_events/runtime_event_sink_failure_mode.dart';
@@ -140,6 +142,80 @@ void main() {
       expect(first.state.toMap(), second.state.toMap());
     });
 
+    test('applies successful flow transitions step by step', () {
+      final List<RunState> states = _replayStates(_successfulRunStream());
+
+      expect(states[0].lifecycle.value, 'running');
+      expect(states[0].activePhase.value, 'preflight');
+      expect(states[0].sourceProvider, 'gitlab');
+      expect(states[0].targetProvider, 'github');
+
+      expect(states[1].preflightSummary.status, 'ok');
+      expect(states[1].preflightSummary.checkCount, 4);
+      expect(states[1].activePhase.value, 'preflight');
+
+      expect(states[2].activePhase.value, 'tags');
+      expect(states[2].tagCreatedCount, 1);
+      expect(states[2].releaseCreatedCount, 0);
+
+      expect(states[3].activePhase.value, 'releases');
+      expect(states[3].tagCreatedCount, 1);
+      expect(states[3].releaseCreatedCount, 1);
+
+      expect(states[4].activePhase.value, 'artifact_finalization');
+      expect(states[4].artifactPaths.migrationLogPath, 'migration-results/run-state-success/migration-log.jsonl');
+
+      expect(states[5].artifactPaths.failedTagsPath, 'migration-results/run-state-success/failed-tags.txt');
+      expect(states[6].artifactPaths.summaryPath, 'migration-results/run-state-success/summary.json');
+
+      expect(states[7].lifecycle.value, 'completed');
+      expect(states[7].activePhase.value, 'completed');
+      expect(states[7].completionStatus, 'success');
+      expect(states[7].totalTags, 1);
+      expect(states[7].failedTags, 0);
+    });
+
+    test('replays captured envelope maps into the same final snapshot deterministically', () {
+      final List<Map<String, dynamic>> captured =
+          _successfulRunStream().map((RuntimeEventEnvelope envelope) => envelope.toMap()).toList(growable: false);
+
+      RunState directState = const RunState.initial();
+      for (final RuntimeEventEnvelope envelope in _successfulRunStream()) {
+        directState = reduceRunState(directState, envelope);
+      }
+
+      RunState replayedState = const RunState.initial();
+      for (final Map<String, dynamic> raw in captured) {
+        replayedState = reduceRunState(replayedState, RuntimeEventEnvelope.fromMap(raw));
+      }
+
+      expect(replayedState.toMap(), directState.toMap());
+    });
+
+    test('evolves partial-failure flow through preflight tags artifacts and completion', () {
+      final List<RunState> states = _replayStates(_partialFailureRunStream());
+
+      expect(states[0].lifecycle.value, 'running');
+      expect(states[0].mode, 'resume');
+
+      expect(states[1].preflightSummary.status, 'ok');
+      expect(states[1].activePhase.value, 'preflight');
+
+      expect(states[2].activePhase.value, 'tags');
+      expect(states[2].tagFailedCount, 1);
+      expect(states[2].tagSnapshots['v2.0.0']?.message, 'network error');
+
+      expect(states[3].activePhase.value, 'artifact_finalization');
+      expect(states[3].artifactPaths.migrationLogPath, 'migration-results/run-state-partial/migration-log.jsonl');
+      expect(states[4].artifactPaths.failedTagsPath, 'migration-results/run-state-partial/failed-tags.txt');
+      expect(states[5].artifactPaths.summaryPath, 'migration-results/run-state-partial/summary.json');
+
+      expect(states[6].lifecycle.value, 'completed');
+      expect(states[6].completionStatus, 'partial_failure');
+      expect(states[6].retryCommand, 'gfrm resume --tags-file migration-results/run-state-partial/failed-tags.txt');
+      expect(states[6].failedTags, 1);
+    });
+
     test('keeps reducer replay-safe for unknown event types and resets on new run_started', () {
       final RunStateRuntimeEventSink sink = RunStateRuntimeEventSink();
 
@@ -254,6 +330,18 @@ void main() {
       expect(sink.state.latestFailure?.phase, 'runtime_event_sink');
     });
   });
+}
+
+List<RunState> _replayStates(List<RuntimeEventEnvelope> stream) {
+  final List<RunState> states = <RunState>[];
+  RunState currentState = const RunState.initial();
+
+  for (final RuntimeEventEnvelope envelope in stream) {
+    currentState = reduceRunState(currentState, envelope);
+    states.add(currentState);
+  }
+
+  return states;
 }
 
 List<RuntimeEventEnvelope> _successfulRunStream() {
