@@ -1,3 +1,9 @@
+## [0.11.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.10.0...v0.11.0) (2026-04-14)
+
+### Features
+
+* **dart:** define typed run state snapshot ([2cf2073](https://github.com/chrystiamjr/git-forge-release-migrator/commit/2cf2073b4c1e7c2bba5924bec2d7a885cd62cde1))
+
 ## [0.10.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.9.0...v0.10.0) (2026-04-13)
 
 ### Features
