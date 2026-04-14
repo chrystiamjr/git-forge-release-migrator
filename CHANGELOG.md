@@ -1,3 +1,5 @@
+## [0.11.1](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.11.0...v0.11.1) (2026-04-14)
+
 ## [0.11.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.10.0...v0.11.0) (2026-04-14)
 
 ### Features
