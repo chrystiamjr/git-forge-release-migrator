@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:gfrm_dart/src/application/preflight_check.dart';
@@ -245,6 +246,48 @@ void main() {
       expect(sink.events.last.payload['status'], 'success');
     });
 
+    test('keeps success artifact events and final payload aligned with written files', () async {
+      final Directory temp = createTempDir('gfrm-run-service-events-artifacts-success-');
+      final InMemoryRuntimeEventSink sink = InMemoryRuntimeEventSink();
+      final RunService service = RunService(
+        logger: createSilentLogger(),
+        registryFactory: (_) => _buildRegistry(releases: <Map<String, dynamic>>[buildMinimalReleasePayload('v1.0.0')]),
+      );
+
+      final RunResult result = await service.run(
+        RunRequest(
+          options: buildRuntimeOptions(workdir: '${temp.path}/results'),
+          runtimeEventSinks: <InMemoryRuntimeEventSink>[sink],
+        ),
+      );
+
+      final List<RuntimeEventEnvelope> artifactEvents = sink.events
+          .where((RuntimeEventEnvelope event) => event.eventType == 'artifact_written')
+          .toList(growable: false);
+      final Map<String, dynamic> runCompletedPayload = sink.events.last.payload;
+      final Map<String, dynamic> summary = _readSummary(result.summaryPath);
+
+      expect(result.status, RunStatus.success);
+      expect(artifactEvents.map((RuntimeEventEnvelope event) => event.payload['artifact_type']), <String>[
+        'migration_log',
+        'failed_tags',
+        'summary',
+      ]);
+      expect(
+        artifactEvents.map((RuntimeEventEnvelope event) => event.payload['path']),
+        <String>[result.logPath, result.failedTagsPath, result.summaryPath],
+      );
+      expect(File(result.logPath).existsSync(), isTrue);
+      expect(File(result.failedTagsPath).existsSync(), isTrue);
+      expect(File(result.summaryPath).existsSync(), isTrue);
+      expect(runCompletedPayload['summary_path'], result.summaryPath);
+      expect(runCompletedPayload['failed_tags_path'], result.failedTagsPath);
+      expect(runCompletedPayload.containsKey('retry_command'), isFalse);
+      expect(summary['retry_command'], '');
+      expect((summary['paths'] as Map<String, dynamic>)['jsonl_log'], result.logPath);
+      expect((summary['paths'] as Map<String, dynamic>)['failed_tags'], result.failedTagsPath);
+    });
+
     test('continues when optional runtime sink fails', () async {
       final Directory temp = createTempDir('gfrm-run-service-events-optional-sink-');
       final InMemoryRuntimeEventSink sink = InMemoryRuntimeEventSink();
@@ -296,6 +339,45 @@ void main() {
       expect(sink.events.last.eventType, 'run_completed');
       expect(sink.events.last.payload['status'], 'partial_failure');
       expect(sink.events.last.payload['retry_command'], contains('gfrm resume --tags-file'));
+    });
+
+    test('keeps partial-failure artifacts retry command and summary in sync', () async {
+      final Directory temp = createTempDir('gfrm-run-service-partial-artifact-sync-');
+      final InMemoryRuntimeEventSink sink = InMemoryRuntimeEventSink();
+      final RunService service = RunService(
+        logger: createSilentLogger(),
+        registryFactory: (_) => _buildRegistry(
+          releases: <Map<String, dynamic>>[buildMinimalReleasePayload('v1.0.0')],
+          onCreateTag: (_, __, ___, ____, _____) async => throw Exception('network error'),
+        ),
+      );
+
+      final RunResult result = await service.run(
+        RunRequest(
+          options: buildRuntimeOptions(workdir: '${temp.path}/results'),
+          runtimeEventSinks: <InMemoryRuntimeEventSink>[sink],
+        ),
+      );
+
+      final List<RuntimeEventEnvelope> artifactEvents = sink.events
+          .where((RuntimeEventEnvelope event) => event.eventType == 'artifact_written')
+          .toList(growable: false);
+      final Map<String, dynamic> runCompletedPayload = sink.events.last.payload;
+      final Map<String, dynamic> summary = _readSummary(result.summaryPath);
+
+      expect(result.status, RunStatus.partialFailure);
+      expect(artifactEvents.map((RuntimeEventEnvelope event) => event.payload['path']), <String>[
+        result.logPath,
+        result.failedTagsPath,
+        result.summaryPath,
+      ]);
+      expect(File(result.failedTagsPath).readAsStringSync(), 'v1.0.0\n');
+      expect(runCompletedPayload['summary_path'], result.summaryPath);
+      expect(runCompletedPayload['failed_tags_path'], result.failedTagsPath);
+      expect(runCompletedPayload['retry_command'], result.retryCommand);
+      expect(summary['retry_command'], result.retryCommand);
+      expect((summary['failed_tags'] as List<dynamic>).cast<String>(), <String>['v1.0.0']);
+      expect((summary['paths'] as Map<String, dynamic>)['failed_tags'], result.failedTagsPath);
     });
 
     test('reduces successful runtime stream into typed run state snapshot', () async {
@@ -438,6 +520,51 @@ void main() {
       expect(sink.events[1].payload['status'], 'failed');
       expect(sink.events.last.eventType, 'run_failed');
       expect(sink.events.last.payload['code'], 'missing-target-commit-history');
+    });
+
+    test('keeps preflight run_failed event consistent with written artifacts when summary exists', () async {
+      final Directory temp = createTempDir('gfrm-run-service-preflight-artifact-sync-');
+      final InMemoryRuntimeEventSink sink = InMemoryRuntimeEventSink();
+      final RunService service = RunService(
+        logger: createSilentLogger(),
+        registryFactory: (_) => _buildRegistry(
+          releases: <Map<String, dynamic>>[
+            buildMinimalReleasePayload('v1.0.0', commitSha: 'deadbeef'),
+          ],
+          onCreateTag: (_, __, ___, ____, _____) async {
+            fail('tag creation should not be attempted when target commit history is missing');
+          },
+          onCommitExists: (_, __, ___) async => false,
+        ),
+      );
+
+      final RunResult result = await service.run(
+        RunRequest(
+          options: buildRuntimeOptions(workdir: '${temp.path}/results'),
+          runtimeEventSinks: <InMemoryRuntimeEventSink>[sink],
+        ),
+      );
+
+      final List<RuntimeEventEnvelope> artifactEvents = sink.events
+          .where((RuntimeEventEnvelope event) => event.eventType == 'artifact_written')
+          .toList(growable: false);
+      final Map<String, dynamic> runFailedPayload = sink.events.last.payload;
+      final Map<String, dynamic> summary = _readSummary(result.summaryPath);
+
+      expect(result.status, RunStatus.validationFailure);
+      expect(artifactEvents.map((RuntimeEventEnvelope event) => event.payload['path']), <String>[
+        result.logPath,
+        result.failedTagsPath,
+        result.summaryPath,
+      ]);
+      expect(File(result.summaryPath).existsSync(), isTrue);
+      expect(File(result.failedTagsPath).readAsStringSync(), 'v1.0.0\n');
+      expect(runFailedPayload['code'], 'missing-target-commit-history');
+      expect(runFailedPayload.containsKey('summary_path'), isFalse);
+      expect(runFailedPayload.containsKey('failed_tags_path'), isFalse);
+      expect(runFailedPayload.containsKey('retry_command'), isFalse);
+      expect(summary['retry_command'], result.retryCommand);
+      expect((summary['failed_tags'] as List<dynamic>).cast<String>(), <String>['v1.0.0']);
     });
 
     test('returns validation failure with preflight message for unsupported command', () async {
@@ -733,4 +860,8 @@ void main() {
       expect(result.failures.single.message, contains('unexpected boom'));
     });
   });
+}
+
+Map<String, dynamic> _readSummary(String path) {
+  return jsonDecode(File(path).readAsStringSync()) as Map<String, dynamic>;
 }
