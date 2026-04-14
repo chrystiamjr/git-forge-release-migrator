@@ -216,6 +216,59 @@ void main() {
       expect(states[6].failedTags, 1);
     });
 
+    test('tracks mixed tag and release counters through ordered phase transitions', () {
+      final List<RunState> states = _replayStates(_mixedOutcomeRunStream());
+
+      expect(states[0].activePhase.value, 'preflight');
+
+      expect(states[1].preflightSummary.status, 'ok');
+      expect(states[1].preflightSummary.warningCount, 2);
+
+      expect(states[2].activePhase.value, 'tags');
+      expect(states[2].tagCreatedCount, 1);
+      expect(states[2].tagWouldCreateCount, 0);
+      expect(states[2].tagSkippedExistingCount, 0);
+      expect(states[2].tagFailedCount, 0);
+
+      expect(states[3].tagCreatedCount, 1);
+      expect(states[3].tagWouldCreateCount, 1);
+      expect(states[4].tagSkippedExistingCount, 1);
+      expect(states[5].tagFailedCount, 1);
+      expect(states[5].tagSnapshots['v4.0.0']?.message, 'tag permission denied');
+
+      expect(states[6].activePhase.value, 'releases');
+      expect(states[6].releaseCreatedCount, 1);
+      expect(states[6].releaseWouldCreateCount, 0);
+      expect(states[6].releaseSkippedExistingCount, 0);
+      expect(states[6].releaseFailedCount, 0);
+
+      expect(states[7].releaseWouldCreateCount, 1);
+      expect(states[8].releaseSkippedExistingCount, 1);
+      expect(states[9].releaseFailedCount, 1);
+      expect(states[9].releaseSnapshots['v4.0.0']?.message, 'release publish timeout');
+
+      expect(states[10].lifecycle.value, 'completed');
+      expect(states[10].activePhase.value, 'completed');
+      expect(states[10].completionStatus, 'partial_failure');
+      expect(states[10].totalTags, 4);
+      expect(states[10].failedTags, 1);
+    });
+
+    test('replays captured mixed stream into identical state progression', () {
+      final List<RuntimeEventEnvelope> stream = _mixedOutcomeRunStream();
+      final List<RunState> directStates = _replayStates(stream);
+      final List<RunState> replayedStates = _replayStates(
+        stream
+            .map((RuntimeEventEnvelope envelope) => RuntimeEventEnvelope.fromMap(envelope.toMap()))
+            .toList(growable: false),
+      );
+
+      expect(
+        replayedStates.map((RunState state) => state.toMap()).toList(growable: false),
+        directStates.map((RunState state) => state.toMap()).toList(growable: false),
+      );
+    });
+
     test('keeps reducer replay-safe for unknown event types and resets on new run_started', () {
       final RunStateRuntimeEventSink sink = RunStateRuntimeEventSink();
 
@@ -559,6 +612,131 @@ List<RuntimeEventEnvelope> _preflightFailureStream() {
         'message': 'Missing target repository access.',
         'phase': 'preflight',
         'retryable': false,
+      },
+    ),
+  ];
+}
+
+List<RuntimeEventEnvelope> _mixedOutcomeRunStream() {
+  return <RuntimeEventEnvelope>[
+    _event(
+      sequence: 1,
+      occurredAt: '2026-04-13T12:50:01Z',
+      eventType: RuntimeEventType.runStarted,
+      runId: 'run-state-mixed',
+      payload: <String, dynamic>{
+        'source_provider': 'gitlab',
+        'target_provider': 'github',
+        'mode': 'migrate',
+      },
+    ),
+    _event(
+      sequence: 2,
+      occurredAt: '2026-04-13T12:50:02Z',
+      eventType: RuntimeEventType.preflightCompleted,
+      runId: 'run-state-mixed',
+      payload: <String, dynamic>{
+        'status': 'ok',
+        'check_count': 5,
+        'blocking_count': 0,
+        'warning_count': 2,
+      },
+    ),
+    _event(
+      sequence: 3,
+      occurredAt: '2026-04-13T12:50:03Z',
+      eventType: RuntimeEventType.tagMigrated,
+      runId: 'run-state-mixed',
+      payload: <String, dynamic>{
+        'tag': 'v1.0.0',
+        'status': 'created',
+      },
+    ),
+    _event(
+      sequence: 4,
+      occurredAt: '2026-04-13T12:50:04Z',
+      eventType: RuntimeEventType.tagMigrated,
+      runId: 'run-state-mixed',
+      payload: <String, dynamic>{
+        'tag': 'v2.0.0',
+        'status': 'would_create',
+      },
+    ),
+    _event(
+      sequence: 5,
+      occurredAt: '2026-04-13T12:50:05Z',
+      eventType: RuntimeEventType.tagMigrated,
+      runId: 'run-state-mixed',
+      payload: <String, dynamic>{
+        'tag': 'v3.0.0',
+        'status': 'skipped_existing',
+      },
+    ),
+    _event(
+      sequence: 6,
+      occurredAt: '2026-04-13T12:50:06Z',
+      eventType: RuntimeEventType.tagMigrated,
+      runId: 'run-state-mixed',
+      payload: <String, dynamic>{
+        'tag': 'v4.0.0',
+        'status': 'failed',
+        'message': 'tag permission denied',
+      },
+    ),
+    _event(
+      sequence: 7,
+      occurredAt: '2026-04-13T12:50:07Z',
+      eventType: RuntimeEventType.releaseMigrated,
+      runId: 'run-state-mixed',
+      payload: <String, dynamic>{
+        'tag': 'v1.0.0',
+        'status': 'created',
+        'asset_count': 1,
+      },
+    ),
+    _event(
+      sequence: 8,
+      occurredAt: '2026-04-13T12:50:08Z',
+      eventType: RuntimeEventType.releaseMigrated,
+      runId: 'run-state-mixed',
+      payload: <String, dynamic>{
+        'tag': 'v2.0.0',
+        'status': 'would_create',
+        'asset_count': 0,
+      },
+    ),
+    _event(
+      sequence: 9,
+      occurredAt: '2026-04-13T12:50:09Z',
+      eventType: RuntimeEventType.releaseMigrated,
+      runId: 'run-state-mixed',
+      payload: <String, dynamic>{
+        'tag': 'v3.0.0',
+        'status': 'skipped_existing',
+        'asset_count': 0,
+      },
+    ),
+    _event(
+      sequence: 10,
+      occurredAt: '2026-04-13T12:50:10Z',
+      eventType: RuntimeEventType.releaseMigrated,
+      runId: 'run-state-mixed',
+      payload: <String, dynamic>{
+        'tag': 'v4.0.0',
+        'status': 'failed',
+        'asset_count': 0,
+        'message': 'release publish timeout',
+      },
+    ),
+    _event(
+      sequence: 11,
+      occurredAt: '2026-04-13T12:50:11Z',
+      eventType: RuntimeEventType.runCompleted,
+      runId: 'run-state-mixed',
+      payload: <String, dynamic>{
+        'status': 'partial_failure',
+        'total_tags': 4,
+        'failed_tags': 1,
       },
     ),
   ];
