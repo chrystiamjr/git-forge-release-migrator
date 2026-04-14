@@ -10,6 +10,7 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 RuntimeOptions buildRuntimeOptionsForSummary({
+  String commandName = commandResume,
   String fromTag = '',
   String toTag = '',
   String sessionFile = '',
@@ -19,7 +20,7 @@ RuntimeOptions buildRuntimeOptionsForSummary({
   String sessionTokenMode = 'env',
 }) {
   return RuntimeOptions(
-    commandName: commandResume,
+    commandName: commandName,
     sourceProvider: 'github',
     sourceUrl: 'https://github.com/acme/source',
     sourceToken: 'src-token',
@@ -103,6 +104,19 @@ void main() {
       expect(command, contains('--json'));
       expect(command, contains('--session-token-mode plain'));
       expect(command, contains('--settings-profile default'));
+    });
+
+    test('buildRetryCommand always uses gfrm resume for migrate runs', () {
+      final RuntimeOptions options = buildRuntimeOptionsForSummary(
+        commandName: commandMigrate,
+        sessionFile: '/tmp/resume-session.json',
+      );
+
+      final String command = SummaryWriter.buildRetryCommand(options, File('/tmp/failed-tags.txt'));
+
+      expect(command, startsWith('gfrm resume --tags-file '));
+      expect(command, isNot(startsWith('gfrm migrate')));
+      expect(command, contains('--session-file /tmp/resume-session.json'));
     });
 
     test('writeSummary persists summary and failed-tags artifacts', () async {

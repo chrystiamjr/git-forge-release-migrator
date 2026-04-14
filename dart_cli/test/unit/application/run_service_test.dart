@@ -380,6 +380,80 @@ void main() {
       expect((summary['paths'] as Map<String, dynamic>)['failed_tags'], result.failedTagsPath);
     });
 
+    test('resume retries only failed tags and keeps summary retry contract stable', () async {
+      final Directory temp = createTempDir('gfrm-run-service-resume-idempotent-');
+      final List<String> createTagCalls = <String>[];
+      final Set<String> createdTags = <String>{};
+      bool failFirstTagAttempt = true;
+      final ProviderRegistry registry = ProviderRegistry(<String, ProviderAdapter>{
+        'github': _SourceAdapter(
+          releases: <Map<String, dynamic>>[
+            buildMinimalReleasePayload('v1.0.0'),
+            buildMinimalReleasePayload('v1.1.0'),
+          ],
+        ),
+        'gitlab': _TargetAdapter(
+          onCreateTag: (_, __, String tag, ___, ____) async {
+            createTagCalls.add(tag);
+            if (tag == 'v1.0.0' && failFirstTagAttempt) {
+              failFirstTagAttempt = false;
+              throw Exception('network error');
+            }
+
+            createdTags.add(tag);
+          },
+          onTagExists: (_, __, String tag) async => createdTags.contains(tag),
+        ),
+      });
+      final RunService service = RunService(
+        logger: createSilentLogger(),
+        registryFactory: (_) => registry,
+      );
+      final InMemoryRuntimeEventSink firstSink = InMemoryRuntimeEventSink();
+
+      final RunResult firstResult = await service.run(
+        RunRequest(
+          options: buildRuntimeOptions(workdir: '${temp.path}/results'),
+          runtimeEventSinks: <InMemoryRuntimeEventSink>[firstSink],
+        ),
+      );
+
+      final int firstRunCallCount = createTagCalls.length;
+      final InMemoryRuntimeEventSink resumeSink = InMemoryRuntimeEventSink();
+      final RunResult resumeResult = await service.run(
+        RunRequest(
+          options: buildRuntimeOptions(
+            commandName: commandResume,
+            workdir: '${temp.path}/results',
+            tagsFile: firstResult.failedTagsPath,
+          ),
+          runtimeEventSinks: <InMemoryRuntimeEventSink>[resumeSink],
+        ),
+      );
+
+      final Map<String, dynamic> resumeSummary = _readSummary(resumeResult.summaryPath);
+
+      expect(firstResult.status, RunStatus.partialFailure);
+      expect(firstResult.retryCommand, contains('gfrm resume --tags-file'));
+      expect(File(firstResult.failedTagsPath).readAsStringSync(), 'v1.0.0\n');
+      expect(createTagCalls.take(firstRunCallCount), <String>['v1.0.0', 'v1.1.0']);
+      expect(createdTags, contains('v1.1.0'));
+      expect(resumeResult.status, RunStatus.success);
+      expect(resumeResult.retryCommand, isEmpty);
+      expect(createTagCalls.skip(firstRunCallCount), <String>['v1.0.0']);
+      expect(createdTags, containsAll(<String>{'v1.0.0', 'v1.1.0'}));
+      expect(File(resumeResult.failedTagsPath).readAsStringSync(), isEmpty);
+      expect(resumeSummary['schema_version'], 2);
+      expect(resumeSummary['command'], commandResume);
+      expect(resumeSummary['retry_command'], '');
+      expect((resumeSummary['failed_tags'] as List<dynamic>), isEmpty);
+      expect((resumeSummary['paths'] as Map<String, dynamic>)['failed_tags'], resumeResult.failedTagsPath);
+      expect(resumeSink.events.last.eventType, 'run_completed');
+      expect(resumeSink.events.last.payload['status'], 'success');
+      expect(resumeSink.events.last.payload['summary_path'], resumeResult.summaryPath);
+      expect(resumeSink.events.last.payload.containsKey('retry_command'), isFalse);
+    });
+
     test('reduces successful runtime stream into typed run state snapshot', () async {
       final Directory temp = createTempDir('gfrm-run-service-run-state-');
       final RunStateRuntimeEventSink sink = RunStateRuntimeEventSink();
