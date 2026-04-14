@@ -33,6 +33,24 @@ The JSONL sink is a runtime-event consumer implementation. The public run artifa
 
 Use `mandatory` only when the consumer is part of the required runtime contract for your embedding layer.
 
+## Derived `RunState`
+
+The reducer sink can derive a typed `RunState` snapshot from the ordered event stream.
+
+The current snapshot model includes:
+
+- lifecycle status
+- active phase
+- preflight summary
+- tag and release counters
+- per-tag and per-release progress entries
+- artifact paths
+- retry command and final completion status
+- latest failure context
+
+This state is meant for GUI, tests, and in-process diagnostics. It stays provider-agnostic and replay-safe because it
+is derived only from the canonical runtime events above.
+
 ## Event families
 
 Examples of runtime events exposed in this release:
