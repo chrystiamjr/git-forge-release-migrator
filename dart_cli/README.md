@@ -1,6 +1,7 @@
 # GFRM Dart CLI
 
 Dart runtime package for `git-forge-release-migrator`.
+Shared by CLI entrypoints and the desktop GUI workspace in `../gui`.
 
 ## Requirements
 

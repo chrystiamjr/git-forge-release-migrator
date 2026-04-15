@@ -21,6 +21,19 @@ Full documentation is available at **[gfrm.envolvosystems.com.br](https://gfrm.e
 
 - Development/runtime guide: [dart_cli/README.md](dart_cli/README.md)
 
+## Workspace
+
+- `dart_cli/` holds shared Dart runtime used by CLI and desktop GUI flows.
+- `gui/` holds the Flutter desktop app foundation for macOS, Windows, and Linux.
+
+GUI quick start:
+
+```bash
+cd gui
+fvm flutter pub get
+fvm flutter run -d macos
+```
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
