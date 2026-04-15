@@ -1,3 +1,9 @@
+## [0.12.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.11.1...v0.12.0) (2026-04-15)
+
+### Features
+
+* **dart:** add Flutter desktop scaffold ([62c3b9c](https://github.com/chrystiamjr/git-forge-release-migrator/commit/62c3b9cb9727b910ff28848f2fb339fb61b2b165))
+
 ## [0.11.1](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.11.0...v0.11.1) (2026-04-14)
 
 ## [0.11.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.10.0...v0.11.0) (2026-04-14)
