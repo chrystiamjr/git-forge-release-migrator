@@ -19,6 +19,19 @@ runs:
       shell: bash
       run: yarn lint:dart
 
+    - name: Lint GUI sources
+      shell: bash
+      run: |
+        cd gui
+        dart format -l 120 --set-exit-if-changed lib test
+        flutter analyze
+
+    - name: Run GUI tests
+      shell: bash
+      run: |
+        cd gui
+        flutter test
+
     - name: Run tests with coverage
       shell: bash
       run: yarn coverage:dart
