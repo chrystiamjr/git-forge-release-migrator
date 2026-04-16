@@ -1,3 +1,13 @@
+## [0.13.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.12.0...v0.13.0) (2026-04-16)
+
+### Features
+
+* **dart:** add GUI runtime boundary ([02d5599](https://github.com/chrystiamjr/git-forge-release-migrator/commit/02d5599eccc888498e4eae536839ececa4e5b1f1))
+
+### Bug Fixes
+
+* **review:** address PR review feedback ([2bfc44f](https://github.com/chrystiamjr/git-forge-release-migrator/commit/2bfc44fbb2c8ee9929fc80331ea55ca4a642c332))
+
 ## [0.12.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.11.1...v0.12.0) (2026-04-15)
 
 ### Features
