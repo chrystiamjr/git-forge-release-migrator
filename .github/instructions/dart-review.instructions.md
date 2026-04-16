@@ -5,109 +5,86 @@ applyTo: "dart_cli/lib/**/*.dart,dart_cli/test/**/*.dart"
 # Dart Review Rules
 
 - Treat `AGENTS.md` as the source of truth for CLI contract, invariants, and architecture.
-- Preserve the current CLI surface: `migrate`, `resume`, `demo`, `setup`, `settings`.
-- Prefer additive, minimal changes over broad rewrites in migration flow or provider logic.
+- Preserve public commands: `migrate`, `resume`, `demo`, `setup`, `settings`.
+- Prefer minimal additive changes over broad rewrites.
+- Ignore generated files, lock files, harmless formatting, and import ordering.
 
-## Contract Invariants (block merge if violated)
+## Block Merge If Violated
 
-- Token precedence is deterministic:
-  - `migrate`: settings `token_env`, then `token_plain`, then env aliases
-  - `resume`: session token context, then settings `token_env`, then `token_plain`, then env aliases
-- Hidden compatibility flags `--source-token` and `--target-token` still exist; do not break them casually.
-- Tags-first is mandatory. Releases depend on destination tags unless `--skip-tags` is explicitly used.
-- `--skip-tags` is not a shortcut for general migrations. Keep its safety expectations intact.
-- Release selection remains semver-only for `vX.Y.Z`. Do not broaden selection unless the repository intentionally changes that policy.
-- `summary.json` stays on `schema_version: 2` and failed runs must keep a retry command based on `gfrm resume`.
+- Token precedence changes:
+  - `migrate`: settings `token_env`, then `token_plain`, then env aliases.
+  - `resume`: session token context, then settings `token_env`, then `token_plain`, then env aliases.
+- Hidden compatibility flags `--source-token` and `--target-token` are removed or broken.
+- Tags no longer migrate before releases.
+- `--skip-tags` becomes a generic shortcut instead of a constrained escape hatch.
+- Release selection expands beyond semver `vX.Y.Z`.
+- `summary.json` changes from `schema_version: 2`.
+- Failed run retry guidance stops using `gfrm resume`.
 - Never log raw tokens or expose secret values in errors, output, fixtures, or docs.
-- Exit code 0 on success, non-zero on failure. No silent swallowing.
+- Success/failure exit code behavior changes.
 
-## Test Coverage Expectations
+## Tests Expected
 
-When risky files change, expect focused tests:
+- `config.dart`, `core/settings.dart`, setup handlers -> config/settings tests.
+- `selection.dart`, `engine.dart`, `tag_phase.dart`, `release_phase.dart` -> selection/phase tests.
+- `summary.dart`, `cli.dart`, `application/run_service.dart` -> summary/run tests.
+- `run_paths.dart`, `runtime_options.dart` -> artifact/session path tests.
+- `arg_parsers.dart` -> command surface/parser tests.
+- New public Dart source over 30 lines needs focused tests.
 
-- `config.dart`, `core/settings.dart`, `settings_setup_command_handler.dart` -> config/settings tests
-- `selection.dart`, `engine.dart`, `tag_phase.dart`, `release_phase.dart` -> selection/phase tests
-- `summary.dart`, `cli.dart`, `application/run_service.dart` -> summary/runner tests
-- `run_paths.dart`, `runtime_options.dart` -> artifact/session path tests
-- `arg_parsers.dart` -> command surface and parser tests
-- New public Dart source (>30 lines) without any test file -> block merge
-
-## Exception Handling Heuristics
+## Error Handling
 
 Flag when you see:
 
-- `throw Exception(` or `throw StateError(` — should use project-specific exceptions: `HttpRequestError`, `AuthenticationError`, `MigrationPhaseError`.
-- `catch (e)` without rethrowing or logging — silent error swallowing hides failures.
-- `catch (e) { return null; }` — masks real errors; prefer letting exceptions propagate or logging with context.
-- `on Object catch` or `on dynamic catch` — too broad; catch specific types.
-- Missing `rethrow` after logging in catch blocks that should propagate errors.
-- `try/catch` around entire methods — narrow the scope to the specific risky operation.
+- `throw Exception(` or `throw StateError(` in production code where project exceptions fit.
+- `catch (e)` without rethrowing or logging.
+- `catch (e) { return null; }` masking real failures.
+- Broad `on Object catch` around large methods.
+- Missing `await` on Future-returning calls.
+- Secret/token interpolation in logs or errors.
 
-## HTTP and Retry Safety Heuristics
-
-Flag when you see:
-
-- HTTP calls without timeout from `HttpConfig` — must use configured `connect_timeout_ms` and `receive_timeout_ms`.
-- Missing retry logic on GET requests to forge APIs — use the exponential backoff in `requestJson()`.
-- Retry on POST/PUT/DELETE without idempotency guarantees — risk of duplicate operations.
-- `catch` blocks swallowing HTTP errors without logging status code, URL, and method.
-- Hard-coded URLs or API base paths — should come from provider configuration.
-- `requestStatus()` used where `requestJson()` is needed — `requestStatus()` only returns status codes.
-- Missing `Content-Type` header on POST/PUT requests.
-- Authentication tokens interpolated into log messages or error strings.
-
-## Provider Adapter Heuristics
+## HTTP, Providers, Resume
 
 Flag when you see:
 
-- Engine code (`migrations/engine.dart`) calling provider APIs directly — must go through adapters.
-- Provider adapter returning raw JSON — should return typed models.
-- New provider method without corresponding test in the provider's test file.
-- Inconsistent error handling across providers — all three (GitHub, GitLab, Bitbucket) should handle 401/403 the same way via `AuthenticationError`.
-- Bitbucket adapter not handling synthetic release model (tag + notes + downloads + `.gfrm-release-<tag>.json`).
-- Provider adapter with hard-coded pagination limits — should use configurable page sizes.
+- HTTP calls without configured `HttpConfig` timeouts.
+- Retry on POST/PUT/DELETE without idempotency guarantees.
+- Hard-coded API base URLs that should come from provider configuration.
+- Engine or phase code calling concrete provider APIs directly.
+- Engine importing concrete providers instead of using registry/adapter abstractions.
+- Provider adapter returning raw JSON where typed models exist.
+- New provider method without provider tests.
+- Bitbucket synthetic release model broken: tag + notes + downloads + `.gfrm-release-<tag>.json`.
+- Checkpoint transitions skipping terminal states.
+- Resume logic re-processing completed items.
+- Checkpoint writes without atomic semantics.
+- `RunStatePhase` or `RunStateLifecycle` changes without switch/case updates.
 
-## State Machine and Checkpoint Heuristics
-
-Flag when you see:
-
-- Checkpoint state transitions that skip terminal states — completed items must stay completed.
-- Resume logic that re-processes already-completed items — breaks idempotency.
-- Missing terminal state check before writing checkpoint — risk of overwriting completed state.
-- Checkpoint file writes without atomic semantics (write-then-rename).
-- `RunStatePhase` or `RunStateLifecycle` enum changes without updating all switch/case handlers.
-
-## Clean Architecture Boundaries
+## Architecture
 
 The Dart CLI has strict layer boundaries:
 
-- `cli.dart` is an entry point — delegates to `application/` layer, no business logic.
-- `application/` orchestrates runs — calls `migrations/` engine and `providers/` adapters.
-- `migrations/` is the execution engine — selection, phases, summary. No direct API calls.
-- `providers/` adapters translate forge API calls — no business logic, only API mediation.
-- `core/` is shared infrastructure — HTTP, settings, logging, types. No domain logic.
+- `cli.dart`: entry point only.
+- `application/`: orchestration, run service, preflight.
+- `migrations/`: selection, phases, summary, execution. No direct API calls.
+- `providers/`: forge API translation.
+- `core/`: shared infrastructure.
 
 Flag when you see:
 
-- Business logic in `cli.dart` — delegate to `application/` or `migrations/`.
-- Direct HTTP calls in `migrations/engine.dart` or phase runners — must go through provider adapters.
-- Engine importing concrete providers (`github.dart`, `gitlab.dart`) — depend on abstractions via `ProviderRegistry`.
-- Provider adapters containing business rules (filtering, selection, retry decisions) — keep them as pure API translators.
-- `application/` layer importing `cli.dart` or `config/arg_parsers.dart` — wrong direction.
-- Multiple public classes in one file — one public class per file (SRP).
-- New file over 500 lines — decompose into focused units.
+- Business logic in `cli.dart`.
+- `application/` importing CLI entry points or arg parsers.
+- Provider adapters owning migration business rules.
+- Multiple public classes in one file.
+- New file over 500 lines or method over 120 lines.
 
-## Code Style Heuristics
+## Code Quality
 
 Flag when you see:
 
-- `var` instead of `final` for variables never reassigned.
+- `var` instead of explicit type or `final` for values never reassigned.
 - `dynamic` type where a concrete type is known.
 - `print(` in production code — use logging infrastructure.
-- Methods over 120 lines.
-- Files over 500 lines.
 - Magic strings or numbers without named constants.
 - `if (source is ...)` runtime type dispatch in engine flow.
-- Missing `await` on Future-returning calls.
-- String concatenation for paths — use `path` package functions.
-- Unused imports left after refactoring.
+- String concatenation for paths instead of `path` package.

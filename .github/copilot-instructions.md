@@ -1,29 +1,64 @@
-# GitHub Copilot Instructions
+# Copilot Instructions
 
-Use [AGENTS.md](../AGENTS.md) as the primary repository context before reviewing or generating code.
+Use these rules for Copilot Chat and Copilot code review in this repository.
 
-For pull request review on GitHub:
+## Review Stance
 
-- Read the changed files broadly before commenting. Prefer breadth first, then depth on risky areas.
-- Comment only on concrete problems, regressions, security issues, or contract drift. Do not add praise or generic summary comments.
-- Keep comments inline, specific, and actionable.
-- Treat these repository invariants as high priority:
-  - tags migrate before releases
-  - `--skip-tags` stays a constrained option, not a general shortcut
-  - release selection remains semver-only for `vX.Y.Z`
-  - token precedence remains deterministic and documented
-  - `summary.json` stays on schema version `2`
-  - failed runs keep retry guidance based on `gfrm resume`
-  - raw tokens must never be logged
-- When public behavior changes, keep docs in sync across:
-  - `website/docs/**`
-  - `website/i18n/pt-BR/docusaurus-plugin-content-docs/current/**`
-  - `README.md`
-  - `dart_cli/README.md` when runtime or developer workflow changes
-- Prefer minimal, safe, additive changes over broad rewrites in migration flow, provider adapters, or CLI contract code.
-- After relevant code changes, expect the repository quality gates to pass:
-  - `yarn lint:dart`
-  - `yarn test:dart`
-  - `yarn coverage:dart` for production behavior changes
+- Review as a senior engineer for a Dart CLI plus Flutter desktop app.
+- Correctness, safety, security, contract stability, tests, and documentation sync matter more than style.
+- Comment only on concrete bugs, regressions, unsafe behavior, missing risky tests, or architecture drift.
+- Do not comment on generated files, harmless formatting, import order, lock files, or changelog/version bumps.
+- Keep comments inline, specific, actionable, and short.
 
-If any instruction here conflicts with `AGENTS.md`, treat `AGENTS.md` as the source of truth.
+## Severity Prefixes
+
+- `[critical]` security issue, data loss, broken invariant, or user-visible regression. Blocks merge.
+- `[important]` correctness bug, missing coverage for risky code, contract drift, or architecture boundary violation. Blocks merge.
+- `[suggestion]` non-blocking maintainability, simplification, performance, or readability improvement.
+- `[question]` intent is ambiguous and must be clarified before judging.
+
+## Repository Contract
+
+- Public CLI command is `gfrm`.
+- Supported commands stay: `migrate`, `resume`, `demo`, `setup`, `settings`.
+- Supported provider pairs are GitHub, GitLab, and Bitbucket cross-provider migrations only.
+- Same-provider migrations and Bitbucket Data Center / Server are out of scope.
+- Tags migrate before releases.
+- Release migration targets semver tags only: `vX.Y.Z`.
+- `summary.json` keeps `schema_version: 2`.
+- Retry guidance must use `gfrm resume`, not `gfrm migrate`.
+- Exit code is `0` on success and non-zero on validation or operational failure.
+- Raw tokens must never appear in logs, errors, output, fixtures, comments, or docs.
+- Token precedence must remain deterministic:
+  - `migrate`: settings `token_env`, then `token_plain`, then env aliases.
+  - `resume`: session token context, then settings `token_env`, then `token_plain`, then env aliases.
+
+## Architecture Boundaries
+
+- `dart_cli/lib/src/cli.dart` delegates; it should not own business logic.
+- `dart_cli/lib/src/application/` owns typed orchestration and preflight.
+- `dart_cli/lib/src/migrations/` owns execution flow only.
+- `dart_cli/lib/src/providers/` translates forge API calls.
+- `gui/lib/src/application/` owns GUI contracts and value objects.
+- `gui/lib/src/runtime/` bridges GUI contracts to `gfrm_dart` runtime.
+- Flutter widgets should render state, not call runtime services directly.
+- Prefer one public type per file, small helpers, explicit types, and `final` over `var`.
+- Avoid runtime provider type dispatch such as `if (source is GitHubProvider)` in engine flow.
+
+## Path-Specific Rules
+
+Apply these files when they match changed paths:
+
+- `.github/instructions/dart-review.instructions.md`
+- `.github/instructions/flutter-review.instructions.md`
+- `.github/instructions/workflow-review.instructions.md`
+
+## Comment Format
+
+```md
+[severity] Concrete problem.
+
+Why: risk or regression.
+
+Suggestion: specific fix.
+```
