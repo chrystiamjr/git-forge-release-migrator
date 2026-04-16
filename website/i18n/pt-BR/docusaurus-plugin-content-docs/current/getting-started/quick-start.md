@@ -20,7 +20,7 @@ Fonte de verdade: [GitHub Releases](https://github.com/chrystiamjr/git-forge-rel
 
 ## 2. Verifique e rode `--help`
 
-Siga [Install and Verify](/getting-started/install-and-verify) para extrair o artefato e confirmar que o binário funciona.
+Siga [Instalar e Validar](/getting-started/install-and-verify) para extrair o artefato e confirmar que o binário funciona.
 Use `./gfrm <comando> --help` quando precisar das flags específicas de `migrate`, `resume`, `setup` ou `settings`.
 
 ## 3. Faça o bootstrap dos settings
