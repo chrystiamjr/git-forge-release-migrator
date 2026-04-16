@@ -51,6 +51,8 @@ class GfrmContentPlaceholder extends StatelessWidget {
         ),
         const SizedBox(height: 24),
         Container(
+          width: double.infinity,
+          constraints: const BoxConstraints(minHeight: 200),
           decoration: BoxDecoration(
             color: GfrmColors.surfaceCard,
             borderRadius: BorderRadius.circular(18),
@@ -115,6 +117,7 @@ Widget _card({required String title, required List<String> lines}) {
           ),
           const SizedBox(height: 8),
         ],
+        const SizedBox(height: 4),
       ],
     ),
   );

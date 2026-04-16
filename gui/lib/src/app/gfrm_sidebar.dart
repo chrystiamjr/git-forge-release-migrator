@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
+import 'package:gfrm_gui/src/app/app_routes.dart';
 import 'package:gfrm_gui/src/app/gfrm_logo.dart';
 import 'package:gfrm_gui/src/theme/gfrm_colors.dart';
 
 class GfrmSidebar extends StatelessWidget {
-  const GfrmSidebar({super.key});
+  const GfrmSidebar({required this.currentLocation, super.key});
+
+  final String currentLocation;
 
   @override
   Widget build(BuildContext context) {
     final bool isMacOS = Theme.of(context).platform == TargetPlatform.macOS;
+    final AppRoute? activePrimaryRoute = AppRoute.activePrimaryRouteFor(currentLocation);
+    final bool settingsActive = AppRoute.isSettingsLocation(currentLocation);
 
     return ColoredBox(
       color: GfrmColors.sidebarBackground,
@@ -19,17 +25,26 @@ class GfrmSidebar extends StatelessWidget {
           children: <Widget>[
             const GfrmLogo(),
             const SizedBox(height: 32),
-            _navItem(icon: Icons.dashboard_outlined, label: 'Dashboard', active: true),
-            _navItem(icon: Icons.add_box_outlined, label: 'New Migration'),
-            _navItem(icon: Icons.sync_outlined, label: 'Run Progress'),
-            _navItem(icon: Icons.task_alt_outlined, label: 'Results'),
-            _navItem(icon: Icons.history, label: 'History'),
+            for (final AppRoute route in AppRoute.primaryRoutes)
+              _GfrmSidebarItem(
+                route: route,
+                active: !settingsActive && activePrimaryRoute == route,
+                onPressed: () {
+                  context.go(route.path);
+                },
+              ),
             const Spacer(),
             const Divider(color: GfrmColors.border),
-            _navItem(icon: Icons.settings_outlined, label: 'Settings'),
+            _GfrmSidebarItem(
+              route: AppRoute.settings,
+              active: settingsActive,
+              onPressed: () {
+                context.go(AppRoute.settings.path);
+              },
+            ),
             const SizedBox(height: 12),
             Text(
-              'desktop foundation',
+              'devuser',
               style: Theme.of(context).textTheme.labelMedium?.copyWith(color: GfrmColors.textMuted, letterSpacing: 0),
             ),
           ],
@@ -39,36 +54,55 @@ class GfrmSidebar extends StatelessWidget {
   }
 }
 
-Widget _navItem({required IconData icon, required String label, bool active = false}) {
-  final Color textColor = active ? GfrmColors.accent : GfrmColors.textMuted;
+class _GfrmSidebarItem extends StatelessWidget {
+  const _GfrmSidebarItem({required this.route, required this.active, required this.onPressed});
 
-  return Container(
-    height: 40,
-    margin: const EdgeInsets.only(bottom: 8),
-    decoration: BoxDecoration(
-      color: active ? GfrmColors.sidebarActive : Colors.transparent,
-      borderRadius: BorderRadius.circular(8),
-      border: active ? const Border(left: BorderSide(color: GfrmColors.accent, width: 3)) : null,
-    ),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Row(
-        children: <Widget>[
-          Icon(icon, size: 20, color: textColor),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              label,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontFamily: 'IBMPlexSans',
-                fontSize: 14,
-                color: GfrmColors.textMuted,
-              ).copyWith(color: textColor),
+  static const double _height = 40;
+
+  final AppRoute route;
+  final bool active;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color textColor = active ? GfrmColors.accent : GfrmColors.textMuted;
+
+    return Container(
+      height: _height,
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: active ? GfrmColors.sidebarActive : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        border: active ? const Border(left: BorderSide(color: GfrmColors.accent, width: 3)) : null,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onPressed,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 16, right: 12),
+            child: Row(
+              children: <Widget>[
+                Icon(route.icon, size: 20, color: textColor),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    route.label,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'IBMPlexSans',
+                      fontSize: 14,
+                      color: GfrmColors.textMuted,
+                      fontVariations: <FontVariation>[FontVariation('wght', 500)],
+                    ).copyWith(color: textColor),
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
