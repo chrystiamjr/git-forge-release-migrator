@@ -2,12 +2,18 @@
 
 import { writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import {
+  REVIEW_RESULT_PATH,
+  REPOSITORY,
+  PR_NUMBER,
+  assertRequiredEnv,
+  parseRepository,
+  githubRequest,
+  githubGraphql,
+  paginate,
+} from './github-api.mjs';
 
 const AUTO_REVIEW_MARKER = '<!-- auto-pr-review -->';
-const REVIEW_RESULT_PATH = process.env.REVIEW_RESULT_PATH || 'review-result.json';
-const GH_TOKEN = process.env.GH_TOKEN;
-const REPOSITORY = process.env.GITHUB_REPOSITORY;
-const PR_NUMBER = Number(process.env.PR_NUMBER);
 const RUN_ID = process.env.GITHUB_RUN_ID || '';
 
 const SECRET_PATTERNS = [
@@ -219,6 +225,78 @@ const TARGETED_TEST_GROUPS = [
     ],
     message:
       'Exit-code or run-status mapping changed without updating the focused coverage that protects success, validation failure, partial failure, and runtime failure outcomes.',
+  },
+];
+
+const RAW_EXCEPTION_PATTERNS = [
+  { regex: /\bthrow\s+Exception\(/, message: 'Use project-specific exceptions (HttpRequestError, AuthenticationError, MigrationPhaseError) instead of generic Exception.' },
+  { regex: /\bthrow\s+StateError\(/, message: 'Use MigrationPhaseError instead of StateError for engine-level failures.' },
+  { regex: /\bthrow\s+ArgumentError\(/, message: 'Use MigrationPhaseError or a validation-specific exception instead of ArgumentError in production code.' },
+  { regex: /\bthrow\s+UnimplementedError\(/, message: 'UnimplementedError should not ship in production code. Implement the method or remove the dead code path.' },
+];
+
+const SILENT_CATCH_PATTERN = /catch\s*\([^)]*\)\s*\{\s*\}/;
+
+const PRINT_IN_PRODUCTION_PATTERN = /\bprint\(/;
+
+const FLUTTER_TEST_GROUPS = [
+  {
+    rule: 'flutter_controller_test_gap',
+    codePaths: [
+      'gui/lib/src/runtime/run/gfrm_desktop_run_controller.dart',
+      'gui/lib/src/runtime/run/desktop_run_controller_provider.dart',
+    ],
+    testPaths: [
+      'gui/test/unit/runtime/run/gfrm_desktop_run_controller_test.dart',
+      'gui/test/unit/runtime/run/desktop_run_controller_provider_test.dart',
+    ],
+    signalPatterns: [
+      /DesktopRunController/,
+      /DesktopRunSnapshot/,
+      /StreamController/,
+      /desktopRunControllerProvider/,
+      /desktopRunSnapshotsProvider/,
+    ],
+    message:
+      'Flutter controller or provider code changed without updating the corresponding test coverage.',
+  },
+  {
+    rule: 'flutter_mapper_test_gap',
+    codePaths: [
+      'gui/lib/src/runtime/run/map_run_state_to_snapshot.dart',
+      'gui/lib/src/runtime/run/map_desktop_run_start_request.dart',
+    ],
+    testPaths: [
+      'gui/test/unit/runtime/run/map_run_state_to_snapshot_test.dart',
+      'gui/test/unit/runtime/run/map_desktop_run_start_request_test.dart',
+    ],
+    signalPatterns: [
+      /mapRunStateToSnapshot/,
+      /mapDesktopRunStartRequest/,
+    ],
+    message:
+      'Flutter mapper function changed without updating the corresponding test. Mapper functions must be tested as pure functions.',
+  },
+  {
+    rule: 'flutter_theme_test_gap',
+    codePaths: [
+      'gui/lib/src/theme/gfrm_theme.dart',
+      'gui/lib/src/theme/gfrm_colors.dart',
+      'gui/lib/src/theme/gfrm_typography.dart',
+    ],
+    testPaths: [
+      'gui/test/unit/theme/gfrm_theme_test.dart',
+      'gui/test/widget/theme_test.dart',
+    ],
+    signalPatterns: [
+      /GfrmColors/,
+      /GfrmTypography/,
+      /GfrmTheme/,
+      /ColorScheme/,
+      /ThemeData/,
+    ],
+    message:
+      'Theme, color, or typography definitions changed without test coverage. Verify theme tokens render correctly.',
   },
 ];
 
@@ -467,23 +545,6 @@ const SEMVER_SELECTION_PATHS = new Set([
   'dart_cli/lib/src/migrations/selection.dart',
 ]);
 
-function assertRequiredEnv() {
-  if (!GH_TOKEN) {
-    throw new Error('GH_TOKEN is required.');
-  }
-  if (!REPOSITORY || !REPOSITORY.includes('/')) {
-    throw new Error('GITHUB_REPOSITORY must be set as owner/repo.');
-  }
-  if (!Number.isInteger(PR_NUMBER) || PR_NUMBER <= 0) {
-    throw new Error('PR_NUMBER must be a positive integer.');
-  }
-}
-
-function parseRepository(fullName) {
-  const [owner, repo] = fullName.split('/');
-  return { owner, repo };
-}
-
 function escapeRegex(text) {
   return text.replace(/[|\\{}()[\]^$+*?.]/g, '\\$&');
 }
@@ -515,72 +576,9 @@ function getContextName(context) {
   return context.__typename === 'CheckRun' ? context.name : context.context;
 }
 
-async function githubRequest(path, init = {}) {
-  const response = await fetch(`https://api.github.com${path}`, {
-    ...init,
-    headers: {
-      Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${GH_TOKEN}`,
-      'User-Agent': 'gfrm-auto-pr-review',
-      ...init.headers,
-    },
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`GitHub API ${response.status} for ${path}: ${body}`);
-  }
-
-  if (response.status === 204) {
-    return null;
-  }
-
-  return response.json();
-}
-
-async function githubGraphql(query, variables) {
-  const result = await githubRequest('/graphql', {
-    method: 'POST',
-    body: JSON.stringify({ query, variables }),
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (result.errors?.length) {
-    throw new Error(`GitHub GraphQL error: ${JSON.stringify(result.errors)}`);
-  }
-
-  return result.data;
-}
-
 export function isBranchProtectionAccessDeniedError(error) {
   const message = String(error?.message || '');
   return message.includes('branchProtectionRules') && message.includes('Resource not accessible');
-}
-
-async function paginate(path) {
-  const items = [];
-  let page = 1;
-
-  while (true) {
-    const separator = path.includes('?') ? '&' : '?';
-    const data = await githubRequest(`${path}${separator}per_page=100&page=${page}`);
-
-    if (!Array.isArray(data) || data.length === 0) {
-      break;
-    }
-
-    items.push(...data);
-
-    if (data.length < 100) {
-      break;
-    }
-
-    page += 1;
-  }
-
-  return items;
 }
 
 function parseAddedLines(patch = '') {
@@ -983,6 +981,486 @@ export function buildContractDocsFindings(files) {
   return findings;
 }
 
+export function buildRawExceptionFindings(files) {
+  const findings = [];
+  const productionDartFiles = files.filter(
+    (file) =>
+      file.filename.startsWith('dart_cli/lib/') &&
+      file.filename.endsWith('.dart') &&
+      !file.filename.endsWith('.g.dart'),
+  );
+
+  for (const file of productionDartFiles) {
+    const addedLines = parseAddedLines(file.patch);
+
+    for (const addedLine of addedLines) {
+      for (const pattern of RAW_EXCEPTION_PATTERNS) {
+        if (!pattern.regex.test(addedLine.text)) {
+          continue;
+        }
+
+        addFinding(findings, {
+          rule: 'raw_exception_in_production',
+          severity: 'note',
+          path: file.filename,
+          line: addedLine.line,
+          message: pattern.message,
+        });
+      }
+    }
+  }
+
+  return findings;
+}
+
+export function buildSilentCatchFindings(files) {
+  const findings = [];
+  const dartFiles = files.filter(
+    (file) =>
+      (file.filename.startsWith('dart_cli/lib/') || file.filename.startsWith('gui/lib/')) &&
+      file.filename.endsWith('.dart') &&
+      !file.filename.endsWith('.g.dart'),
+  );
+
+  for (const file of dartFiles) {
+    const addedLines = parseAddedLines(file.patch);
+
+    for (const addedLine of addedLines) {
+      if (!SILENT_CATCH_PATTERN.test(addedLine.text)) {
+        continue;
+      }
+
+      addFinding(findings, {
+        rule: 'silent_catch_block',
+        severity: 'blocking',
+        path: file.filename,
+        line: addedLine.line,
+        message:
+          'Empty catch block silently swallows errors. Log with context or rethrow.',
+      });
+    }
+  }
+
+  return findings;
+}
+
+export function buildPrintInProductionFindings(files) {
+  const findings = [];
+  const productionFiles = files.filter(
+    (file) =>
+      (file.filename.startsWith('dart_cli/lib/') || file.filename.startsWith('gui/lib/')) &&
+      file.filename.endsWith('.dart') &&
+      !file.filename.endsWith('.g.dart') &&
+      !file.filename.includes('/test/'),
+  );
+
+  for (const file of productionFiles) {
+    const addedLines = parseAddedLines(file.patch);
+
+    for (const addedLine of addedLines) {
+      if (!PRINT_IN_PRODUCTION_PATTERN.test(addedLine.text)) {
+        continue;
+      }
+
+      // Ignore lines that are clearly comments
+      if (addedLine.text.trimStart().startsWith('//')) {
+        continue;
+      }
+
+      addFinding(findings, {
+        rule: 'print_in_production',
+        severity: 'note',
+        path: file.filename,
+        line: addedLine.line,
+        message:
+          'Use the logging infrastructure instead of print() in production code.',
+      });
+    }
+  }
+
+  return findings;
+}
+
+export function buildFlutterTestFindings(files) {
+  const changedFlutterTests = files.some((file) => file.filename.startsWith('gui/test/'));
+  const sourceFiles = files.filter(
+    (file) =>
+      file.filename.startsWith('gui/lib/') &&
+      file.filename.endsWith('.dart') &&
+      !file.filename.endsWith('.g.dart') &&
+      typeof file.changes === 'number' &&
+      getFirstCommentableLine(file) !== null,
+  );
+
+  if (changedFlutterTests || sourceFiles.length === 0) {
+    return [];
+  }
+
+  const addedSourceFindings = sourceFiles
+    .filter((file) => file.status === 'added' && file.changes >= 30)
+    .slice(0, 3)
+    .map((file) => ({
+      rule: 'missing_flutter_tests_for_new_source',
+      severity: 'blocking',
+      path: file.filename,
+      line: getFirstCommentableLine(file),
+      message:
+        'New Flutter production source was added without matching test coverage updates in gui/test/**.',
+    }));
+
+  const modifiedSourceNotes = sourceFiles
+    .filter((file) => file.status !== 'added' && file.changes >= 120)
+    .slice(0, 2)
+    .map((file) => ({
+      rule: 'consider_flutter_test_updates',
+      severity: 'note',
+      path: file.filename,
+      line: getFirstCommentableLine(file),
+      message:
+        'Large Flutter source changes landed without test updates in this PR. Confirm existing coverage still exercises this behavior.',
+    }));
+
+  return [...addedSourceFindings, ...modifiedSourceNotes];
+}
+
+export function buildFlutterTargetedCoverageFindings(files) {
+  const findings = [];
+
+  for (const group of FLUTTER_TEST_GROUPS) {
+    if (hasChangedExactPath(files, group.testPaths)) {
+      continue;
+    }
+
+    const anchorFile = findFirstSignalMatchedFile(files, group.codePaths, group.signalPatterns);
+    const line = anchorFile ? getFirstCommentableLine(anchorFile) : null;
+
+    if (!anchorFile || line === null) {
+      continue;
+    }
+
+    addFinding(findings, {
+      rule: group.rule,
+      severity: 'note',
+      path: anchorFile.filename,
+      line,
+      message: group.message,
+    });
+  }
+
+  return findings;
+}
+
+const MULTI_CLASS_PATTERN = /^(?:abstract\s+)?(?:final\s+)?(?:base\s+)?(?:sealed\s+)?(?:mixin\s+)?class\s+\w+/;
+
+const LOGIC_IN_BUILD_PATTERNS = [
+  { regex: /\bawait\s+/, message: 'Async operation inside build() method — move to controller or provider.' },
+  { regex: /\bhttp\.\w+\(/, message: 'HTTP call inside build() method — move to controller or service layer.' },
+  { regex: /\bFile\(/, message: 'File I/O inside build() method — move to controller or service layer.' },
+  { regex: /\bProcess\.run\(/, message: 'Process execution inside build() method — move to controller or service layer.' },
+];
+
+const GOD_CLASS_LINE_THRESHOLD = 500;
+const LONG_METHOD_LINE_THRESHOLD = 120;
+
+export function buildMultiClassFindings(files) {
+  const findings = [];
+  const dartFiles = files.filter(
+    (file) =>
+      (file.filename.startsWith('dart_cli/lib/') || file.filename.startsWith('gui/lib/')) &&
+      file.filename.endsWith('.dart') &&
+      !file.filename.endsWith('.g.dart') &&
+      !file.filename.endsWith('.freezed.dart'),
+  );
+
+  for (const file of dartFiles) {
+    const addedLines = parseAddedLines(file.patch);
+    const classDeclarations = addedLines.filter((line) => MULTI_CLASS_PATTERN.test(line.text.trim()));
+
+    if (classDeclarations.length > 1) {
+      addFinding(findings, {
+        rule: 'multi_class_single_file',
+        severity: 'blocking',
+        path: file.filename,
+        line: classDeclarations[1].line,
+        message:
+          `Multiple class declarations added to a single file. Prefer one class per file for SRP compliance. Found ${classDeclarations.length} class declarations in new lines.`,
+      });
+    }
+  }
+
+  return findings;
+}
+
+export function buildLogicInBuildFindings(files) {
+  const findings = [];
+  const flutterFiles = files.filter(
+    (file) =>
+      file.filename.startsWith('gui/lib/') &&
+      file.filename.endsWith('.dart') &&
+      !file.filename.endsWith('.g.dart'),
+  );
+
+  for (const file of flutterFiles) {
+    const addedLines = parseAddedLines(file.patch);
+    let insideBuild = false;
+    let braceDepth = 0;
+
+    for (const addedLine of addedLines) {
+      const trimmed = addedLine.text.trim();
+
+      if (/Widget\s+build\s*\(/.test(trimmed) || /\@override\s*$/.test(trimmed)) {
+        // Heuristic: next method-like line after @override in a widget is likely build()
+      }
+
+      if (/Widget\s+build\s*\(/.test(trimmed)) {
+        insideBuild = true;
+        braceDepth = 0;
+      }
+
+      if (insideBuild) {
+        braceDepth += (trimmed.match(/\{/g) || []).length;
+        braceDepth -= (trimmed.match(/\}/g) || []).length;
+
+        if (braceDepth <= 0 && trimmed.includes('}')) {
+          insideBuild = false;
+          continue;
+        }
+
+        for (const pattern of LOGIC_IN_BUILD_PATTERNS) {
+          if (pattern.regex.test(trimmed) && !trimmed.startsWith('//')) {
+            addFinding(findings, {
+              rule: 'logic_in_build_method',
+              severity: 'blocking',
+              path: file.filename,
+              line: addedLine.line,
+              message: pattern.message,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return findings;
+}
+
+export function buildGodClassFindings(files) {
+  const findings = [];
+  const dartFiles = files.filter(
+    (file) =>
+      (file.filename.startsWith('dart_cli/lib/') || file.filename.startsWith('gui/lib/')) &&
+      file.filename.endsWith('.dart') &&
+      !file.filename.endsWith('.g.dart') &&
+      !file.filename.endsWith('.freezed.dart') &&
+      file.status === 'added' &&
+      typeof file.additions === 'number',
+  );
+
+  for (const file of dartFiles) {
+    if (file.additions > GOD_CLASS_LINE_THRESHOLD) {
+      const line = getFirstCommentableLine(file);
+      if (line !== null) {
+        addFinding(findings, {
+          rule: 'god_class_new_file',
+          severity: 'blocking',
+          path: file.filename,
+          line,
+          message:
+            `New file has ${file.additions} lines — exceeds the ${GOD_CLASS_LINE_THRESHOLD}-line threshold. Break into smaller, focused classes following SRP.`,
+        });
+      }
+    }
+  }
+
+  return findings;
+}
+
+export function buildLongMethodFindings(files) {
+  const findings = [];
+  const dartFiles = files.filter(
+    (file) =>
+      (file.filename.startsWith('dart_cli/lib/') || file.filename.startsWith('gui/lib/')) &&
+      file.filename.endsWith('.dart') &&
+      !file.filename.endsWith('.g.dart'),
+  );
+
+  for (const file of dartFiles) {
+    const addedLines = parseAddedLines(file.patch);
+    let methodStartLine = null;
+    let methodName = null;
+    let braceDepth = 0;
+    let methodLineCount = 0;
+
+    for (const addedLine of addedLines) {
+      const trimmed = addedLine.text.trim();
+
+      // Detect method/function declarations (supports generic return types like Future<void>)
+      const methodMatch = trimmed.match(/(?:Future|void|bool|int|String|double|List|Map|Set|dynamic|\w+)(?:<[^>]*>)?\s+(\w+)\s*[(<]/);
+      if (methodMatch && !trimmed.startsWith('//') && !trimmed.startsWith('class ')) {
+        if (methodStartLine !== null && methodLineCount > LONG_METHOD_LINE_THRESHOLD) {
+          addFinding(findings, {
+            rule: 'long_method',
+            severity: 'note',
+            path: file.filename,
+            line: methodStartLine,
+            message:
+              `Method '${methodName}' spans ${methodLineCount}+ added lines — exceeds ${LONG_METHOD_LINE_THRESHOLD}-line guideline. Consider extracting sub-operations.`,
+          });
+        }
+
+        methodStartLine = addedLine.line;
+        methodName = methodMatch[1];
+        braceDepth = 0;
+        methodLineCount = 0;
+      }
+
+      if (methodStartLine !== null) {
+        methodLineCount += 1;
+        braceDepth += (trimmed.match(/\{/g) || []).length;
+        braceDepth -= (trimmed.match(/\}/g) || []).length;
+
+        if (braceDepth <= 0 && methodLineCount > 1 && trimmed.includes('}')) {
+          if (methodLineCount > LONG_METHOD_LINE_THRESHOLD) {
+            addFinding(findings, {
+              rule: 'long_method',
+              severity: 'note',
+              path: file.filename,
+              line: methodStartLine,
+              message:
+                `Method '${methodName}' spans ${methodLineCount} added lines — exceeds ${LONG_METHOD_LINE_THRESHOLD}-line guideline. Consider extracting sub-operations.`,
+            });
+          }
+          methodStartLine = null;
+          methodName = null;
+          methodLineCount = 0;
+        }
+      }
+    }
+  }
+
+  return findings;
+}
+
+export function buildSetStateFindings(files) {
+  const findings = [];
+  const flutterFiles = files.filter(
+    (file) =>
+      file.filename.startsWith('gui/lib/') &&
+      file.filename.endsWith('.dart') &&
+      !file.filename.endsWith('.g.dart'),
+  );
+
+  for (const file of flutterFiles) {
+    const addedLines = parseAddedLines(file.patch);
+
+    for (const addedLine of addedLines) {
+      const trimmed = addedLine.text.trim();
+
+      if (trimmed.startsWith('//')) {
+        continue;
+      }
+
+      if (/\bsetState\s*\(/.test(trimmed)) {
+        addFinding(findings, {
+          rule: 'set_state_in_riverpod_project',
+          severity: 'blocking',
+          path: file.filename,
+          line: addedLine.line,
+          message:
+            'setState() detected in a Riverpod project. Use Riverpod providers and controllers for state management instead of StatefulWidget.',
+        });
+      }
+    }
+  }
+
+  return findings;
+}
+
+export function buildDirectDependencyFindings(files) {
+  const findings = [];
+  const engineFiles = files.filter(
+    (file) =>
+      file.filename.startsWith('dart_cli/lib/src/migrations/') &&
+      file.filename.endsWith('.dart') &&
+      !file.filename.endsWith('.g.dart'),
+  );
+
+  for (const file of engineFiles) {
+    const addedLines = parseAddedLines(file.patch);
+
+    for (const addedLine of addedLines) {
+      const trimmed = addedLine.text.trim();
+
+      if (trimmed.startsWith('//')) {
+        continue;
+      }
+
+      // Detect direct HTTP or provider imports in engine layer
+      if (/import\s+['"].*\/providers\/(?:github|gitlab|bitbucket)\.dart['"]/.test(trimmed)) {
+        addFinding(findings, {
+          rule: 'engine_imports_provider_directly',
+          severity: 'blocking',
+          path: file.filename,
+          line: addedLine.line,
+          message:
+            'Engine layer imports a concrete provider adapter directly. Engine must depend on abstractions (interfaces), not concrete provider implementations. Use dependency injection via the ProviderRegistry.',
+        });
+      }
+
+      // Detect direct HTTP calls in engine layer
+      if (/\b(?:http\.get|http\.post|http\.put|http\.delete|requestJson|requestStatus|downloadFile)\s*\(/.test(trimmed)) {
+        addFinding(findings, {
+          rule: 'engine_makes_http_calls',
+          severity: 'blocking',
+          path: file.filename,
+          line: addedLine.line,
+          message:
+            'Direct HTTP call in engine layer. All forge API interactions must go through provider adapters to maintain clean architecture boundaries.',
+        });
+      }
+    }
+  }
+
+  return findings;
+}
+
+export function buildGuiBoundaryFindings(files) {
+  const findings = [];
+  const guiFiles = files.filter(
+    (file) =>
+      file.filename.startsWith('gui/lib/') &&
+      file.filename.endsWith('.dart') &&
+      !file.filename.endsWith('.g.dart'),
+  );
+
+  for (const file of guiFiles) {
+    const addedLines = parseAddedLines(file.patch);
+
+    for (const addedLine of addedLines) {
+      const trimmed = addedLine.text.trim();
+
+      if (trimmed.startsWith('//')) {
+        continue;
+      }
+
+      // GUI importing CLI-specific code
+      if (/import\s+['"].*gfrm_dart\/src\/cli\.dart['"]/.test(trimmed) ||
+          /import\s+['"].*gfrm_dart\/src\/config\/arg_parsers\.dart['"]/.test(trimmed)) {
+        addFinding(findings, {
+          rule: 'gui_imports_cli_internals',
+          severity: 'blocking',
+          path: file.filename,
+          line: addedLine.line,
+          message:
+            'GUI imports CLI-specific code (cli.dart or arg_parsers). GUI must use the application layer and runtime contracts, not CLI entry points.',
+        });
+      }
+    }
+  }
+
+  return findings;
+}
+
 async function fetchReviewRound(owner, repo) {
   const reviews = await paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/reviews`);
 
@@ -1209,8 +1687,20 @@ export async function runReview() {
     ...buildMissingPatchFindings(files),
     ...buildSecretFindings(files),
     ...buildInvariantContractFindings(files),
+    ...buildRawExceptionFindings(files),
+    ...buildSilentCatchFindings(files),
+    ...buildPrintInProductionFindings(files),
+    ...buildMultiClassFindings(files),
+    ...buildLogicInBuildFindings(files),
+    ...buildGodClassFindings(files),
+    ...buildLongMethodFindings(files),
+    ...buildSetStateFindings(files),
+    ...buildDirectDependencyFindings(files),
+    ...buildGuiBoundaryFindings(files),
     ...buildDartTestFindings(files),
     ...buildTargetedCoverageFindings(files),
+    ...buildFlutterTestFindings(files),
+    ...buildFlutterTargetedCoverageFindings(files),
     ...buildDocsSyncFindings(files),
     ...buildContractDocsFindings(files),
   ].sort((left, right) => left.path.localeCompare(right.path) || left.line - right.line);

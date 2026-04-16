@@ -1,36 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 105 48">
-    <g fill="none" stroke="#818cf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-
-        <!-- Left forge node -->
-        <rect x="8" y="22" width="8" height="8" rx="2"/>
-
-        <!-- Right forge node -->
-        <rect x="28" y="10" width="8" height="8" rx="2"/>
-
-        <!-- Git branch point -->
-        <circle cx="20" cy="24" r="2.2" fill="#818cf8" stroke="none"/>
-
-        <!-- Branch lines -->
-        <path d="M16 26H20"/>
-        <path d="M20 24V16"/>
-        <path d="M20 16H28"/>
-
-        <!-- Migration arrow -->
-        <path d="M16 26H27"/>
-        <path d="M24 23L27 26L24 29"/>
-
+<svg width="105" height="48" viewBox="0 0 105 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Grupo centralizado verticalmente -->
+  <g transform="translate(4, 24)">
+    <!-- Ícone -->
+    <g transform="translate(0, -12) scale(0.8)">
+      <rect x="2" y="4" width="10" height="8" rx="1" stroke="#818cf8" stroke-width="2" fill="none"/>
+      <path d="M12 8H18C22 8 22 14 26 14H30" stroke="#818cf8" stroke-width="2" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+      <path d="M28 11L31 14L28 17" stroke="#818cf8" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M7 12V21H16" stroke="#818cf8" stroke-width="2" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+      <rect x="16" y="18" width="8" height="6" rx="1" stroke="#818cf8" stroke-width="2" fill="none"/>
     </g>
-
-    <!-- Wordmark -->
-    <text
-            x="40"
-            y="32"
-            font-family="Inter, Segoe UI, Arial, sans-serif"
-            font-size="24"
-            font-weight="700"
-            fill="#818cf8"
-            letter-spacing="0.5"
-    >
-        gfrm
-    </text>
+    
+    <!-- Texto "gfrm" -->
+    <text x="32" y="8" fill="#818cf8" font-family="Arial, sans-serif" font-weight="bold" font-size="24">gfrm</text>
+  </g>
 </svg>

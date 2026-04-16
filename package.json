@@ -8,6 +8,7 @@
   "scripts": {
     "cm": "git cz",
     "fvm:global": "node scripts/fvm-global.js",
+    "gen:flutter": "cd gui && fvm dart run build_runner build --delete-conflicting-outputs",
     "get:dart": "fvm dart pub get",
     "get:flutter": "cd gui && fvm flutter pub get",
     "lint:flutter": "cd gui && fvm dart format -l 120 --set-exit-if-changed lib test && fvm flutter analyze",
@@ -32,6 +33,7 @@
     "build:flutter:macos": "cd gui && fvm flutter build macos",
     "build:flutter:windows": "cd gui && fvm flutter build windows",
     "test:flutter": "cd gui && fvm flutter test",
+    "watch:flutter": "cd gui && fvm dart run build_runner watch --delete-conflicting-outputs",
     "test:website": "yarn workspace gfrm-website test",
     "test:reviewer": "node --test scripts/*.test.mjs"
   },

@@ -32,11 +32,11 @@ hide_table_of_contents: true
 
 <div className="section-grid">
   <div className="section-card">
-    <h3><a href="./getting-started/quick-start">Quick Start</a></h3>
+    <h3><a href="./getting-started/quick-start">Início Rápido</a></h3>
     <p>Escolha o artefato correto, configure tokens uma vez e execute a primeira migração.</p>
   </div>
   <div className="section-card">
-    <h3><a href="./configuration/settings-profiles">Perfis de Settings</a></h3>
+    <h3><a href="./configuration/settings-profiles">Perfis de Configuração</a></h3>
     <p>Use perfis persistentes de provider em vez de passar tokens em cada comando.</p>
   </div>
   <div className="section-card">
@@ -67,6 +67,6 @@ Baixe binários e checksums em [GitHub Releases](https://github.com/chrystiamjr/
 
 ## Leia em seguida
 
-- [Install and Verify](/getting-started/install-and-verify)
-- [First Migration](/getting-started/first-migration)
-- [Bitbucket Behavior](/guides/bitbucket-behavior)
+- [Instalar e Validar](/getting-started/install-and-verify)
+- [Primeira Migração](/getting-started/first-migration)
+- [Comportamento do Bitbucket](/guides/bitbucket-behavior)

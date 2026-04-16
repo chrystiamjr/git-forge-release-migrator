@@ -58,4 +58,4 @@ Expand-Archive .\gfrm-windows.zip -DestinationPath .\gfrm-windows
 xattr -d com.apple.quarantine ./gfrm
 ```
 
-For release signing and notarization details, see [macOS Release Artifacts](/guides/macos-release-artifacts).
+For macOS release signing and notarization details, see [macOS Release Artifacts](/guides/macos-release-artifacts).
