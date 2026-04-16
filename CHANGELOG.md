@@ -1,3 +1,9 @@
+## [0.14.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.13.0...v0.14.0) (2026-04-16)
+
+### Features
+
+* **gui:** add desktop shell route map ([24f2085](https://github.com/chrystiamjr/git-forge-release-migrator/commit/24f2085469a57b7433553bbcabb903a5c0431558))
+
 ## [0.13.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.12.0...v0.13.0) (2026-04-16)
 
 ### Features
