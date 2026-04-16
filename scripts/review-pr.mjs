@@ -2,12 +2,18 @@
 
 import { writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import {
+  REVIEW_RESULT_PATH,
+  REPOSITORY,
+  PR_NUMBER,
+  assertRequiredEnv,
+  parseRepository,
+  githubRequest,
+  githubGraphql,
+  paginate,
+} from './github-api.mjs';
 
 const AUTO_REVIEW_MARKER = '<!-- auto-pr-review -->';
-const REVIEW_RESULT_PATH = process.env.REVIEW_RESULT_PATH || 'review-result.json';
-const GH_TOKEN = process.env.GH_TOKEN;
-const REPOSITORY = process.env.GITHUB_REPOSITORY;
-const PR_NUMBER = Number(process.env.PR_NUMBER);
 const RUN_ID = process.env.GITHUB_RUN_ID || '';
 
 const SECRET_PATTERNS = [
@@ -539,23 +545,6 @@ const SEMVER_SELECTION_PATHS = new Set([
   'dart_cli/lib/src/migrations/selection.dart',
 ]);
 
-function assertRequiredEnv() {
-  if (!GH_TOKEN) {
-    throw new Error('GH_TOKEN is required.');
-  }
-  if (!REPOSITORY || !REPOSITORY.includes('/')) {
-    throw new Error('GITHUB_REPOSITORY must be set as owner/repo.');
-  }
-  if (!Number.isInteger(PR_NUMBER) || PR_NUMBER <= 0) {
-    throw new Error('PR_NUMBER must be a positive integer.');
-  }
-}
-
-function parseRepository(fullName) {
-  const [owner, repo] = fullName.split('/');
-  return { owner, repo };
-}
-
 function escapeRegex(text) {
   return text.replace(/[|\\{}()[\]^$+*?.]/g, '\\$&');
 }
@@ -587,72 +576,9 @@ function getContextName(context) {
   return context.__typename === 'CheckRun' ? context.name : context.context;
 }
 
-async function githubRequest(path, init = {}) {
-  const response = await fetch(`https://api.github.com${path}`, {
-    ...init,
-    headers: {
-      Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${GH_TOKEN}`,
-      'User-Agent': 'gfrm-auto-pr-review',
-      ...init.headers,
-    },
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`GitHub API ${response.status} for ${path}: ${body}`);
-  }
-
-  if (response.status === 204) {
-    return null;
-  }
-
-  return response.json();
-}
-
-async function githubGraphql(query, variables) {
-  const result = await githubRequest('/graphql', {
-    method: 'POST',
-    body: JSON.stringify({ query, variables }),
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (result.errors?.length) {
-    throw new Error(`GitHub GraphQL error: ${JSON.stringify(result.errors)}`);
-  }
-
-  return result.data;
-}
-
 export function isBranchProtectionAccessDeniedError(error) {
   const message = String(error?.message || '');
   return message.includes('branchProtectionRules') && message.includes('Resource not accessible');
-}
-
-async function paginate(path) {
-  const items = [];
-  let page = 1;
-
-  while (true) {
-    const separator = path.includes('?') ? '&' : '?';
-    const data = await githubRequest(`${path}${separator}per_page=100&page=${page}`);
-
-    if (!Array.isArray(data) || data.length === 0) {
-      break;
-    }
-
-    items.push(...data);
-
-    if (data.length < 100) {
-      break;
-    }
-
-    page += 1;
-  }
-
-  return items;
 }
 
 function parseAddedLines(patch = '') {
@@ -1368,8 +1294,8 @@ export function buildLongMethodFindings(files) {
     for (const addedLine of addedLines) {
       const trimmed = addedLine.text.trim();
 
-      // Detect method/function declarations
-      const methodMatch = trimmed.match(/(?:Future|void|bool|int|String|double|List|Map|Set|dynamic|\w+)\s+(\w+)\s*[(<]/);
+      // Detect method/function declarations (supports generic return types like Future<void>)
+      const methodMatch = trimmed.match(/(?:Future|void|bool|int|String|double|List|Map|Set|dynamic|\w+)(?:<[^>]*>)?\s+(\w+)\s*[(<]/);
       if (methodMatch && !trimmed.startsWith('//') && !trimmed.startsWith('class ')) {
         if (methodStartLine !== null && methodLineCount > LONG_METHOD_LINE_THRESHOLD) {
           addFinding(findings, {

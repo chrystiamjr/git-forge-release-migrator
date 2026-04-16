@@ -4,13 +4,25 @@ import test from 'node:test';
 import {
   buildContractDocsFindings,
   buildDartTestFindings,
+  buildDirectDependencyFindings,
+  buildFlutterTargetedCoverageFindings,
+  buildFlutterTestFindings,
+  buildGodClassFindings,
+  buildGuiBoundaryFindings,
   buildInvariantContractFindings,
+  buildLogicInBuildFindings,
+  buildLongMethodFindings,
   buildMissingPatchFindings,
+  buildMultiClassFindings,
+  buildPrintInProductionFindings,
+  buildRawExceptionFindings,
   buildSecretFindings,
-  isBranchProtectionAccessDeniedError,
-  selectRequiredContexts,
+  buildSetStateFindings,
+  buildSilentCatchFindings,
   buildTargetedCoverageFindings,
+  isBranchProtectionAccessDeniedError,
   selectApplicableRule,
+  selectRequiredContexts,
   summarizeCheckState,
 } from './review-pr.mjs';
 
@@ -557,6 +569,527 @@ test('buildContractDocsFindings ignores internal refactors without contract-faci
       filename: 'dart_cli/lib/src/application/run_service.dart',
       changes: 6,
       patch: "@@ -14,0 +15,2 @@\n+import 'run_paths.dart';\n+final PreparedPaths paths = createRunPaths(runtimeOptions);",
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
+// --- buildRawExceptionFindings ---
+
+test('buildRawExceptionFindings flags generic Exception throw in production Dart', () => {
+  const findings = buildRawExceptionFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/core/http.dart',
+      patch: '@@ -10,0 +11,1 @@\n+    throw Exception(\'unexpected status\');',
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'raw_exception_in_production');
+  assert.match(findings[0].message, /project-specific exceptions/);
+});
+
+test('buildRawExceptionFindings flags StateError in production Dart', () => {
+  const findings = buildRawExceptionFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/migrations/engine.dart',
+      patch: "@@ -5,0 +6,1 @@\n+    throw StateError('no releases');",
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.match(findings[0].message, /MigrationPhaseError/);
+});
+
+test('buildRawExceptionFindings ignores generated files', () => {
+  const findings = buildRawExceptionFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/models/config.g.dart',
+      patch: "@@ -1,0 +1,1 @@\n+    throw Exception('generated');",
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
+test('buildRawExceptionFindings ignores test files', () => {
+  const findings = buildRawExceptionFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/test/unit/core/http_test.dart',
+      patch: "@@ -1,0 +1,1 @@\n+    throw Exception('in test');",
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
+// --- buildSilentCatchFindings ---
+
+test('buildSilentCatchFindings blocks empty catch in Dart production code', () => {
+  const findings = buildSilentCatchFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/core/settings.dart',
+      patch: '@@ -20,0 +21,1 @@\n+    } catch (e) {}',
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'silent_catch_block');
+  assert.equal(findings[0].severity, 'blocking');
+});
+
+test('buildSilentCatchFindings blocks empty catch in Flutter production code', () => {
+  const findings = buildSilentCatchFindings([
+    buildPatchedFile({
+      filename: 'gui/lib/src/runtime/run/gfrm_desktop_run_controller.dart',
+      patch: '@@ -5,0 +6,1 @@\n+    } catch (e) {}',
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'silent_catch_block');
+});
+
+test('buildSilentCatchFindings ignores catch with body', () => {
+  const findings = buildSilentCatchFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/core/settings.dart',
+      patch: '@@ -20,0 +21,1 @@\n+    } catch (e) { stderr.writeln(e); }',
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
+// --- buildPrintInProductionFindings ---
+
+test('buildPrintInProductionFindings flags print() in Dart production code', () => {
+  const findings = buildPrintInProductionFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/migrations/engine.dart',
+      patch: "@@ -30,0 +31,1 @@\n+    print('debug: $tag');",
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'print_in_production');
+  assert.equal(findings[0].severity, 'note');
+});
+
+test('buildPrintInProductionFindings flags print() in Flutter production code', () => {
+  const findings = buildPrintInProductionFindings([
+    buildPatchedFile({
+      filename: 'gui/lib/src/app/gfrm_app.dart',
+      patch: "@@ -10,0 +11,1 @@\n+    print('app started');",
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'print_in_production');
+});
+
+test('buildPrintInProductionFindings ignores commented-out print', () => {
+  const findings = buildPrintInProductionFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/core/http.dart',
+      patch: "@@ -5,0 +6,1 @@\n+    // print('debug');",
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
+// --- buildFlutterTestFindings ---
+
+test('buildFlutterTestFindings blocks new Flutter source without tests', () => {
+  const findings = buildFlutterTestFindings([
+    buildPatchedFile({
+      filename: 'gui/lib/src/features/dashboard/presentation/dashboard_page.dart',
+      status: 'added',
+      changes: 50,
+      patch: '@@ -0,0 +1,3 @@\n+class DashboardPage extends StatelessWidget {}\n+\n+Widget build(context) => Container();',
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'missing_flutter_tests_for_new_source');
+  assert.equal(findings[0].severity, 'blocking');
+});
+
+test('buildFlutterTestFindings stays quiet when Flutter tests changed', () => {
+  const findings = buildFlutterTestFindings([
+    buildPatchedFile({
+      filename: 'gui/lib/src/features/dashboard/presentation/dashboard_page.dart',
+      status: 'added',
+      changes: 50,
+      patch: '@@ -0,0 +1,3 @@\n+class DashboardPage extends StatelessWidget {}',
+    }),
+    buildPatchedFile({
+      filename: 'gui/test/widget/dashboard_test.dart',
+      status: 'added',
+      changes: 20,
+      patch: '@@ -0,0 +1,1 @@\n+void main() {}',
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
+test('buildFlutterTestFindings emits note for large modified Flutter source', () => {
+  const findings = buildFlutterTestFindings([
+    buildPatchedFile({
+      filename: 'gui/lib/src/runtime/run/gfrm_desktop_run_controller.dart',
+      status: 'modified',
+      changes: 150,
+      patch: '@@ -10,3 +10,3 @@\n+refactored();',
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'consider_flutter_test_updates');
+  assert.equal(findings[0].severity, 'note');
+});
+
+test('buildFlutterTestFindings ignores generated files', () => {
+  const findings = buildFlutterTestFindings([
+    buildPatchedFile({
+      filename: 'gui/lib/src/runtime/run/desktop_run_controller_provider.g.dart',
+      status: 'added',
+      changes: 80,
+      patch: '@@ -0,0 +1,3 @@\n+// GENERATED CODE',
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
+// --- buildFlutterTargetedCoverageFindings ---
+
+test('buildFlutterTargetedCoverageFindings flags controller change without test', () => {
+  const findings = buildFlutterTargetedCoverageFindings([
+    buildPatchedFile({
+      filename: 'gui/lib/src/runtime/run/gfrm_desktop_run_controller.dart',
+      changes: 10,
+      patch: '@@ -5,0 +6,1 @@\n+  final DesktopRunSnapshot snapshot;',
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'flutter_controller_test_gap');
+  assert.equal(findings[0].severity, 'note');
+});
+
+test('buildFlutterTargetedCoverageFindings stays quiet when controller test changed', () => {
+  const findings = buildFlutterTargetedCoverageFindings([
+    buildPatchedFile({
+      filename: 'gui/lib/src/runtime/run/gfrm_desktop_run_controller.dart',
+      changes: 10,
+      patch: '@@ -5,0 +6,1 @@\n+  final DesktopRunSnapshot snapshot;',
+    }),
+    buildPatchedFile({
+      filename: 'gui/test/unit/runtime/run/gfrm_desktop_run_controller_test.dart',
+      changes: 5,
+      patch: '@@ -1,0 +1,1 @@\n+test added',
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
+// --- buildMultiClassFindings ---
+
+test('buildMultiClassFindings blocks multiple classes in one Dart file', () => {
+  const findings = buildMultiClassFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/models/config.dart',
+      patch: '@@ -0,0 +1,4 @@\n+class ConfigA {\n+}\n+class ConfigB {\n+}',
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'multi_class_single_file');
+  assert.equal(findings[0].severity, 'blocking');
+});
+
+test('buildMultiClassFindings allows single class', () => {
+  const findings = buildMultiClassFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/models/config.dart',
+      patch: '@@ -0,0 +1,2 @@\n+class Config {\n+}',
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
+test('buildMultiClassFindings ignores generated files', () => {
+  const findings = buildMultiClassFindings([
+    buildPatchedFile({
+      filename: 'gui/lib/src/runtime/run/provider.g.dart',
+      patch: '@@ -0,0 +1,4 @@\n+class GeneratedA {}\n+class GeneratedB {}',
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
+test('buildMultiClassFindings blocks multiple classes in Flutter files', () => {
+  const findings = buildMultiClassFindings([
+    buildPatchedFile({
+      filename: 'gui/lib/src/app/widgets.dart',
+      patch: '@@ -0,0 +1,4 @@\n+class WidgetA extends StatelessWidget {\n+}\n+class WidgetB extends StatelessWidget {\n+}',
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'multi_class_single_file');
+});
+
+// --- buildLogicInBuildFindings ---
+
+test('buildLogicInBuildFindings blocks await inside build method', () => {
+  const findings = buildLogicInBuildFindings([
+    buildPatchedFile({
+      filename: 'gui/lib/src/features/dashboard/presentation/dashboard_page.dart',
+      patch: '@@ -0,0 +1,5 @@\n+  Widget build(BuildContext context) {\n+    final data = await fetchData();\n+    return Text(data);\n+  }',
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'logic_in_build_method');
+  assert.equal(findings[0].severity, 'blocking');
+});
+
+test('buildLogicInBuildFindings blocks HTTP call inside build', () => {
+  const findings = buildLogicInBuildFindings([
+    buildPatchedFile({
+      filename: 'gui/lib/src/features/settings/presentation/settings_page.dart',
+      patch: '@@ -0,0 +1,5 @@\n+  Widget build(BuildContext context) {\n+    http.get(Uri.parse(url));\n+    return Container();\n+  }',
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'logic_in_build_method');
+});
+
+test('buildLogicInBuildFindings ignores non-Flutter files', () => {
+  const findings = buildLogicInBuildFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/core/http.dart',
+      patch: '@@ -0,0 +1,5 @@\n+  Widget build(BuildContext context) {\n+    await fetch();\n+    return x;\n+  }',
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
+// --- buildGodClassFindings ---
+
+test('buildGodClassFindings blocks new file over 500 lines', () => {
+  const findings = buildGodClassFindings([
+    {
+      filename: 'dart_cli/lib/src/migrations/mega_engine.dart',
+      status: 'added',
+      additions: 520,
+      changes: 520,
+      patch: '@@ -0,0 +1,1 @@\n+class MegaEngine {}',
+    },
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'god_class_new_file');
+  assert.equal(findings[0].severity, 'blocking');
+  assert.match(findings[0].message, /520/);
+});
+
+test('buildGodClassFindings allows new file under 500 lines', () => {
+  const findings = buildGodClassFindings([
+    {
+      filename: 'dart_cli/lib/src/models/small.dart',
+      status: 'added',
+      additions: 80,
+      changes: 80,
+      patch: '@@ -0,0 +1,1 @@\n+class Small {}',
+    },
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
+test('buildGodClassFindings ignores modified files', () => {
+  const findings = buildGodClassFindings([
+    {
+      filename: 'dart_cli/lib/src/migrations/engine.dart',
+      status: 'modified',
+      additions: 600,
+      changes: 600,
+      patch: '@@ -1,0 +1,1 @@\n+big change',
+    },
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
+// --- buildLongMethodFindings ---
+
+test('buildLongMethodFindings flags method exceeding 120 added lines', () => {
+  const bodyLines = Array.from({ length: 125 }, (_, i) => `+    final x${i} = ${i};`).join('\n');
+  const patch = `@@ -0,0 +1,128 @@\n+  Future<void> processAll(List<String> items) {\n${bodyLines}\n+    return;\n+  }`;
+  const findings = buildLongMethodFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/migrations/engine.dart',
+      patch,
+    }),
+  ]);
+
+  assert.ok(findings.length >= 1, `Expected findings but got ${findings.length}`);
+  assert.equal(findings[0].rule, 'long_method');
+  assert.equal(findings[0].severity, 'note');
+});
+
+test('buildLongMethodFindings stays quiet for short methods', () => {
+  const lines = Array.from({ length: 10 }, (_, i) => `+  statement${i};`).join('\n');
+  const findings = buildLongMethodFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/core/settings.dart',
+      patch: `@@ -0,0 +1,12 @@\n+void shortMethod() {\n${lines}\n+}`,
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
+// --- buildSetStateFindings ---
+
+test('buildSetStateFindings blocks setState in Flutter production code', () => {
+  const findings = buildSetStateFindings([
+    buildPatchedFile({
+      filename: 'gui/lib/src/features/dashboard/presentation/dashboard_page.dart',
+      patch: '@@ -10,0 +11,1 @@\n+    setState(() { _counter++; });',
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'set_state_in_riverpod_project');
+  assert.equal(findings[0].severity, 'blocking');
+});
+
+test('buildSetStateFindings ignores commented setState', () => {
+  const findings = buildSetStateFindings([
+    buildPatchedFile({
+      filename: 'gui/lib/src/app/gfrm_app.dart',
+      patch: '@@ -10,0 +11,1 @@\n+    // setState(() { old pattern });',
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
+test('buildSetStateFindings ignores non-Flutter files', () => {
+  const findings = buildSetStateFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/core/settings.dart',
+      patch: '@@ -10,0 +11,1 @@\n+    setState(() {});',
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
+// --- buildDirectDependencyFindings ---
+
+test('buildDirectDependencyFindings blocks engine importing concrete provider', () => {
+  const findings = buildDirectDependencyFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/migrations/engine.dart',
+      patch: "@@ -1,0 +2,1 @@\n+import '../providers/github.dart';",
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'engine_imports_provider_directly');
+  assert.equal(findings[0].severity, 'blocking');
+});
+
+test('buildDirectDependencyFindings blocks direct HTTP in engine', () => {
+  const findings = buildDirectDependencyFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/migrations/tag_phase.dart',
+      patch: '@@ -10,0 +11,1 @@\n+    final response = await requestJson(url);',
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'engine_makes_http_calls');
+  assert.equal(findings[0].severity, 'blocking');
+});
+
+test('buildDirectDependencyFindings ignores provider imports outside engine', () => {
+  const findings = buildDirectDependencyFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/application/run_service.dart',
+      patch: "@@ -1,0 +2,1 @@\n+import '../providers/github.dart';",
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
+test('buildDirectDependencyFindings ignores comments', () => {
+  const findings = buildDirectDependencyFindings([
+    buildPatchedFile({
+      filename: 'dart_cli/lib/src/migrations/engine.dart',
+      patch: "@@ -1,0 +2,1 @@\n+// import '../providers/github.dart';",
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
+// --- buildGuiBoundaryFindings ---
+
+test('buildGuiBoundaryFindings blocks GUI importing cli.dart', () => {
+  const findings = buildGuiBoundaryFindings([
+    buildPatchedFile({
+      filename: 'gui/lib/src/runtime/run/gfrm_desktop_run_controller.dart',
+      patch: "@@ -1,0 +2,1 @@\n+import 'package:gfrm_dart/src/cli.dart';",
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'gui_imports_cli_internals');
+  assert.equal(findings[0].severity, 'blocking');
+});
+
+test('buildGuiBoundaryFindings blocks GUI importing arg_parsers', () => {
+  const findings = buildGuiBoundaryFindings([
+    buildPatchedFile({
+      filename: 'gui/lib/src/app/gfrm_app.dart',
+      patch: "@@ -1,0 +2,1 @@\n+import 'package:gfrm_dart/src/config/arg_parsers.dart';",
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'gui_imports_cli_internals');
+});
+
+test('buildGuiBoundaryFindings allows GUI importing application layer', () => {
+  const findings = buildGuiBoundaryFindings([
+    buildPatchedFile({
+      filename: 'gui/lib/src/runtime/run/gfrm_desktop_run_controller.dart',
+      patch: "@@ -1,0 +2,1 @@\n+import 'package:gfrm_dart/src/application/run_service.dart';",
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
+test('buildGuiBoundaryFindings ignores comments', () => {
+  const findings = buildGuiBoundaryFindings([
+    buildPatchedFile({
+      filename: 'gui/lib/src/app/gfrm_app.dart',
+      patch: "@@ -1,0 +2,1 @@\n+// import 'package:gfrm_dart/src/cli.dart';",
     }),
   ]);
 

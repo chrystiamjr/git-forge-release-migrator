@@ -33,7 +33,7 @@ hide_table_of_contents: true
 <div className="section-grid">
   <div className="section-card">
     <h3><a href="./getting-started/quick-start">Quick Start</a></h3>
-    <p>Get the right artifact, configure tokens once, and run a first migration.</p>
+    <p>Choose the right release artifact, configure tokens once, and run a first migration.</p>
   </div>
   <div className="section-card">
     <h3><a href="./configuration/settings-profiles">Settings Profiles</a></h3>
@@ -67,6 +67,6 @@ Download binaries and checksums from [GitHub Releases](https://github.com/chryst
 
 ## Read next
 
-- [Install and Verify](/getting-started/install-and-verify)
+- [Install and Verify guide](/getting-started/install-and-verify)
 - [First Migration](/getting-started/first-migration)
 - [Bitbucket Behavior](/guides/bitbucket-behavior)

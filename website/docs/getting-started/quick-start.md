@@ -20,7 +20,7 @@ The release page is the source of truth: [GitHub Releases](https://github.com/ch
 
 ## 2. Verify and run `--help`
 
-Follow [Install and Verify](/getting-started/install-and-verify) to extract the artifact and confirm the binary runs.
+Follow the [Install and Verify](/getting-started/install-and-verify) guide to extract the artifact and confirm the binary runs.
 Use `./gfrm <command> --help` when you need command-specific flags for `migrate`, `resume`, `setup`, or `settings`.
 
 ## 3. Bootstrap token settings
