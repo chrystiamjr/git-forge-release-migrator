@@ -1,10 +1,12 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gfrm_gui/src/features/dashboard/presentation/dashboard_empty_page.dart';
+import 'package:gfrm_gui/src/features/history/presentation/history_empty_page.dart';
+import 'package:gfrm_gui/src/features/results/presentation/results_empty_page.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import 'app_routes.dart';
-import 'gfrm_content_placeholder.dart';
 import 'gfrm_route_placeholder.dart';
 import 'gfrm_shell_page.dart';
 
@@ -30,7 +32,7 @@ GoRouter appRouter(Ref ref) {
           GoRoute(
             path: AppRoute.dashboard.path,
             pageBuilder: (BuildContext context, GoRouterState state) {
-              return _page(const GfrmContentPlaceholder());
+              return _page(const DashboardEmptyPage());
             },
           ),
           GoRoute(
@@ -58,23 +60,13 @@ GoRouter appRouter(Ref ref) {
           GoRoute(
             path: AppRoute.results.path,
             pageBuilder: (BuildContext context, GoRouterState state) {
-              return _page(
-                const GfrmRoutePlaceholder(
-                  title: 'Results',
-                  description: 'Final counts, failed tags, diagnostics, and artifact actions will mount here.',
-                ),
-              );
+              return _page(const ResultsEmptyPage());
             },
           ),
           GoRoute(
             path: AppRoute.history.path,
             pageBuilder: (BuildContext context, GoRouterState state) {
-              return _page(
-                const GfrmRoutePlaceholder(
-                  title: 'History',
-                  description: 'Past migration runs, filters, and pagination will mount here.',
-                ),
-              );
+              return _page(const HistoryEmptyPage());
             },
           ),
           GoRoute(

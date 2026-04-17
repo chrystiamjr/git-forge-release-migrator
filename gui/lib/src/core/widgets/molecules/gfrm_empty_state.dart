@@ -1,23 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:gfrm_gui/src/theme/gfrm_app_theme.dart';
 
-class GfrmRoutePlaceholder extends StatelessWidget {
-  const GfrmRoutePlaceholder({required this.title, required this.description, super.key});
+class GfrmEmptyState extends StatelessWidget {
+  const GfrmEmptyState({required this.title, required this.description, this.action, super.key});
 
   final String title;
   final String description;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
     final colors = GfrmAppTheme.colors;
     final unit = GfrmAppTheme.unit;
     final shadows = GfrmAppTheme.shadows;
+    final typography = GfrmAppTheme.typography;
 
     return Container(
-      margin: EdgeInsets.only(bottom: unit.s1),
       width: double.infinity,
-      constraints: const BoxConstraints(minHeight: 120),
-      padding: EdgeInsets.all(unit.s6),
+      padding: EdgeInsets.fromLTRB(unit.s6, unit.s10, unit.s6, unit.s14),
       decoration: BoxDecoration(
         color: colors.surfaceCard,
         borderRadius: BorderRadius.circular(unit.s5),
@@ -25,13 +26,14 @@ class GfrmRoutePlaceholder extends StatelessWidget {
         boxShadow: <BoxShadow>[shadows.card],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Text(title, style: Theme.of(context).textTheme.headlineLarge),
+          SvgPicture.asset('../website/static/img/gfrm_nodes.svg', height: 130, semanticsLabel: 'empty nodes'),
+          SizedBox(height: unit.s6),
+          Text(title, textAlign: TextAlign.center, style: typography.emptyStateTitle),
           SizedBox(height: unit.s2),
-          Text(description, style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: colors.textSecondary)),
-          SizedBox(height: unit.s2),
+          Text(description, textAlign: TextAlign.center, style: typography.emptyStateDescription),
+          if (action != null) ...<Widget>[SizedBox(height: unit.s8), action!],
         ],
       ),
     );

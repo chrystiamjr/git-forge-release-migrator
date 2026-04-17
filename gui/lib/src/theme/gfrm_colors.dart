@@ -1,21 +1,41 @@
-import 'package:flutter/material.dart';
+part of 'gfrm_app_theme.dart';
 
 final class GfrmColors {
-  const GfrmColors._();
+  const GfrmColors({
+    this.sidebarBackground = const Color(0xFF0F172A),
+    this.sidebarActive = const Color(0xE61E293B),
+    this.accent = const Color(0xFF818CF8),
+    this.primary = const Color(0xFF4F46E5),
+    this.primaryHover = const Color(0xFF4338CA),
+    this.illustrationStroke = const Color(0xFFCBD5E1),
+    this.progressTrack = const Color(0xFFE2E8F0),
+    this.surface = const Color(0xFFFFFDF8),
+    this.surfaceCard = const Color(0xFFFFF6E9),
+    this.surfaceStrong = const Color(0xFFF6E4C9),
+    this.border = const Color(0x1F102A43),
+    this.textHeading = const Color(0xFF102A43),
+    this.textBody = const Color(0xFF334155),
+    this.textSecondary = const Color(0xFF64748B),
+    this.textMuted = const Color(0xFF94A3B8),
+    this.textOnDark = const Color(0xFFF8FAFC),
+    this.success = const Color(0xFF43A047),
+  });
 
-  static const Color sidebarBackground = Color(0xFF0F172A);
-  static const Color sidebarActive = Color(0xE61E293B);
-  static const Color accent = Color(0xFF818CF8);
-  static const Color primary = Color(0xFF4F46E5);
-  static const Color primaryHover = Color(0xFF4338CA);
-  static const Color surface = Color(0xFFFFFDF8);
-  static const Color surfaceCard = Color(0xFFFFF6E9);
-  static const Color surfaceStrong = Color(0xFFF6E4C9);
-  static const Color border = Color(0x1F102A43);
-  static const Color textHeading = Color(0xFF102A43);
-  static const Color textBody = Color(0xFF334155);
-  static const Color textSecondary = Color(0xFF64748B);
-  static const Color textMuted = Color(0xFF94A3B8);
-  static const Color textOnDark = Color(0xFFF8FAFC);
-  static const Color success = Color(0xFF43A047);
+  final Color sidebarBackground;
+  final Color sidebarActive;
+  final Color accent;
+  final Color primary;
+  final Color primaryHover;
+  final Color illustrationStroke;
+  final Color progressTrack;
+  final Color surface;
+  final Color surfaceCard;
+  final Color surfaceStrong;
+  final Color border;
+  final Color textHeading;
+  final Color textBody;
+  final Color textSecondary;
+  final Color textMuted;
+  final Color textOnDark;
+  final Color success;
 }

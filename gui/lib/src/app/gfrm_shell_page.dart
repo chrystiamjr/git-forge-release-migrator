@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:gfrm_gui/src/app/gfrm_sidebar.dart';
-import 'package:gfrm_gui/src/theme/gfrm_colors.dart';
+import 'package:gfrm_gui/src/theme/gfrm_app_theme.dart';
 
 class GfrmShellPage extends StatelessWidget {
   const GfrmShellPage({required this.currentLocation, required this.child, super.key});
@@ -15,6 +15,8 @@ class GfrmShellPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = GfrmAppTheme.colors;
+    final unit = GfrmAppTheme.unit;
     final bool isMacOS = Theme.of(context).platform == TargetPlatform.macOS;
 
     return Scaffold(
@@ -28,13 +30,16 @@ class GfrmShellPage extends StatelessWidget {
           Expanded(
             child: ColoredBox(
               key: contentKey,
-              color: GfrmColors.surface,
+              color: colors.surface,
               child: SingleChildScrollView(
                 child: Align(
                   alignment: Alignment.topCenter,
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 1120),
-                    child: Padding(padding: EdgeInsets.fromLTRB(24, isMacOS ? 56 : 24, 24, 32), child: child),
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(unit.s6, isMacOS ? unit.s14 : unit.s6, unit.s6, unit.s8),
+                      child: child,
+                    ),
                   ),
                 ),
               ),

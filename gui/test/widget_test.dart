@@ -12,14 +12,31 @@ void main() {
     await tester.pumpWidget(const ProviderScope(child: GfrmApp()));
     await tester.pumpAndSettle();
 
-    expect(find.text('Desktop scaffold ready'), findsOneWidget);
-    expect(find.text('Shared runtime contracts'), findsOneWidget);
-    expect(find.text('Dashboard'), findsOneWidget);
+    expect(find.text('No migrations yet'), findsOneWidget);
+    expect(find.text('Start your first release migration between Git forges'), findsOneWidget);
+    expect(find.text('SUCCESS RATE'), findsOneWidget);
+    expect(find.text('TOTAL MIGRATIONS'), findsOneWidget);
+    expect(find.text('FAILURES'), findsOneWidget);
+    expect(find.text('0%'), findsOneWidget);
+    expect(find.text('0'), findsNWidgets(2));
+    expect(find.text('Dashboard'), findsWidgets);
     expect(find.text('Settings'), findsOneWidget);
 
     final SizedBox sidebar = tester.widget<SizedBox>(find.byKey(GfrmShellPage.sidebarKey));
 
     expect(sidebar.width, 220);
+  });
+
+  testWidgets('dashboard empty state navigates to new migration', (WidgetTester tester) async {
+    _setDesktopSurface(tester);
+    await tester.pumpWidget(const ProviderScope(child: GfrmApp()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('NEW MIGRATION'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('New Migration'), findsWidgets);
+    expect(find.text('Wizard placeholder for source, target, filters, preflight, and confirmation.'), findsOneWidget);
   });
 
   testWidgets('navigates primary routes and highlights the active item', (WidgetTester tester) async {
@@ -31,7 +48,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('History'), findsWidgets);
-    expect(find.text('Past migration runs, filters, and pagination will mount here.'), findsOneWidget);
+    expect(find.text('No migration history'), findsOneWidget);
+    expect(find.text('Completed and resumed migrations will appear here once you run them.'), findsOneWidget);
 
     final Finder historyIcon = find.byIcon(Icons.history);
     final Icon icon = tester.widget<Icon>(historyIcon.first);
@@ -62,11 +80,11 @@ void main() {
     await tester.pumpAndSettle();
 
     final Map<String, String> expectedTitles = <String, String>{
-      '/dashboard': 'Desktop scaffold ready',
+      '/dashboard': 'No migrations yet',
       '/new-migration': 'New Migration',
       '/progress': 'Run Progress',
-      '/results': 'Results',
-      '/history': 'History',
+      '/results': 'No results to display',
+      '/history': 'No migration history',
       '/settings': 'Settings',
       '/settings/credentials': 'Credential Management',
       '/settings/profiles': 'Profiles',
@@ -79,6 +97,21 @@ void main() {
 
       expect(find.text(route.value), findsWidgets, reason: 'Expected ${route.key} to render ${route.value}.');
     }
+  });
+
+  testWidgets('results remains accessible while idle and shows empty state', (WidgetTester tester) async {
+    _setDesktopSurface(tester);
+    await tester.pumpWidget(const ProviderScope(child: GfrmApp()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Results'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No results to display'), findsOneWidget);
+    expect(
+      find.text('Migration summaries and artifact shortcuts will appear here after a run finishes.'),
+      findsOneWidget,
+    );
   });
 }
 

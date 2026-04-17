@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:gfrm_gui/src/app/app_routes.dart';
 import 'package:gfrm_gui/src/app/gfrm_logo.dart';
-import 'package:gfrm_gui/src/theme/gfrm_colors.dart';
+import 'package:gfrm_gui/src/theme/gfrm_app_theme.dart';
 
 class GfrmSidebar extends StatelessWidget {
   const GfrmSidebar({required this.currentLocation, super.key});
@@ -12,19 +12,21 @@ class GfrmSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = GfrmAppTheme.colors;
+    final unit = GfrmAppTheme.unit;
     final bool isMacOS = Theme.of(context).platform == TargetPlatform.macOS;
     final AppRoute? activePrimaryRoute = AppRoute.activePrimaryRouteFor(currentLocation);
     final bool settingsActive = AppRoute.isSettingsLocation(currentLocation);
 
     return ColoredBox(
-      color: GfrmColors.sidebarBackground,
+      color: colors.sidebarBackground,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(16, isMacOS ? 56 : 24, 16, 24),
+        padding: EdgeInsets.fromLTRB(unit.s4, isMacOS ? unit.s14 : unit.s6, unit.s4, unit.s6),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             const GfrmLogo(),
-            const SizedBox(height: 32),
+            SizedBox(height: unit.s8),
             for (final AppRoute route in AppRoute.primaryRoutes)
               _GfrmSidebarItem(
                 route: route,
@@ -34,7 +36,7 @@ class GfrmSidebar extends StatelessWidget {
                 },
               ),
             const Spacer(),
-            const Divider(color: GfrmColors.border),
+            Divider(color: colors.border),
             _GfrmSidebarItem(
               route: AppRoute.settings,
               active: settingsActive,
@@ -42,10 +44,10 @@ class GfrmSidebar extends StatelessWidget {
                 context.go(AppRoute.settings.path);
               },
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: unit.s3),
             Text(
               'devuser',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(color: GfrmColors.textMuted, letterSpacing: 0),
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(color: colors.textMuted, letterSpacing: 0),
             ),
           ],
         ),
@@ -65,37 +67,35 @@ class _GfrmSidebarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color textColor = active ? GfrmColors.accent : GfrmColors.textMuted;
+    final colors = GfrmAppTheme.colors;
+    final unit = GfrmAppTheme.unit;
+    final typography = GfrmAppTheme.typography;
+    final Color textColor = active ? colors.accent : colors.textMuted;
 
     return Container(
       height: _height,
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: EdgeInsets.only(bottom: unit.s2),
       decoration: BoxDecoration(
-        color: active ? GfrmColors.sidebarActive : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
-        border: active ? const Border(left: BorderSide(color: GfrmColors.accent, width: 3)) : null,
+        color: active ? colors.sidebarActive : Colors.transparent,
+        borderRadius: BorderRadius.circular(unit.s2),
+        border: active ? Border(left: BorderSide(color: colors.accent, width: 3)) : null,
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(unit.s2),
           onTap: onPressed,
           child: Padding(
-            padding: const EdgeInsets.only(left: 16, right: 12),
+            padding: EdgeInsets.only(left: unit.s4, right: unit.s3),
             child: Row(
               children: <Widget>[
                 Icon(route.icon, size: 20, color: textColor),
-                const SizedBox(width: 12),
+                SizedBox(width: unit.s3),
                 Expanded(
                   child: Text(
                     route.label,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontFamily: 'IBMPlexSans',
-                      fontSize: 14,
-                      color: GfrmColors.textMuted,
-                      fontVariations: <FontVariation>[FontVariation('wght', 500)],
-                    ).copyWith(color: textColor),
+                    style: typography.sidebarItem.copyWith(color: textColor),
                   ),
                 ),
               ],

@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:gfrm_gui/src/app/app_router.dart';
-import 'package:gfrm_gui/src/theme/gfrm_theme.dart';
+import 'package:gfrm_gui/src/theme/gfrm_app_theme.dart';
 
 class GfrmApp extends ConsumerWidget {
   const GfrmApp({super.key});
@@ -15,7 +15,7 @@ class GfrmApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'gfrm',
       debugShowCheckedModeBanner: false,
-      theme: GfrmTheme.build(),
+      theme: GfrmAppTheme.themeData,
       routerConfig: routerConfig,
     );
   }
