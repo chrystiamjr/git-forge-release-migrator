@@ -4,6 +4,7 @@ final class GfrmColors {
   const GfrmColors({
     this.sidebarBackground = const Color(0xFF0F172A),
     this.sidebarActive = const Color(0xE61E293B),
+    this.sidebarInactive = Colors.transparent,
     this.accent = const Color(0xFF818CF8),
     this.primary = const Color(0xFF4F46E5),
     this.primaryHover = const Color(0xFF4338CA),
@@ -23,6 +24,7 @@ final class GfrmColors {
 
   final Color sidebarBackground;
   final Color sidebarActive;
+  final Color sidebarInactive;
   final Color accent;
   final Color primary;
   final Color primaryHover;

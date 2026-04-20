@@ -23,12 +23,12 @@ class GfrmNavItem extends StatelessWidget {
       height: _height,
       margin: EdgeInsets.only(bottom: unit.s2),
       decoration: BoxDecoration(
-        color: active ? colors.sidebarActive : Colors.transparent,
+        color: active ? colors.sidebarActive : colors.sidebarInactive,
         borderRadius: BorderRadius.circular(unit.s2),
         border: active ? Border(left: BorderSide(color: colors.accent, width: 3)) : null,
       ),
       child: Material(
-        color: Colors.transparent,
+        color: colors.sidebarInactive,
         child: InkWell(
           borderRadius: BorderRadius.circular(unit.s2),
           onTap: onPressed,
