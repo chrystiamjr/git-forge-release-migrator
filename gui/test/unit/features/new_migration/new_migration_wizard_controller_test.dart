@@ -20,14 +20,14 @@ void main() {
       expect(container.read(newMigrationWizardProvider).canContinueFromStepOne, isTrue);
     });
 
-    test('updates matching tag preview from include and exclude patterns', () {
+    test('updates matching tag preview from semver range', () {
       final ProviderContainer container = ProviderContainer();
       addTearDown(container.dispose);
 
       final NewMigrationWizardController controller = container.read(newMigrationWizardProvider.notifier);
 
-      controller.updateIncludePattern('v2*');
-      controller.updateExcludePattern('v2.0.0');
+      controller.updateFromTag('v2.0.1');
+      controller.updateToTag('v2.1.0');
 
       expect(container.read(newMigrationWizardProvider).matchingTags, <String>['v2.1.0', 'v2.0.1']);
     });
@@ -49,8 +49,8 @@ void main() {
       controller.setMigrateReleaseAssets(false);
       controller.setDryRun(false);
       controller.updateSettingsProfile(' release ');
-      controller.updateIncludePattern(' v1* ');
-      controller.updateExcludePattern(' v1.0.0 ');
+      controller.updateFromTag(' v1.0.0 ');
+      controller.updateToTag(' v1.9.0 ');
 
       final request = container.read(newMigrationWizardProvider).toRunStartRequest();
 
@@ -65,8 +65,8 @@ void main() {
       expect(request.skipReleaseAssetMigration, isTrue);
       expect(request.dryRun, isFalse);
       expect(request.settingsProfile, 'release');
-      expect(request.fromTag, 'v1*');
-      expect(request.toTag, 'v1.0.0');
+      expect(request.fromTag, 'v1.0.0');
+      expect(request.toTag, 'v1.9.0');
     });
   });
 }
