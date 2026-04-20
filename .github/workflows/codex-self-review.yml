@@ -45,6 +45,7 @@ jobs:
       - name: Run Codex self review
         if: env.HAS_OPENAI_API_KEY == 'true'
         id: run_codex
+        continue-on-error: true
         uses: openai/codex-action@v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -54,6 +55,17 @@ jobs:
           sandbox: workspace-write
           model: gpt-5.4
           effort: high
+
+      - name: Report advisory Codex review failure
+        if: env.HAS_OPENAI_API_KEY == 'true' && steps.run_codex.outcome == 'failure'
+        run: |
+          {
+            echo "## Codex self review skipped"
+            echo ""
+            echo "Codex self review is advisory and failed before producing feedback."
+            echo "Common causes: OpenAI quota, API key billing, or temporary Codex Action setup issues."
+            echo "Quality Checks and Automated PR Review remain the merge gates."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   publish:
     needs: review
