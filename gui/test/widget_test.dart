@@ -113,6 +113,253 @@ void main() {
       findsOneWidget,
     );
   });
+
+  group('Primary route transitions (smoke tests)', () {
+    testWidgets('navigates Dashboard → New Migration → Progress → Results → History → Dashboard (cycle)',
+        (WidgetTester tester) async {
+      _setDesktopSurface(tester);
+      await tester.pumpWidget(const ProviderScope(child: GfrmApp()));
+      await tester.pumpAndSettle();
+
+      // Verify startup at Dashboard
+      expect(find.text('No migrations yet'), findsOneWidget);
+
+      // Dashboard → New Migration
+      await tester.tap(find.text('NEW MIGRATION'));
+      await tester.pumpAndSettle();
+      expect(find.text('Wizard placeholder for source, target, filters, preflight, and confirmation.'), findsOneWidget);
+
+      // New Migration → Progress
+      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/progress');
+      await tester.pumpAndSettle();
+      expect(find.text('Live migration phase, item table, action bar, and logs will mount here.'), findsOneWidget);
+
+      // Progress → Results
+      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/results');
+      await tester.pumpAndSettle();
+      expect(find.text('No results to display'), findsOneWidget);
+
+      // Results → History
+      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/history');
+      await tester.pumpAndSettle();
+      expect(find.text('No migration history'), findsOneWidget);
+
+      // History → Dashboard
+      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/dashboard');
+      await tester.pumpAndSettle();
+      expect(find.text('No migrations yet'), findsOneWidget);
+    });
+
+    testWidgets('sidebar active indicator updates for Dashboard, New Migration, Progress, Results, History',
+        (WidgetTester tester) async {
+      _setDesktopSurface(tester);
+      await tester.pumpWidget(const ProviderScope(child: GfrmApp()));
+      await tester.pumpAndSettle();
+
+      final Color activeColor = const Color(0xFF818CF8);
+      final Color inactiveColor = const Color(0xFF94A3B8);
+
+      // Dashboard (active)
+      var dashboardIcon = tester.widget<Icon>(find.byIcon(Icons.dashboard_outlined).first);
+      expect(dashboardIcon.color, activeColor);
+
+      // Navigate to New Migration
+      await tester.tap(find.text('NEW MIGRATION'));
+      await tester.pumpAndSettle();
+      dashboardIcon = tester.widget<Icon>(find.byIcon(Icons.dashboard_outlined).first);
+      expect(dashboardIcon.color, inactiveColor);
+
+      // Navigate to Progress
+      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/progress');
+      await tester.pumpAndSettle();
+      var progressIcon = tester.widget<Icon>(find.byIcon(Icons.sync_outlined).first);
+      expect(progressIcon.color, activeColor);
+
+      // Navigate to Results
+      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/results');
+      await tester.pumpAndSettle();
+      progressIcon = tester.widget<Icon>(find.byIcon(Icons.sync_outlined).first);
+      expect(progressIcon.color, inactiveColor);
+      var resultsIcon = tester.widget<Icon>(find.byIcon(Icons.task_alt_outlined).first);
+      expect(resultsIcon.color, activeColor);
+
+      // Navigate to History
+      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/history');
+      await tester.pumpAndSettle();
+      resultsIcon = tester.widget<Icon>(find.byIcon(Icons.task_alt_outlined).first);
+      expect(resultsIcon.color, inactiveColor);
+      var historyIcon = tester.widget<Icon>(find.byIcon(Icons.history).first);
+      expect(historyIcon.color, activeColor);
+    });
+  });
+
+  group('Settings sub-route navigation', () {
+    testWidgets('Settings → Credentials → Profiles → General → Settings (cycle)', (WidgetTester tester) async {
+      _setDesktopSurface(tester);
+      await tester.pumpWidget(const ProviderScope(child: GfrmApp()));
+      await tester.pumpAndSettle();
+
+      // Navigate to Settings (main)
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+      expect(find.text('Settings landing page for credentials, profiles, and general preferences.'), findsOneWidget);
+
+      // Settings → Credentials
+      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/settings/credentials');
+      await tester.pumpAndSettle();
+      expect(find.text('Credential Management'), findsWidgets);
+      expect(
+        find.text('Profile-scoped provider tokens and credential health checks will mount here.'),
+        findsOneWidget,
+      );
+
+      // Credentials → Profiles
+      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/settings/profiles');
+      await tester.pumpAndSettle();
+      expect(find.text('Profiles'), findsWidgets);
+      expect(find.text('Profile creation, editing, defaults, and provider mapping will mount here.'), findsOneWidget);
+
+      // Profiles → General
+      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/settings/general');
+      await tester.pumpAndSettle();
+      expect(find.text('General'), findsWidgets);
+      expect(find.text('App preferences, diagnostics defaults, and layout options will mount here.'), findsOneWidget);
+
+      // General → Settings (root)
+      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/settings');
+      await tester.pumpAndSettle();
+      expect(find.text('Settings landing page for credentials, profiles, and general preferences.'), findsOneWidget);
+    });
+
+    testWidgets('Settings icon remains active while navigating sub-routes', (WidgetTester tester) async {
+      _setDesktopSurface(tester);
+      await tester.pumpWidget(const ProviderScope(child: GfrmApp()));
+      await tester.pumpAndSettle();
+
+      final Color activeColor = const Color(0xFF818CF8);
+
+      // Navigate to Settings
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+
+      // Verify settings icon is active
+      var settingsIcon = tester.widget<Icon>(find.byIcon(Icons.settings_outlined).first);
+      expect(settingsIcon.color, activeColor);
+
+      // Navigate to Credentials (sub-route)
+      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/settings/credentials');
+      await tester.pumpAndSettle();
+      settingsIcon = tester.widget<Icon>(find.byIcon(Icons.settings_outlined).first);
+      expect(settingsIcon.color, activeColor);
+
+      // Navigate to Profiles (sub-route)
+      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/settings/profiles');
+      await tester.pumpAndSettle();
+      settingsIcon = tester.widget<Icon>(find.byIcon(Icons.settings_outlined).first);
+      expect(settingsIcon.color, activeColor);
+
+      // Navigate to General (sub-route)
+      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/settings/general');
+      await tester.pumpAndSettle();
+      settingsIcon = tester.widget<Icon>(find.byIcon(Icons.settings_outlined).first);
+      expect(settingsIcon.color, activeColor);
+    });
+  });
+
+  group('Dashboard widget atoms rendering in context', () {
+    testWidgets('Dashboard renders GfrmStatCard atoms with correct labels and values', (WidgetTester tester) async {
+      _setDesktopSurface(tester);
+      await tester.pumpWidget(const ProviderScope(child: GfrmApp()));
+      await tester.pumpAndSettle();
+
+      // Verify Dashboard page renders with correct stat card labels and values
+      expect(find.text('SUCCESS RATE'), findsOneWidget);
+      expect(find.text('TOTAL MIGRATIONS'), findsOneWidget);
+      expect(find.text('FAILURES'), findsOneWidget);
+      expect(find.text('0%'), findsOneWidget);
+      expect(find.text('0'), findsNWidgets(2));
+    });
+
+    testWidgets('Dashboard empty state GfrmButton responds to tap', (WidgetTester tester) async {
+      _setDesktopSurface(tester);
+      await tester.pumpWidget(const ProviderScope(child: GfrmApp()));
+      await tester.pumpAndSettle();
+
+      // Verify button text exists
+      expect(find.text('NEW MIGRATION'), findsOneWidget);
+
+      // Tap button and verify navigation
+      await tester.tap(find.text('NEW MIGRATION'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('New Migration'), findsWidgets);
+    });
+  });
+
+  group('Window size validation (1280x800)', () {
+    testWidgets('desktop surface renders correctly at 1280x800 resolution', (WidgetTester tester) async {
+      _setDesktopSurface(tester);
+      await tester.pumpWidget(const ProviderScope(child: GfrmApp()));
+      await tester.pumpAndSettle();
+
+      // Verify sidebar width
+      final SizedBox sidebar = tester.widget<SizedBox>(find.byKey(GfrmShellPage.sidebarKey));
+      expect(sidebar.width, 220);
+
+      // Verify surface dimensions
+      expect(tester.view.physicalSize, const Size(1280, 800));
+    });
+  });
+
+  group('Wizard step transitions (simulated)', () {
+    testWidgets('simulates wizard 3-step forward/back navigation', (WidgetTester tester) async {
+      _setDesktopSurface(tester);
+      await tester.pumpWidget(const ProviderScope(child: GfrmApp()));
+      await tester.pumpAndSettle();
+
+      // Start at New Migration (Step 1 equivalent)
+      await tester.tap(find.text('NEW MIGRATION'));
+      await tester.pumpAndSettle();
+      expect(find.text('Wizard placeholder for source, target, filters, preflight, and confirmation.'), findsOneWidget);
+
+      // Simulate Step 1 → Step 2 (programmatic navigation)
+      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/new-migration?step=2');
+      await tester.pumpAndSettle();
+      // Still same placeholder, but route changed
+      expect(find.text('Wizard placeholder for source, target, filters, preflight, and confirmation.'), findsOneWidget);
+
+      // Simulate Step 2 → Step 3
+      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/new-migration?step=3');
+      await tester.pumpAndSettle();
+      expect(find.text('Wizard placeholder for source, target, filters, preflight, and confirmation.'), findsOneWidget);
+
+      // Simulate Step 3 → back to Step 2
+      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/new-migration?step=2');
+      await tester.pumpAndSettle();
+      expect(find.text('Wizard placeholder for source, target, filters, preflight, and confirmation.'), findsOneWidget);
+
+      // Simulate Step 2 → back to Step 1
+      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/new-migration');
+      await tester.pumpAndSettle();
+      expect(find.text('Wizard placeholder for source, target, filters, preflight, and confirmation.'), findsOneWidget);
+    });
+
+    testWidgets('progress-to-results transition on migration completion', (WidgetTester tester) async {
+      _setDesktopSurface(tester);
+      await tester.pumpWidget(const ProviderScope(child: GfrmApp()));
+      await tester.pumpAndSettle();
+
+      // Navigate to Progress
+      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/progress');
+      await tester.pumpAndSettle();
+      expect(find.text('Live migration phase, item table, action bar, and logs will mount here.'), findsOneWidget);
+
+      // Simulate completion by navigating to Results
+      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/results');
+      await tester.pumpAndSettle();
+      expect(find.text('No results to display'), findsOneWidget);
+    });
+  });
 }
 
 void _setDesktopSurface(WidgetTester tester) {
