@@ -1,5 +1,5 @@
 ---
-applyTo: ".github/workflows/**/*.yml,.github/actions/**/*.yml,scripts/review-pr*.mjs,scripts/publish-pr-review.mjs,scripts/*.test.mjs"
+applyTo: ".github/workflows/**/*.yml,.github/actions/**/*.yml,.github/codex/**/*.md,scripts/review-pr*.mjs,scripts/publish-pr-review.mjs,scripts/*.test.mjs"
 ---
 
 # Workflow And Review Automation Rules

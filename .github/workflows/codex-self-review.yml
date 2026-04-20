@@ -1,0 +1,105 @@
+name: Codex Self Review
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+concurrency:
+  group: codex-self-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      final_message: ${{ steps.run_codex.outputs.final-message }}
+    env:
+      # Configure OPENAI_API_KEY in repository secrets to enable this advisory review.
+      HAS_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY != '' }}
+      BASE_REF: ${{ github.event.pull_request.base.ref }}
+
+    steps:
+      - name: Skip when OpenAI API key is missing
+        if: env.HAS_OPENAI_API_KEY != 'true'
+        run: echo "Codex self review skipped because OPENAI_API_KEY is not configured."
+
+      - name: Checkout pull request
+        if: env.HAS_OPENAI_API_KEY == 'true'
+        uses: actions/checkout@v6
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          fetch-depth: 0
+
+      - name: Fetch base branch
+        if: env.HAS_OPENAI_API_KEY == 'true'
+        run: git fetch --no-tags origin "${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+
+      - name: Run Codex self review
+        if: env.HAS_OPENAI_API_KEY == 'true'
+        id: run_codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: .github/codex/prompts/self-review.md
+          output-file: codex-self-review.md
+          safety-strategy: drop-sudo
+          sandbox: workspace-write
+          model: gpt-5.4
+          effort: high
+
+  publish:
+    needs: review
+    if: github.event.pull_request.draft == false && needs.review.outputs.final_message != ''
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: read
+
+    steps:
+      - name: Publish Codex self review
+        uses: actions/github-script@v7
+        env:
+          CODEX_FINAL_MESSAGE: ${{ needs.review.outputs.final_message }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const marker = '<!-- codex-self-review -->';
+            const issue_number = context.payload.pull_request.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const body = process.env.CODEX_FINAL_MESSAGE.includes(marker)
+              ? process.env.CODEX_FINAL_MESSAGE
+              : `${marker}\n\n${process.env.CODEX_FINAL_MESSAGE}`;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+            const existing = comments.find((comment) => comment.body?.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+              return;
+            }
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body,
+            });
