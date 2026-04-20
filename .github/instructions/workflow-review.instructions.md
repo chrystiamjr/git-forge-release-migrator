@@ -1,11 +1,11 @@
 ---
-applyTo: ".github/workflows/**/*.yml,.github/actions/**/*.yml,.github/codex/**/*.md,scripts/review-pr*.mjs,scripts/publish-pr-review.mjs,scripts/*.test.mjs"
+applyTo: ".github/workflows/**/*.yml,.github/actions/**/*.yml,scripts/review-pr*.mjs,scripts/publish-pr-review.mjs,scripts/*.test.mjs"
 ---
 
 # Workflow And Review Automation Rules
 
 - Use `GH_TOKEN`, not `GITHUB_TOKEN`, for custom bot review and approval flows in this repository.
-- The automated PR reviewer is the formal gate for `APPROVE` and `REQUEST_CHANGES`; Copilot review is advisory only.
+- The scripted automated PR reviewer owns `APPROVE` and `REQUEST_CHANGES`; Copilot review requirements belong in branch protection.
 - Approval must depend on required checks, not every visible status on the commit.
 - If review logic changes, update or add focused tests under `scripts/*.test.mjs`.
 

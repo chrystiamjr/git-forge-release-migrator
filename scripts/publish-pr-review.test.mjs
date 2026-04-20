@@ -6,6 +6,7 @@ import {
   isInlineCommentPermissionError,
   isSelfReviewApproveError,
   isSelfReviewRequestChangesError,
+  partitionPublishedFindings,
   publishReviewResult,
 } from './publish-pr-review.mjs';
 
@@ -117,6 +118,77 @@ test('publishReviewResult includes finding summary when inline comments are unav
   );
   assert.match(calls[0].body, /Inline comments could not be published with this token/);
   assert.match(calls[0].body, /auto-pr-review\.yml:31/);
+});
+
+test('publishReviewResult includes deduped finding summary when inline comment already exists', async () => {
+  const calls = [];
+
+  await publishReviewResult(
+    {
+      verdict: 'request_changes',
+      marker: '<!-- auto-pr-review -->',
+      findings: [
+        {
+          severity: 'note',
+          message: 'Theme, color, or typography definitions changed without test coverage.',
+          path: 'gui/lib/src/theme/gfrm_colors.dart',
+          line: 1,
+        },
+      ],
+    },
+    async (event, body) => {
+      calls.push({ event, body });
+    },
+    {
+      inlineCommentsPublished: true,
+      summarizedFindings: [
+        {
+          severity: 'note',
+          message: 'Theme, color, or typography definitions changed without test coverage.',
+          path: 'gui/lib/src/theme/gfrm_colors.dart',
+          line: 1,
+        },
+      ],
+    },
+  );
+
+  assert.deepEqual(
+    calls.map((call) => call.event),
+    ['REQUEST_CHANGES'],
+  );
+  assert.match(calls[0].body, /summarized findings below/);
+  assert.match(calls[0].body, /existing automated inline comments/);
+  assert.match(calls[0].body, /gui\/lib\/src\/theme\/gfrm_colors\.dart:1/);
+});
+
+test('partitionPublishedFindings separates existing automated inline comments', () => {
+  const marker = '<!-- auto-pr-review -->';
+  const findings = [
+    {
+      severity: 'note',
+      message: 'Theme, color, or typography definitions changed without test coverage.',
+      path: 'gui/lib/src/theme/gfrm_colors.dart',
+      line: 1,
+    },
+    {
+      severity: 'blocking',
+      message: 'Workflow still checks out main instead of the PR head SHA.',
+      path: '.github/workflows/auto-pr-review.yml',
+      line: 31,
+    },
+  ];
+  const comments = [
+    {
+      body: `${marker}\n[note] Theme, color, or typography definitions changed without test coverage.`,
+      path: 'gui/lib/src/theme/gfrm_colors.dart',
+      line: 1,
+    },
+  ];
+
+  assert.deepEqual(partitionPublishedFindings(findings, comments, marker), {
+    unpublishedFindings: [findings[1]],
+    alreadyPublishedFindings: [findings[0]],
+  });
 });
 
 test('publishReviewResult rethrows unrelated approval failures', async () => {

@@ -45,18 +45,32 @@ function inlineCommentSignature(path, line, body) {
 }
 
 export function filterAlreadyPublishedFindings(findings, comments, marker) {
+    return partitionPublishedFindings(findings, comments, marker).unpublishedFindings;
+}
+
+export function partitionPublishedFindings(findings, comments, marker) {
     const existingCommentSignatures = new Set(
         comments
             .filter((comment) => String(comment.body || '').includes(marker))
             .map((comment) => inlineCommentSignature(comment.path, comment.line, comment.body)),
     );
 
-    return findings.filter(
-        (finding) =>
-            !existingCommentSignatures.has(
-                inlineCommentSignature(finding.path, finding.line, formatInlineComment(finding, marker)),
-            ),
-    );
+    const unpublishedFindings = [];
+    const alreadyPublishedFindings = [];
+
+    for (const finding of findings) {
+        const isAlreadyPublished = existingCommentSignatures.has(
+            inlineCommentSignature(finding.path, finding.line, formatInlineComment(finding, marker)),
+        );
+
+        if (isAlreadyPublished) {
+            alreadyPublishedFindings.push(finding);
+        } else {
+            unpublishedFindings.push(finding);
+        }
+    }
+
+    return {unpublishedFindings, alreadyPublishedFindings};
 }
 
 function formatFindingSummary(finding) {
@@ -68,10 +82,13 @@ function formatFindingSummary(finding) {
 function buildReviewBody(result, options = {}) {
     const summaryLines = [];
     const findings = Array.isArray(result.findings) ? result.findings : [];
+    const summarizedFindings = Array.isArray(options.summarizedFindings) ? options.summarizedFindings : [];
 
     if (result.verdict === 'request_changes') {
         if (options.inlineCommentsPublished === false) {
             summaryLines.push('Issues found. Inline comments could not be published with this token, so the findings are listed below.');
+        } else if (summarizedFindings.length > 0) {
+            summaryLines.push('Issues found — see inline comments and summarized findings below.');
         } else {
             summaryLines.push('Issues found — see inline comments.');
         }
@@ -93,6 +110,12 @@ function buildReviewBody(result, options = {}) {
     if (findings.length > 0 && options.inlineCommentsPublished === false) {
         summaryLines.push('');
         summaryLines.push(...findings.map((finding) => formatFindingSummary(finding)));
+    } else if (summarizedFindings.length > 0) {
+        summaryLines.push('');
+        summaryLines.push(
+            'These findings matched existing automated inline comments and are repeated here so the review is self-contained:',
+        );
+        summaryLines.push(...summarizedFindings.map((finding) => formatFindingSummary(finding)));
     }
 
     summaryLines.push('', result.marker);
@@ -195,7 +218,11 @@ async function main() {
     await dismissPreviousReviews(owner, repo, result.marker);
     const existingComments = await paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/comments`);
     const findings = Array.isArray(result.findings) ? result.findings : [];
-    const unpublishedFindings = filterAlreadyPublishedFindings(findings, existingComments, result.marker);
+    const {unpublishedFindings, alreadyPublishedFindings} = partitionPublishedFindings(
+        findings,
+        existingComments,
+        result.marker,
+    );
 
     if (inlineCommentsPublished) {
         for (const finding of unpublishedFindings) {
@@ -215,7 +242,7 @@ async function main() {
     await publishReviewResult(
         result,
         (event, body) => submitReview(owner, repo, event, body),
-        {inlineCommentsPublished},
+        {inlineCommentsPublished, summarizedFindings: alreadyPublishedFindings},
     );
 }
 
