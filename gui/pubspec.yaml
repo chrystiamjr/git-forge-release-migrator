@@ -65,7 +65,7 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
-    - ../website/static/img/logo.svg
+    - ../website/static/img/
   fonts:
     - family: IBMPlexSans
       fonts:

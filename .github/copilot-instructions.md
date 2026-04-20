@@ -9,6 +9,8 @@ Use these rules for Copilot Chat and Copilot code review in this repository.
 - Comment only on concrete bugs, regressions, unsafe behavior, missing risky tests, or architecture drift.
 - Do not comment on generated files, harmless formatting, import order, lock files, or changelog/version bumps.
 - Keep comments inline, specific, actionable, and short.
+- Prefer high-signal review over broad commentary. One concrete blocking bug beats many style notes.
+- Use PR context and changed tests before judging. If a changed behavior lacks a matching test, call out the missing scenario.
 
 ## Severity Prefixes
 
@@ -44,6 +46,14 @@ Use these rules for Copilot Chat and Copilot code review in this repository.
 - Flutter widgets should render state, not call runtime services directly.
 - Prefer one public type per file, small helpers, explicit types, and `final` over `var`.
 - Avoid runtime provider type dispatch such as `if (source is GitHubProvider)` in engine flow.
+
+## PR Context Checklist
+
+- For CLI/runtime changes, verify artifacts, exit codes, token precedence, resume behavior, and provider-pair invariants.
+- For Flutter GUI changes, verify route behavior, Riverpod boundaries, widget state ownership, and focused widget/unit tests.
+- For workflow/reviewer changes, verify fail-closed behavior, dedupe behavior, least-privilege permissions, and `scripts/*.test.mjs` coverage.
+- For docs/user-facing changes, verify English and Portuguese docs stay aligned.
+- If the PR only moves files or imports, avoid behavior comments unless a moved path breaks codegen, tests, or public imports.
 
 ## Path-Specific Rules
 

@@ -1,18 +1,17 @@
-import 'package:flutter/material.dart';
-
-import 'package:gfrm_gui/src/theme/gfrm_colors.dart';
-import 'package:gfrm_gui/src/theme/gfrm_typography.dart';
+part of 'gfrm_app_theme.dart';
 
 final class GfrmTheme {
   const GfrmTheme._();
 
   static ThemeData build() {
-    const ColorScheme colorScheme = ColorScheme.light(
-      primary: GfrmColors.primary,
-      secondary: GfrmColors.accent,
-      surface: GfrmColors.surface,
+    const GfrmColors colors = GfrmColors();
+    const GfrmTypography typography = GfrmTypography();
+    final ColorScheme colorScheme = ColorScheme.light(
+      primary: colors.primary,
+      secondary: colors.accent,
+      surface: colors.surface,
       onPrimary: Colors.white,
-      onSurface: GfrmColors.textBody,
+      onSurface: colors.textBody,
       error: Colors.red,
       onError: Colors.white,
     );
@@ -20,10 +19,10 @@ final class GfrmTheme {
     return ThemeData(
       useMaterial3: false,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: GfrmColors.surface,
+      scaffoldBackgroundColor: colors.surface,
       fontFamily: 'IBMPlexSans',
-      textTheme: GfrmTypography.textTheme(),
-      dividerColor: GfrmColors.border,
+      textTheme: typography.textTheme(),
+      dividerColor: colors.border,
       splashColor: Colors.transparent,
       highlightColor: Colors.transparent,
     );

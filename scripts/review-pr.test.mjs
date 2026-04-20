@@ -642,7 +642,7 @@ test('buildSilentCatchFindings blocks empty catch in Dart production code', () =
 test('buildSilentCatchFindings blocks empty catch in Flutter production code', () => {
   const findings = buildSilentCatchFindings([
     buildPatchedFile({
-      filename: 'gui/lib/src/runtime/run/gfrm_desktop_run_controller.dart',
+      filename: 'gui/lib/src/runtime/run/services/gfrm_desktop_run_controller.dart',
       patch: '@@ -5,0 +6,1 @@\n+    } catch (e) {}',
     }),
   ]);
@@ -739,7 +739,7 @@ test('buildFlutterTestFindings stays quiet when Flutter tests changed', () => {
 test('buildFlutterTestFindings emits note for large modified Flutter source', () => {
   const findings = buildFlutterTestFindings([
     buildPatchedFile({
-      filename: 'gui/lib/src/runtime/run/gfrm_desktop_run_controller.dart',
+      filename: 'gui/lib/src/runtime/run/services/gfrm_desktop_run_controller.dart',
       status: 'modified',
       changes: 150,
       patch: '@@ -10,3 +10,3 @@\n+refactored();',
@@ -754,7 +754,7 @@ test('buildFlutterTestFindings emits note for large modified Flutter source', ()
 test('buildFlutterTestFindings ignores generated files', () => {
   const findings = buildFlutterTestFindings([
     buildPatchedFile({
-      filename: 'gui/lib/src/runtime/run/desktop_run_controller_provider.g.dart',
+      filename: 'gui/lib/src/runtime/run/providers/desktop_run_controller_provider.g.dart',
       status: 'added',
       changes: 80,
       patch: '@@ -0,0 +1,3 @@\n+// GENERATED CODE',
@@ -769,7 +769,7 @@ test('buildFlutterTestFindings ignores generated files', () => {
 test('buildFlutterTargetedCoverageFindings flags controller change without test', () => {
   const findings = buildFlutterTargetedCoverageFindings([
     buildPatchedFile({
-      filename: 'gui/lib/src/runtime/run/gfrm_desktop_run_controller.dart',
+      filename: 'gui/lib/src/runtime/run/services/gfrm_desktop_run_controller.dart',
       changes: 10,
       patch: '@@ -5,0 +6,1 @@\n+  final DesktopRunSnapshot snapshot;',
     }),
@@ -783,7 +783,7 @@ test('buildFlutterTargetedCoverageFindings flags controller change without test'
 test('buildFlutterTargetedCoverageFindings stays quiet when controller test changed', () => {
   const findings = buildFlutterTargetedCoverageFindings([
     buildPatchedFile({
-      filename: 'gui/lib/src/runtime/run/gfrm_desktop_run_controller.dart',
+      filename: 'gui/lib/src/runtime/run/services/gfrm_desktop_run_controller.dart',
       changes: 10,
       patch: '@@ -5,0 +6,1 @@\n+  final DesktopRunSnapshot snapshot;',
     }),
@@ -791,6 +791,37 @@ test('buildFlutterTargetedCoverageFindings stays quiet when controller test chan
       filename: 'gui/test/unit/runtime/run/gfrm_desktop_run_controller_test.dart',
       changes: 5,
       patch: '@@ -1,0 +1,1 @@\n+test added',
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
+test('buildFlutterTargetedCoverageFindings flags mapper change without test', () => {
+  const findings = buildFlutterTargetedCoverageFindings([
+    buildPatchedFile({
+      filename: 'gui/lib/src/runtime/run/mappers/map_desktop_run_start_request_to_run_request.dart',
+      changes: 10,
+      patch: '@@ -5,0 +6,1 @@\n+RunRequest mapDesktopRunStartRequestToRunRequest(DesktopRunStartRequest request) {}',
+    }),
+  ]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'flutter_mapper_test_gap');
+  assert.equal(findings[0].severity, 'note');
+});
+
+test('buildFlutterTargetedCoverageFindings stays quiet when app theme token test changed', () => {
+  const findings = buildFlutterTargetedCoverageFindings([
+    buildPatchedFile({
+      filename: 'gui/lib/src/theme/gfrm_app_theme.dart',
+      changes: 10,
+      patch: '@@ -1,1 +1,1 @@\n+final class GfrmAppTheme {}',
+    }),
+    buildPatchedFile({
+      filename: 'gui/test/unit/theme/gfrm_app_theme_test.dart',
+      changes: 12,
+      patch: '@@ -0,0 +1,1 @@\n+test added',
     }),
   ]);
 
@@ -1052,7 +1083,7 @@ test('buildDirectDependencyFindings ignores comments', () => {
 test('buildGuiBoundaryFindings blocks GUI importing cli.dart', () => {
   const findings = buildGuiBoundaryFindings([
     buildPatchedFile({
-      filename: 'gui/lib/src/runtime/run/gfrm_desktop_run_controller.dart',
+      filename: 'gui/lib/src/runtime/run/services/gfrm_desktop_run_controller.dart',
       patch: "@@ -1,0 +2,1 @@\n+import 'package:gfrm_dart/src/cli.dart';",
     }),
   ]);
@@ -1077,7 +1108,7 @@ test('buildGuiBoundaryFindings blocks GUI importing arg_parsers', () => {
 test('buildGuiBoundaryFindings allows GUI importing application layer', () => {
   const findings = buildGuiBoundaryFindings([
     buildPatchedFile({
-      filename: 'gui/lib/src/runtime/run/gfrm_desktop_run_controller.dart',
+      filename: 'gui/lib/src/runtime/run/services/gfrm_desktop_run_controller.dart',
       patch: "@@ -1,0 +2,1 @@\n+import 'package:gfrm_dart/src/application/run_service.dart';",
     }),
   ]);

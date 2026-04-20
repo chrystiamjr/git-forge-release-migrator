@@ -2,15 +2,15 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:gfrm_gui/src/application/run/desktop_preflight_request.dart';
-import 'package:gfrm_gui/src/application/run/desktop_preflight_summary.dart';
-import 'package:gfrm_gui/src/application/run/desktop_run_action_result.dart';
-import 'package:gfrm_gui/src/application/run/desktop_run_controller.dart';
-import 'package:gfrm_gui/src/application/run/desktop_run_resume_request.dart';
-import 'package:gfrm_gui/src/application/run/desktop_run_session.dart';
-import 'package:gfrm_gui/src/application/run/desktop_run_snapshot.dart';
-import 'package:gfrm_gui/src/application/run/desktop_run_start_request.dart';
-import 'package:gfrm_gui/src/runtime/run/desktop_run_controller_provider.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_preflight_request.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_preflight_summary.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_action_result.dart';
+import 'package:gfrm_gui/src/application/run/contracts/desktop_run_controller.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_resume_request.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_session.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_snapshot.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_start_request.dart';
+import 'package:gfrm_gui/src/runtime/run/providers/desktop_run_controller_provider.dart';
 
 void main() {
   group('desktop run controller providers', () {
