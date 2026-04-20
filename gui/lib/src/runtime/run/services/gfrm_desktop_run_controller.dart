@@ -13,24 +13,24 @@ import 'package:gfrm_dart/src/models/runtime_options.dart';
 import 'package:gfrm_dart/src/providers/registry.dart';
 import 'package:gfrm_dart/src/runtime_events/runtime_event_sink.dart';
 
-import '../../application/run/desktop_preflight_request.dart';
-import '../../application/run/desktop_preflight_summary.dart';
-import '../../application/run/desktop_run_action_result.dart';
-import '../../application/run/desktop_run_completion.dart';
-import '../../application/run/desktop_run_controller.dart';
-import '../../application/run/desktop_run_failure_summary.dart';
-import '../../application/run/desktop_run_resume_request.dart';
-import '../../application/run/desktop_run_session.dart';
-import '../../application/run/desktop_run_snapshot.dart';
-import '../../application/run/desktop_run_start_request.dart';
-import 'map_desktop_preflight_request_to_runtime_options.dart';
-import 'map_desktop_run_failure_to_summary.dart';
-import 'map_desktop_run_resume_request_to_run_request.dart';
-import 'map_desktop_run_start_request_to_run_request.dart';
-import 'map_preflight_checks_to_summary.dart';
-import 'map_run_result_to_completion.dart';
-import 'map_run_state_to_snapshot.dart';
-import 'runtime_run_state_sink.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_preflight_request.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_preflight_summary.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_action_result.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_completion.dart';
+import 'package:gfrm_gui/src/application/run/contracts/desktop_run_controller.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_failure_summary.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_resume_request.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_session.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_snapshot.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_start_request.dart';
+import 'package:gfrm_gui/src/runtime/run/mappers/map_desktop_preflight_request_to_runtime_options.dart';
+import 'package:gfrm_gui/src/runtime/run/mappers/map_desktop_run_failure_to_summary.dart';
+import 'package:gfrm_gui/src/runtime/run/mappers/map_desktop_run_resume_request_to_run_request.dart';
+import 'package:gfrm_gui/src/runtime/run/mappers/map_desktop_run_start_request_to_run_request.dart';
+import 'package:gfrm_gui/src/runtime/run/mappers/map_preflight_checks_to_summary.dart';
+import 'package:gfrm_gui/src/runtime/run/mappers/map_run_result_to_completion.dart';
+import 'package:gfrm_gui/src/runtime/run/mappers/map_run_state_to_snapshot.dart';
+import 'package:gfrm_gui/src/runtime/run/services/runtime_run_state_sink.dart';
 
 final class GfrmDesktopRunController implements DesktopRunController {
   GfrmDesktopRunController({

@@ -3,9 +3,9 @@
 import 'package:gfrm_dart/src/application/run_request.dart';
 import 'package:gfrm_dart/src/models/runtime_options.dart';
 
-import '../../application/run/desktop_preflight_request.dart';
-import '../../application/run/desktop_run_resume_request.dart';
-import 'build_gui_runtime_options.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_preflight_request.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_resume_request.dart';
+import 'package:gfrm_gui/src/runtime/run/services/build_gui_runtime_options.dart';
 
 RunRequest mapDesktopRunResumeRequestToRunRequest(DesktopRunResumeRequest request) {
   final RuntimeOptions options = buildGuiRuntimeOptions(

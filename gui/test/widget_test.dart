@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:gfrm_gui/src/app/gfrm_app.dart';
-import 'package:gfrm_gui/src/app/gfrm_shell_page.dart';
+import 'package:gfrm_gui/src/app/shell/gfrm_shell_page.dart';
 
 void main() {
   testWidgets('renders dashboard as startup route inside desktop shell', (WidgetTester tester) async {

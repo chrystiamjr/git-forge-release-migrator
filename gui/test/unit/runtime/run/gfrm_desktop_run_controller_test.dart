@@ -6,11 +6,11 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gfrm_dart/src/application/preflight_service.dart';
 import 'package:gfrm_dart/src/application/run_service.dart';
-import 'package:gfrm_gui/src/application/run/desktop_preflight_request.dart';
-import 'package:gfrm_gui/src/application/run/desktop_run_resume_request.dart';
-import 'package:gfrm_gui/src/application/run/desktop_run_snapshot.dart';
-import 'package:gfrm_gui/src/application/run/desktop_run_start_request.dart';
-import 'package:gfrm_gui/src/runtime/run/gfrm_desktop_run_controller.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_preflight_request.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_resume_request.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_snapshot.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_start_request.dart';
+import 'package:gfrm_gui/src/runtime/run/services/gfrm_desktop_run_controller.dart';
 
 import '../../../support/run_service_fakes.dart';
 

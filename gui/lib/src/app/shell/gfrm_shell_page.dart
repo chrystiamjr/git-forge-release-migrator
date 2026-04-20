@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:gfrm_gui/src/app/gfrm_sidebar.dart';
+import 'package:gfrm_gui/src/app/shell/gfrm_sidebar.dart';
 import 'package:gfrm_gui/src/theme/gfrm_app_theme.dart';
 
 class GfrmShellPage extends StatelessWidget {

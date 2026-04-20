@@ -4,12 +4,12 @@ import 'package:gfrm_dart/src/runtime_events/run_state.dart';
 import 'package:gfrm_dart/src/runtime_events/run_state_release_snapshot.dart';
 import 'package:gfrm_dart/src/runtime_events/run_state_tag_snapshot.dart';
 
-import '../../application/run/desktop_artifacts_summary.dart';
-import '../../application/run/desktop_preflight_summary.dart';
-import '../../application/run/desktop_run_count_summary.dart';
-import '../../application/run/desktop_run_progress_item.dart';
-import '../../application/run/desktop_run_snapshot.dart';
-import 'map_run_state_failure_to_summary.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_artifacts_summary.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_preflight_summary.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_count_summary.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_progress_item.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_snapshot.dart';
+import 'package:gfrm_gui/src/runtime/run/mappers/map_run_state_failure_to_summary.dart';
 
 DesktopRunSnapshot mapRunStateToSnapshot({
   required String sessionId,

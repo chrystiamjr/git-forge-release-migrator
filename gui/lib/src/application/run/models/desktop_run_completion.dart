@@ -1,5 +1,5 @@
-import 'desktop_run_failure_summary.dart';
-import 'desktop_run_snapshot.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_failure_summary.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_snapshot.dart';
 
 final class DesktopRunCompletion {
   const DesktopRunCompletion({

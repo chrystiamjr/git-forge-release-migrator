@@ -2,9 +2,9 @@
 
 import 'package:gfrm_dart/src/application/preflight_check.dart';
 
-import '../../application/run/desktop_preflight_check_item.dart';
-import '../../application/run/desktop_preflight_summary.dart';
-import 'map_desktop_preflight_check_to_item.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_preflight_check_item.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_preflight_summary.dart';
+import 'package:gfrm_gui/src/runtime/run/mappers/map_desktop_preflight_check_to_item.dart';
 
 DesktopPreflightSummary mapPreflightChecksToSummary(List<PreflightCheck> checks) {
   final List<DesktopPreflightCheckItem> items = checks.map(mapDesktopPreflightCheckToItem).toList(growable: false);

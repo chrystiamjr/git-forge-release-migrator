@@ -1,9 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import '../../application/run/desktop_run_controller.dart';
-import '../../application/run/desktop_run_snapshot.dart';
-import 'gfrm_desktop_run_controller.dart';
+import 'package:gfrm_gui/src/application/run/contracts/desktop_run_controller.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_snapshot.dart';
+import 'package:gfrm_gui/src/runtime/run/services/gfrm_desktop_run_controller.dart';
 
 part 'desktop_run_controller_provider.g.dart';
 
