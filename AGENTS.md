@@ -134,7 +134,9 @@ Safe defaults:
 Engineering rules:
 
 - avoid `var`; prefer explicit typing and `final`
-- prefer one class or type per file
+- Dart/Flutter production code must use one class/type/enum per file, including private widgets, models, controllers, DTOs, and view models.
+- Flutter components must follow the established atomic design layers: atoms, molecules, organisms, and templates. Do not create feature-local design primitives that bypass those layers.
+- Test files may group small local fakes or test-only helpers when readability improves and production architecture is unaffected.
 - keep helpers small and single-purpose
 - keep methods under 120 lines
 - keep orchestration-heavy files under 500 lines
@@ -156,6 +158,96 @@ Agent constraints:
 - do not expand release selection beyond semver-only behavior
 - do not add Bitbucket Data Center / Server support
 - `roadmap/` is local planning space only; shipped behavior and public docs still live elsewhere
+
+## File Size Exceptions (Architectural Necessity)
+
+The codebase has 7 files exceeding the recommended 500-line limit. These are intentional exceptions justified by their single-responsibility focus and high test coverage. Future refactoring should follow the decomposition strategies outlined below:
+
+### Provider Adapters
+
+**bitbucket.dart** (782 lines, 1 class, ~42 methods)
+- **Responsibility:** Complete Bitbucket Cloud API adapter
+- **Justification:** Bitbucket's synthetic release model requires tag + downloads + manifest handling in one orchestration point
+- **Future decomposition:** Consider extracting into:
+  - `bitbucket_api.dart` — core tag/commit operations
+  - `bitbucket_downloads.dart` — asset upload/download/pagination logic
+  - `bitbucket_manifest.dart` — `.gfrm-release-<tag>.json` manifest handling
+- **Blocking:** Keep as-is unless Bitbucket API changes significantly
+
+**gitlab.dart** (610 lines, 1 class, ~31 methods)
+- **Responsibility:** Complete GitLab API adapter
+- **Justification:** Mirrors GitHub/Bitbucket pattern for consistency; single provider adapter per file
+- **Future decomposition:** Consider extracting release asset operations into helper once 2+ adapters share logic
+- **Blocking:** Keep as-is unless new provider pair requires shared abstraction
+
+**github.dart** (558 lines, 1 class, ~36 methods)
+- **Responsibility:** Complete GitHub API adapter
+- **Justification:** Single provider adapter pattern; mirrors GitLab/Bitbucket
+- **Future decomposition:** Low priority; functions are already well-scoped
+- **Blocking:** Keep as-is
+
+### Configuration & Settings
+
+**config.dart** (622 lines, 0 classes, ~102 functions)
+- **Responsibility:** CLI argument parsing, token resolution, runtime options building
+- **Justification:** All code is private functions (`_*`) serving the public `CliRequestParser` class. Logical separation by stage:
+  1. Provider normalization (`_normalizeProvider`)
+  2. Argument extraction helpers (`_requiredString`, `_optionalBool`, etc.)
+  3. Runtime option building (`_buildRuntimeOptions`, `_buildDemoRuntime`)
+  4. Token resolution flow (`_resolveTokenFromSession`, `_resolveTokenWithFallback`)
+  5. Command parsing (`_parseSettingsCommand`, `_parseSetupRequest`, `_parseMigrateRequest`)
+- **Future decomposition:** Consider extracting into:
+  - `config/token_resolver.dart` — token precedence logic
+  - `config/request_builders.dart` — CliRequest construction
+  - `config/extraction_helpers.dart` — `_requiredString`, `_optionalBool`, etc.
+- **Blocking:** Keep monolithic until refactoring clearly improves testability
+
+**settings.dart** (583 lines, 0 classes, ~95 functions)
+- **Responsibility:** Settings file I/O, masking, environment variable integration
+- **Justification:** Private function utilities (`_*`) supporting public `SettingsManager` API. Stages:
+  1. File operations (`_readSettingsFile`, `_writeSettingsFile`, `_settingsPath`)
+  2. Env var mapping (`_envVariableForKey`, `_expandEnvVars`)
+  3. Masking logic (`_maskValue`, `_isSensitiveKey`)
+  4. Merging strategies (`_mergeSettings`, `_effectiveValue`)
+- **Future decomposition:** Consider extracting into:
+  - `core/settings_file.dart` — file I/O only
+  - `core/settings_masking.dart` — secret masking utilities
+  - `core/settings_env_mapper.dart` — environment variable integration
+- **Blocking:** Keep monolithic for now; logic is cohesive around settings lifecycle
+
+### Application Orchestration
+
+**run_service.dart** (651 lines, 1 class, ~18 methods)
+- **Responsibility:** Run lifecycle orchestration (preflight → execution → summary → session persistence)
+- **Justification:** Owns multiple stages but each is essential to transactional correctness:
+  1. Preflight validation flow
+  2. Checkpoint-aware engine execution
+  3. Summary generation & artifact writing
+  4. Session context finalization
+- **Future decomposition:** Consider extracting into:
+  1. `application/run_engine_wrapper.dart` — engine execution + checkpoints
+  2. `application/run_summary_service.dart` — summary generation + artifacts
+  3. Keep `run_service.dart` for high-level orchestration
+- **Blocking:** Keep as-is; decomposition requires careful handling of transactional state
+
+### Migration Phases
+
+**release_phase.dart** (523 lines, 1 class, ~13 methods)
+- **Responsibility:** Release migration execution (semver selection, asset handling, idempotency)
+- **Justification:** All methods support a single execution flow; fairly cohesive
+- **Future decomposition:** Could extract asset handling into helper once shared by >1 caller
+- **Blocking:** Low priority; current structure is clean
+
+### Refactoring Priority
+
+1. **High value, low risk:** `config.dart` token resolver logic → separate file
+2. **Medium value, medium risk:** `run_service.dart` engine wrapper → separate file
+3. **Low value:** Other files are either ~500L or serve essential single flows
+
+**Rule:** Do not refactor unless:
+- Tests demonstrate the decomposition improves them (not cosmetic)
+- A new feature cannot otherwise be implemented cleanly
+- Decomposition is explicitly requested in a design document or RFC
 
 ## Validation Commands
 
@@ -206,4 +298,3 @@ Rules:
 - website and i18n conventions: `docs/engineering/website-conventions.md`
 - CI and release details: `website/docs/project/ci-and-release.md`
 - macOS release and signing notes: `docs/engineering/release-macos-notes.md`
-
