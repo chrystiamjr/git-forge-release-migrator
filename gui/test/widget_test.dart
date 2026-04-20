@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:gfrm_gui/src/app/gfrm_app.dart';
 import 'package:gfrm_gui/src/app/shell/gfrm_shell_page.dart';
+import 'package:gfrm_gui/src/theme/gfrm_app_theme.dart';
 
 void main() {
   testWidgets('renders dashboard as startup route inside desktop shell', (WidgetTester tester) async {
@@ -56,7 +57,7 @@ void main() {
     final Finder historyIcon = find.byIcon(Icons.history);
     final Icon icon = tester.widget<Icon>(historyIcon.first);
 
-    expect(icon.color, const Color(0xFF818CF8));
+    expect(icon.color, GfrmAppTheme.colors.accent);
   });
 
   testWidgets('settings route highlights gear instead of primary nav items', (WidgetTester tester) async {
@@ -72,8 +73,8 @@ void main() {
     final Icon settingsIcon = tester.widget<Icon>(find.byIcon(Icons.settings_outlined).first);
     final Icon dashboardIcon = tester.widget<Icon>(find.byIcon(Icons.dashboard_outlined).first);
 
-    expect(settingsIcon.color, const Color(0xFF818CF8));
-    expect(dashboardIcon.color, const Color(0xFF94A3B8));
+    expect(settingsIcon.color, GfrmAppTheme.colors.accent);
+    expect(dashboardIcon.color, GfrmAppTheme.colors.textMuted);
   });
 
   testWidgets('resolves every declared shell route', (WidgetTester tester) async {
@@ -160,8 +161,8 @@ void main() {
       await tester.pumpWidget(const ProviderScope(child: GfrmApp()));
       await tester.pumpAndSettle();
 
-      final Color activeColor = const Color(0xFF818CF8);
-      final Color inactiveColor = const Color(0xFF94A3B8);
+      final Color activeColor = GfrmAppTheme.colors.accent;
+      final Color inactiveColor = GfrmAppTheme.colors.textMuted;
 
       // Dashboard (active)
       var dashboardIcon = tester.widget<Icon>(find.byIcon(Icons.dashboard_outlined).first);
@@ -237,7 +238,7 @@ void main() {
       await tester.pumpWidget(const ProviderScope(child: GfrmApp()));
       await tester.pumpAndSettle();
 
-      final Color activeColor = const Color(0xFF818CF8);
+      final Color activeColor = GfrmAppTheme.colors.accent;
 
       // Navigate to Settings
       await tester.tap(find.text('Settings'));
