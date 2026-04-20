@@ -16,6 +16,8 @@ MigrationContext buildMigrationContext(
   List<Map<String, dynamic>> releases = const <Map<String, dynamic>>[],
   Map<String, String> checkpointState = const <String, String>{},
   bool skipTagMigration = false,
+  bool skipReleaseMigration = false,
+  bool skipReleaseAssetMigration = false,
   bool dryRun = false,
   int releaseWorkers = 1,
 }) {
@@ -33,6 +35,8 @@ MigrationContext buildMigrationContext(
       workdir: temp.path,
       logFile: '${temp.path}/migration.jsonl',
       releaseWorkers: releaseWorkers,
+      skipReleaseMigration: skipReleaseMigration,
+      skipReleaseAssetMigration: skipReleaseAssetMigration,
     ),
     logPath: '${temp.path}/migration.jsonl',
     workdir: temp,

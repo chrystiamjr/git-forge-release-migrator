@@ -25,6 +25,8 @@ const Map<String, String> _providerMap = <String, String>{
 const Set<String> _knownProviders = <String>{'github', 'gitlab', 'bitbucket'};
 typedef _CommonRuntimeFlags = ({
   bool skipTagMigration,
+  bool skipReleaseMigration,
+  bool skipReleaseAssetMigration,
   bool dryRun,
   String workdir,
   String logFile,
@@ -89,6 +91,8 @@ double _optionalDouble(ArgResults args, String key, double fallback) {
 _CommonRuntimeFlags _commonRuntimeFlags(ArgResults args) {
   return (
     skipTagMigration: _optionalBool(args, 'skip-tags'),
+    skipReleaseMigration: _optionalBool(args, 'skip-releases'),
+    skipReleaseAssetMigration: _optionalBool(args, 'skip-release-assets'),
     dryRun: _optionalBool(args, 'dry-run'),
     workdir: _optionalString(args, 'workdir'),
     logFile: _optionalString(args, 'log-file'),
@@ -136,6 +140,8 @@ RuntimeOptions _buildRuntimeOptions({
     targetToken: targetToken,
     migrationOrder: '$sourceProvider-to-$targetProvider',
     skipTagMigration: common.skipTagMigration,
+    skipReleaseMigration: common.skipReleaseMigration,
+    skipReleaseAssetMigration: common.skipReleaseAssetMigration,
     fromTag: fromTag,
     toTag: toTag,
     dryRun: common.dryRun,
@@ -381,10 +387,18 @@ RuntimeOptions _buildRuntimeFromSession(
 
   final bool skipTags =
       args.wasParsed('skip-tags') ? _optionalBool(args, 'skip-tags') : ((data['skip_tag_migration'] ?? false) == true);
+  final bool skipReleases = args.wasParsed('skip-releases')
+      ? _optionalBool(args, 'skip-releases')
+      : ((data['skip_release_migration'] ?? false) == true);
+  final bool skipReleaseAssets = args.wasParsed('skip-release-assets')
+      ? _optionalBool(args, 'skip-release-assets')
+      : ((data['skip_release_asset_migration'] ?? false) == true);
   final bool saveSession = _optionalBool(args, 'save-session');
   final _CommonRuntimeFlags baseCommon = _commonRuntimeFlags(args);
   final _CommonRuntimeFlags common = (
     skipTagMigration: skipTags,
+    skipReleaseMigration: skipReleases,
+    skipReleaseAssetMigration: skipReleaseAssets,
     dryRun: baseCommon.dryRun,
     workdir: baseCommon.workdir,
     logFile: baseCommon.logFile,

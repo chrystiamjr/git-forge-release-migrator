@@ -184,8 +184,9 @@ class ReleasePhaseRunner {
 
     final CanonicalRelease canonical = ctx.source.toCanonicalRelease(releasePayload);
     final File notesFile = await _assetService.prepareNotesFile(ctx, tag, canonical);
-    final int expectedLinkAssets = canonical.assets.links.length;
-    final int expectedAssets = expectedLinkAssets + canonical.assets.sources.length;
+    final bool skipAssets = ctx.options.skipReleaseAssetMigration;
+    final int expectedLinkAssets = skipAssets ? 0 : canonical.assets.links.length;
+    final int expectedAssets = skipAssets ? 0 : expectedLinkAssets + canonical.assets.sources.length;
     final ExistingReleaseInfo existingInfo = await ctx.target.existingReleaseInfo(
       ctx.targetRef,
       ctx.options.targetToken,
@@ -315,16 +316,20 @@ class ReleasePhaseRunner {
     DateTime start,
   ) async {
     final Directory releaseDir = FileSystemUtils.ensureDir('${ctx.workdir.path}/release-$tag');
-    final Directory assetsDir = FileSystemUtils.ensureDir('${releaseDir.path}/assets');
-    final ({
-      List<String> downloaded,
-      List<Map<String, String>> missingLinks,
-      List<Map<String, String>> missingSources,
-      List<String> sourceFallbackFormats,
-    }) assetsResult = await _assetService.downloadAssets(ctx, tag, canonical, assetsDir);
-    await _assetService.appendSourceFallbackNotes(ctx, tag, notesFile, assetsResult.sourceFallbackFormats);
-    await _assetService.appendMissingAssetsNotes(notesFile, assetsResult.missingLinks, assetsResult.missingSources);
-    if (expectedAssets > 0 && assetsResult.downloaded.isEmpty) {
+    final List<String> downloaded = <String>[];
+    if (!ctx.options.skipReleaseAssetMigration) {
+      final Directory assetsDir = FileSystemUtils.ensureDir('${releaseDir.path}/assets');
+      final ({
+        List<String> downloaded,
+        List<Map<String, String>> missingLinks,
+        List<Map<String, String>> missingSources,
+        List<String> sourceFallbackFormats,
+      }) assetsResult = await _assetService.downloadAssets(ctx, tag, canonical, assetsDir);
+      downloaded.addAll(assetsResult.downloaded);
+      await _assetService.appendSourceFallbackNotes(ctx, tag, notesFile, assetsResult.sourceFallbackFormats);
+      await _assetService.appendMissingAssetsNotes(notesFile, assetsResult.missingLinks, assetsResult.missingSources);
+    }
+    if (expectedAssets > 0 && downloaded.isEmpty) {
       final int durationMs = DateTime.now().difference(start).inMilliseconds;
       _appendLog(
         ctx.logPath,
@@ -351,7 +356,7 @@ class ReleasePhaseRunner {
       tag,
       releaseName,
       notesFile,
-      assetsResult.downloaded,
+      downloaded,
       expectedAssets,
       existingInfo,
     );
@@ -364,7 +369,7 @@ class ReleasePhaseRunner {
         tag: tag,
         message:
             'Release publish operation failed on ${SelectionService.capitalizeProvider(ctx.options.targetProvider)}',
-        assetCount: assetsResult.downloaded.length,
+        assetCount: downloaded.length,
         durationMs: durationMs,
         dryRun: false,
       );
@@ -372,7 +377,7 @@ class ReleasePhaseRunner {
         ctx,
         tag: tag,
         status: 'failed',
-        assetCount: assetsResult.downloaded.length,
+        assetCount: downloaded.length,
         message:
             'Release publish operation failed on ${SelectionService.capitalizeProvider(ctx.options.targetProvider)}',
       );
@@ -387,7 +392,7 @@ class ReleasePhaseRunner {
       status: finalStatus,
       tag: tag,
       message: finalMessage,
-      assetCount: assetsResult.downloaded.length,
+      assetCount: downloaded.length,
       durationMs: durationMs,
       dryRun: false,
     );
@@ -395,7 +400,7 @@ class ReleasePhaseRunner {
       ctx,
       tag: tag,
       status: finalStatus,
-      assetCount: assetsResult.downloaded.length,
+      assetCount: downloaded.length,
       message: finalMessage,
     );
     _checkpointMark(
@@ -407,8 +412,7 @@ class ReleasePhaseRunner {
       status: finalStatus,
       message: finalMessage,
     );
-    logger.info(
-        '[$tag] ${existingInfo.exists ? 'resumed/updated' : 'created'} with ${assetsResult.downloaded.length} asset(s)');
+    logger.info('[$tag] ${existingInfo.exists ? 'resumed/updated' : 'created'} with ${downloaded.length} asset(s)');
     FileSystemUtils.cleanupDir(releaseDir.path);
     return finalStatus;
   }

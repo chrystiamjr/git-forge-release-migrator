@@ -143,49 +143,14 @@ class RunService {
       }
 
       final MigrationExecutionResult execution = outcome.execution!;
-
-      if (execution.tagCounts.failed > 0 || execution.releaseCounts.failed > 0) {
-        _emitArtifactEvents(
-          runtimeEventEmitter,
-          prepared,
-          logPath: context.logPath,
-        );
-        _emitRunCompleted(
-          runtimeEventEmitter,
-          prepared,
-          status: 'partial_failure',
-          retryCommand: SummaryWriter.buildRetryCommand(options, File('${prepared.runWorkdir.path}/failed-tags.txt')),
-          failedTagCount: context.failedTags.length,
-          totalTags: context.selectedTags.length,
-        );
-        return _failureResult(
-          status: RunStatus.partialFailure,
-          failure: RunFailure(
-            scope: RunFailure.scopeExecution,
-            code: 'migration-partial-failure',
-            message: MigrationPhaseError(partialFailureMessage).toString(),
-            retryable: true,
-          ),
-          prepared: prepared,
-          retryCommand: SummaryWriter.buildRetryCommand(options, File('${prepared.runWorkdir.path}/failed-tags.txt')),
-          preflightChecks: preflightChecks,
-        );
-      }
-
-      _emitArtifactEvents(
-        runtimeEventEmitter,
+      return _mapExecutionResultToRunResult(
+        execution,
+        context,
+        options,
         prepared,
-        logPath: context.logPath,
-      );
-      _emitRunCompleted(
         runtimeEventEmitter,
-        prepared,
-        status: 'success',
-        retryCommand: '',
-        failedTagCount: context.failedTags.length,
-        totalTags: context.selectedTags.length,
+        preflightChecks,
       );
-      return _successResult(prepared: prepared, preflightChecks: preflightChecks);
     } on RuntimeEventSinkDispatchException catch (exc) {
       _emitRunFailedBestEffort(
         runtimeEventEmitter,
@@ -271,6 +236,58 @@ class RunService {
     } finally {
       logger.stopSpinner();
     }
+  }
+
+  RunResult _mapExecutionResultToRunResult(
+    MigrationExecutionResult execution,
+    MigrationContext context,
+    RuntimeOptions options,
+    PreparedRun prepared,
+    RuntimeEventEmitter runtimeEventEmitter,
+    List<PreflightCheck> preflightChecks,
+  ) {
+    if (execution.tagCounts.failed > 0 || execution.releaseCounts.failed > 0) {
+      _emitArtifactEvents(
+        runtimeEventEmitter,
+        prepared,
+        logPath: context.logPath,
+      );
+      _emitRunCompleted(
+        runtimeEventEmitter,
+        prepared,
+        status: 'partial_failure',
+        retryCommand: SummaryWriter.buildRetryCommand(options, File('${prepared.runWorkdir.path}/failed-tags.txt')),
+        failedTagCount: context.failedTags.length,
+        totalTags: context.selectedTags.length,
+      );
+      return _failureResult(
+        status: RunStatus.partialFailure,
+        failure: RunFailure(
+          scope: RunFailure.scopeExecution,
+          code: 'migration-partial-failure',
+          message: MigrationPhaseError(partialFailureMessage).toString(),
+          retryable: true,
+        ),
+        prepared: prepared,
+        retryCommand: SummaryWriter.buildRetryCommand(options, File('${prepared.runWorkdir.path}/failed-tags.txt')),
+        preflightChecks: preflightChecks,
+      );
+    }
+
+    _emitArtifactEvents(
+      runtimeEventEmitter,
+      prepared,
+      logPath: context.logPath,
+    );
+    _emitRunCompleted(
+      runtimeEventEmitter,
+      prepared,
+      status: 'success',
+      retryCommand: '',
+      failedTagCount: context.failedTags.length,
+      totalTags: context.selectedTags.length,
+    );
+    return _successResult(prepared: prepared, preflightChecks: preflightChecks);
   }
 
   RunResult _failureResult({

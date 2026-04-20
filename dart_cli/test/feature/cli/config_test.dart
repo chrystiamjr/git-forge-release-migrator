@@ -41,6 +41,8 @@ void main() {
         '--target-token',
         't',
         '--skip-tags',
+        '--skip-releases',
+        '--skip-release-assets',
         '--download-workers',
         '6',
         '--release-workers',
@@ -52,6 +54,8 @@ void main() {
       expect(options.sourceProvider, 'github');
       expect(options.targetProvider, 'gitlab');
       expect(options.skipTagMigration, isTrue);
+      expect(options.skipReleaseMigration, isTrue);
+      expect(options.skipReleaseAssetMigration, isTrue);
       expect(options.downloadWorkers, 6);
       expect(options.releaseWorkers, 2);
       expect(options.commandName, commandMigrate);
@@ -343,6 +347,8 @@ void main() {
           'to_tag': 'v2.0.0',
           'download_workers': 4,
           'release_workers': 1,
+          'skip_release_migration': true,
+          'skip_release_asset_migration': true,
         },
       );
 
@@ -361,7 +367,41 @@ void main() {
       expect(options.sourceToken, 'source-token');
       expect(options.targetToken, 'target-token');
       expect(options.downloadWorkers, 7);
+      expect(options.skipReleaseMigration, isTrue);
+      expect(options.skipReleaseAssetMigration, isTrue);
       expect(options.commandName, commandResume);
+    });
+
+    test('parseCliRequest resume allows explicit release skip overrides', () {
+      final Directory temp = createTempDir('gfrm-dart-resume-skip-overrides-');
+
+      final String sessionPath = '${temp.path}/session.json';
+      SessionStore.saveSession(
+        sessionPath,
+        <String, dynamic>{
+          'source_provider': 'github',
+          'source_url': 'https://github.com/acme/src',
+          'target_provider': 'gitlab',
+          'target_url': 'https://gitlab.com/acme/dst',
+          'source_token': 'source-token',
+          'target_token': 'target-token',
+          'session_token_mode': 'plain',
+          'skip_release_migration': false,
+          'skip_release_asset_migration': false,
+        },
+      );
+
+      final CliRequest request = CliRequestParser.parseCliRequest(<String>[
+        commandResume,
+        '--session-file',
+        sessionPath,
+        '--skip-releases',
+        '--skip-release-assets',
+      ]);
+
+      final RuntimeOptions options = request.options!;
+      expect(options.skipReleaseMigration, isTrue);
+      expect(options.skipReleaseAssetMigration, isTrue);
     });
 
     test('parseCliRequest resume rejects sessions without repository urls', () {

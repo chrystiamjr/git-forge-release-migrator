@@ -222,6 +222,31 @@ void main() {
       expect(missing.single.commitSha, 'deadbeef');
     });
 
+    test('findMissingTargetCommits still checks tag readiness when release migration is disabled', () async {
+      final PreflightService service = PreflightService();
+      final MigrationContext context = buildMigrationContext(
+        createTempDir('gfrm-preflight-skip-releases-'),
+        _SourceAdapter(),
+        _TargetAdapter(commitExistsResult: false),
+        selectedTags: const <String>['v1.0.0'],
+        skipReleaseMigration: true,
+        releases: const <Map<String, dynamic>>[
+          <String, dynamic>{
+            'tag_name': 'v1.0.0',
+            'name': 'v1.0.0',
+            'description_markdown': '',
+            'commit_sha': 'deadbeef',
+            'assets': <String, dynamic>{'links': <dynamic>[], 'sources': <dynamic>[]},
+          },
+        ],
+      );
+
+      final List<MissingTargetCommit> missing = await service.findMissingTargetCommits(context);
+
+      expect(missing, hasLength(1));
+      expect(missing.single.commitSha, 'deadbeef');
+    });
+
     test('buildMissingTargetCommitCheck includes remediation guidance', () {
       final PreflightService service = PreflightService();
       final MigrationContext context = buildMigrationContext(

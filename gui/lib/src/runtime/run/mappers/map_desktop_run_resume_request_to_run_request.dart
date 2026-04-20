@@ -20,6 +20,8 @@ RunRequest mapDesktopRunResumeRequestToRunRequest(DesktopRunResumeRequest reques
     fromTag: request.fromTag,
     toTag: request.toTag,
     skipTagMigration: request.skipTagMigration,
+    skipReleaseMigration: false,
+    skipReleaseAssetMigration: false,
     dryRun: request.dryRun,
     workdir: request.workdir,
     logFile: request.logFile,

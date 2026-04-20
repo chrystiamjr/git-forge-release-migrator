@@ -27,6 +27,8 @@ gfrm migrate \
 
 - `--settings-profile <name>`
 - `--skip-tags`
+- `--skip-releases`
+- `--skip-release-assets`
 - `--from-tag <tag>`
 - `--to-tag <tag>`
 - `--dry-run`
@@ -70,3 +72,5 @@ gfrm migrate \
 - Before tag creation, `gfrm migrate` verifies that the target forge already contains the commit object referenced by each source tag that still needs migration.
 - If required commit history is missing, the command exits early with remediation guidance, including mirror/helper-branch Git snippets and platform-native suggestions for GitHub, GitLab, or Bitbucket.
 - `--skip-tags` is only a safe workaround when the requested tags already exist in the target forge.
+- `--skip-releases` migrates tags only and skips release creation/update.
+- `--skip-release-assets` creates or updates releases without downloading or uploading release assets.

@@ -52,6 +52,8 @@ RunState _reduceRunStarted(RunState currentState, RuntimeEventEnvelope envelope)
     mode: _readString(payload, 'mode'),
     dryRun: _readBool(payload, 'dry_run'),
     skipTags: _readBool(payload, 'skip_tags'),
+    skipReleases: _readBool(payload, 'skip_releases'),
+    skipReleaseAssets: _readBool(payload, 'skip_release_assets'),
     settingsProfile: _readString(payload, 'settings_profile'),
   );
 }

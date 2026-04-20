@@ -18,6 +18,8 @@ RuntimeOptions mapDesktopPreflightRequestToRuntimeOptions(DesktopPreflightReques
     fromTag: '',
     toTag: '',
     skipTagMigration: false,
+    skipReleaseMigration: false,
+    skipReleaseAssetMigration: false,
     dryRun: false,
     workdir: '',
     logFile: '',

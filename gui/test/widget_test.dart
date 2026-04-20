@@ -36,7 +36,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('New Migration'), findsWidgets);
-    expect(find.text('Wizard placeholder for source, target, filters, preflight, and confirmation.'), findsOneWidget);
+    expect(find.text('Step 1 of 2'), findsOneWidget);
+    expect(find.text('Source repository'), findsOneWidget);
+    expect(find.text('Target repository'), findsOneWidget);
   });
 
   testWidgets('navigates primary routes and highlights the active item', (WidgetTester tester) async {
@@ -115,8 +117,9 @@ void main() {
   });
 
   group('Primary route transitions (smoke tests)', () {
-    testWidgets('navigates Dashboard → New Migration → Progress → Results → History → Dashboard (cycle)',
-        (WidgetTester tester) async {
+    testWidgets('navigates Dashboard → New Migration → Progress → Results → History → Dashboard (cycle)', (
+      WidgetTester tester,
+    ) async {
       _setDesktopSurface(tester);
       await tester.pumpWidget(const ProviderScope(child: GfrmApp()));
       await tester.pumpAndSettle();
@@ -127,7 +130,7 @@ void main() {
       // Dashboard → New Migration
       await tester.tap(find.text('NEW MIGRATION'));
       await tester.pumpAndSettle();
-      expect(find.text('Wizard placeholder for source, target, filters, preflight, and confirmation.'), findsOneWidget);
+      expect(find.text('Step 1 of 2'), findsOneWidget);
 
       // New Migration → Progress
       tester.element(find.byKey(GfrmShellPage.contentKey)).go('/progress');
@@ -150,8 +153,9 @@ void main() {
       expect(find.text('No migrations yet'), findsOneWidget);
     });
 
-    testWidgets('sidebar active indicator updates for Dashboard, New Migration, Progress, Results, History',
-        (WidgetTester tester) async {
+    testWidgets('sidebar active indicator updates for Dashboard, New Migration, Progress, Results, History', (
+      WidgetTester tester,
+    ) async {
       _setDesktopSurface(tester);
       await tester.pumpWidget(const ProviderScope(child: GfrmApp()));
       await tester.pumpAndSettle();
@@ -208,10 +212,7 @@ void main() {
       tester.element(find.byKey(GfrmShellPage.contentKey)).go('/settings/credentials');
       await tester.pumpAndSettle();
       expect(find.text('Credential Management'), findsWidgets);
-      expect(
-        find.text('Profile-scoped provider tokens and credential health checks will mount here.'),
-        findsOneWidget,
-      );
+      expect(find.text('Profile-scoped provider tokens and credential health checks will mount here.'), findsOneWidget);
 
       // Credentials → Profiles
       tester.element(find.byKey(GfrmShellPage.contentKey)).go('/settings/profiles');
@@ -311,37 +312,59 @@ void main() {
     });
   });
 
-  group('Wizard step transitions (simulated)', () {
-    testWidgets('simulates wizard 3-step forward/back navigation', (WidgetTester tester) async {
+  group('Wizard step transitions', () {
+    testWidgets('validates repositories before moving to options step', (WidgetTester tester) async {
       _setDesktopSurface(tester);
       await tester.pumpWidget(const ProviderScope(child: GfrmApp()));
       await tester.pumpAndSettle();
 
-      // Start at New Migration (Step 1 equivalent)
       await tester.tap(find.text('NEW MIGRATION'));
       await tester.pumpAndSettle();
-      expect(find.text('Wizard placeholder for source, target, filters, preflight, and confirmation.'), findsOneWidget);
+      expect(find.text('Step 1 of 2'), findsOneWidget);
 
-      // Simulate Step 1 → Step 2 (programmatic navigation)
-      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/new-migration?step=2');
+      await tester.enterText(
+        find.byKey(const ValueKey<String>('new-migration-source-url')),
+        'https://github.com/acme/source',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey<String>('new-migration-target-url')),
+        'https://gitlab.com/acme/target',
+      );
+      await tester.pump();
+      await tester.tap(find.text('VALIDATE CONNECTIONS'));
       await tester.pumpAndSettle();
-      // Still same placeholder, but route changed
-      expect(find.text('Wizard placeholder for source, target, filters, preflight, and confirmation.'), findsOneWidget);
 
-      // Simulate Step 2 → Step 3
-      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/new-migration?step=3');
-      await tester.pumpAndSettle();
-      expect(find.text('Wizard placeholder for source, target, filters, preflight, and confirmation.'), findsOneWidget);
+      expect(find.text('Connection validated'), findsNWidgets(2));
 
-      // Simulate Step 3 → back to Step 2
-      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/new-migration?step=2');
+      await tester.tap(find.text('NEXT'));
       await tester.pumpAndSettle();
-      expect(find.text('Wizard placeholder for source, target, filters, preflight, and confirmation.'), findsOneWidget);
 
-      // Simulate Step 2 → back to Step 1
-      tester.element(find.byKey(GfrmShellPage.contentKey)).go('/new-migration');
+      expect(find.text('Step 2 of 2'), findsOneWidget);
+      expect(find.text('Options and filters'), findsOneWidget);
+      expect(find.text('Migrate releases'), findsOneWidget);
+      expect(find.text('Migrate release assets'), findsOneWidget);
+      expect(find.text('Matching tag preview'), findsOneWidget);
+
+      await tester.tap(find.text('Migrate releases'));
+      await tester.tap(find.text('Migrate release assets'));
       await tester.pumpAndSettle();
-      expect(find.text('Wizard placeholder for source, target, filters, preflight, and confirmation.'), findsOneWidget);
+
+      final SwitchListTile releaseToggle = tester.widget<SwitchListTile>(
+        find.widgetWithText(SwitchListTile, 'Migrate releases'),
+      );
+      final SwitchListTile assetToggle = tester.widget<SwitchListTile>(
+        find.widgetWithText(SwitchListTile, 'Migrate release assets'),
+      );
+      expect(releaseToggle.value, isFalse);
+      expect(assetToggle.value, isFalse);
+
+      await tester.enterText(find.byKey(const ValueKey<String>('new-migration-include-pattern')), 'v2*');
+      await tester.enterText(find.byKey(const ValueKey<String>('new-migration-exclude-pattern')), 'v2.0.0');
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(Chip, 'v2.1.0'), findsOneWidget);
+      expect(find.widgetWithText(Chip, 'v2.0.1'), findsOneWidget);
+      expect(find.widgetWithText(Chip, 'v2.0.0'), findsNothing);
     });
 
     testWidgets('progress-to-results transition on migration completion', (WidgetTester tester) async {

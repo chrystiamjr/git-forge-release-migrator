@@ -12,6 +12,8 @@ const List<RuntimeEventPayloadContract> runtimeEventPayloadContracts = <RuntimeE
     optionalFields: <String>[
       'dry_run',
       'skip_tags',
+      'skip_releases',
+      'skip_release_assets',
       'settings_profile',
     ],
   ),

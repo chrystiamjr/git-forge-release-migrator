@@ -27,6 +27,8 @@ void main() {
         'mode': 'migrate',
         'dry_run': false,
         'skip_tags': false,
+        'skip_releases': false,
+        'skip_release_assets': false,
         'settings_profile': 'team-a',
         'preflight': <String, dynamic>{
           'status': 'ok',

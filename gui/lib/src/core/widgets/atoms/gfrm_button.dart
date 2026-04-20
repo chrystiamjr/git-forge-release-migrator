@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:gfrm_gui/src/theme/gfrm_app_theme.dart';
 
 class GfrmButton extends StatelessWidget {
-  const GfrmButton({required this.label, required this.onPressed, this.icon, super.key});
+  const GfrmButton({required this.label, required this.onPressed, this.icon, this.isSecondary = false, super.key});
 
   final String label;
   final IconData? icon;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
+  final bool isSecondary;
 
   @override
   Widget build(BuildContext context) {
@@ -18,7 +19,11 @@ class GfrmButton extends StatelessWidget {
     return SizedBox(
       height: 36,
       child: Material(
-        color: colors.primary,
+        color: onPressed == null
+            ? colors.border
+            : isSecondary
+            ? colors.surface
+            : colors.primary,
         borderRadius: BorderRadius.circular(unit.s2),
         child: InkWell(
           borderRadius: BorderRadius.circular(unit.s2),
@@ -28,8 +33,14 @@ class GfrmButton extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                if (icon != null) ...<Widget>[Icon(icon, size: 18, color: Colors.white), SizedBox(width: unit.s2)],
-                Text(label.toUpperCase(), style: typography.buttonLabel),
+                if (icon != null) ...<Widget>[
+                  Icon(icon, size: 18, color: isSecondary ? colors.textBody : Colors.white),
+                  SizedBox(width: unit.s2),
+                ],
+                Text(
+                  label.toUpperCase(),
+                  style: typography.buttonLabel.copyWith(color: isSecondary ? colors.textBody : Colors.white),
+                ),
               ],
             ),
           ),

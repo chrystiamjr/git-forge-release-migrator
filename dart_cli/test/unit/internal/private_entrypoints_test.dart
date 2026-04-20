@@ -50,6 +50,8 @@ RuntimeOptions _demoOptions({
     targetToken: '',
     migrationOrder: 'github-to-gitlab',
     skipTagMigration: skipTags,
+    skipReleaseMigration: false,
+    skipReleaseAssetMigration: false,
     fromTag: '',
     toTag: '',
     dryRun: false,

@@ -16,6 +16,8 @@ gfrm resume [opções]
 - `--session-file <caminho>`
 - `--settings-profile <nome>`
 - `--skip-tags`
+- `--skip-releases`
+- `--skip-release-assets`
 - `--from-tag <tag>`
 - `--to-tag <tag>`
 - `--dry-run`
@@ -47,3 +49,5 @@ Se o arquivo de sessão padrão não existir, inicie uma nova execução com `mi
 - Antes de retomar a fase de tags, `gfrm resume` verifica se o forge de destino já contém o objeto de commit referenciado por cada tag de origem restante.
 - Se o histórico necessário estiver ausente, o comando falha cedo com orientações de remediação, incluindo snippets Git para mirror/branch auxiliar e sugestões nativas de GitHub, GitLab ou Bitbucket.
 - `--skip-tags` só é um atalho seguro quando as tags solicitadas já existem no forge de destino.
+- `--skip-releases` retoma somente a migração de tags e pula criação/atualização de releases.
+- `--skip-release-assets` retoma criação/atualização de releases sem baixar nem enviar assets de release.
