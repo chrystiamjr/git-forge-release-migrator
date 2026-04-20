@@ -243,8 +243,8 @@ const FLUTTER_TEST_GROUPS = [
   {
     rule: 'flutter_controller_test_gap',
     codePaths: [
-      'gui/lib/src/runtime/run/gfrm_desktop_run_controller.dart',
-      'gui/lib/src/runtime/run/desktop_run_controller_provider.dart',
+      'gui/lib/src/runtime/run/services/gfrm_desktop_run_controller.dart',
+      'gui/lib/src/runtime/run/providers/desktop_run_controller_provider.dart',
     ],
     testPaths: [
       'gui/test/unit/runtime/run/gfrm_desktop_run_controller_test.dart',
@@ -263,8 +263,15 @@ const FLUTTER_TEST_GROUPS = [
   {
     rule: 'flutter_mapper_test_gap',
     codePaths: [
-      'gui/lib/src/runtime/run/map_run_state_to_snapshot.dart',
-      'gui/lib/src/runtime/run/map_desktop_run_start_request.dart',
+      'gui/lib/src/runtime/run/mappers/map_desktop_preflight_check_to_item.dart',
+      'gui/lib/src/runtime/run/mappers/map_desktop_preflight_request_to_runtime_options.dart',
+      'gui/lib/src/runtime/run/mappers/map_desktop_run_failure_to_summary.dart',
+      'gui/lib/src/runtime/run/mappers/map_desktop_run_resume_request_to_run_request.dart',
+      'gui/lib/src/runtime/run/mappers/map_desktop_run_start_request_to_run_request.dart',
+      'gui/lib/src/runtime/run/mappers/map_preflight_checks_to_summary.dart',
+      'gui/lib/src/runtime/run/mappers/map_run_result_to_completion.dart',
+      'gui/lib/src/runtime/run/mappers/map_run_state_failure_to_summary.dart',
+      'gui/lib/src/runtime/run/mappers/map_run_state_to_snapshot.dart',
     ],
     testPaths: [
       'gui/test/unit/runtime/run/map_run_state_to_snapshot_test.dart',
@@ -272,7 +279,10 @@ const FLUTTER_TEST_GROUPS = [
     ],
     signalPatterns: [
       /mapRunStateToSnapshot/,
-      /mapDesktopRunStartRequest/,
+      /mapDesktop[A-Za-z]+/,
+      /mapPreflightChecksToSummary/,
+      /mapRunResultToCompletion/,
+      /mapRunStateFailureToSummary/,
     ],
     message:
       'Flutter mapper function changed without updating the corresponding test. Mapper functions must be tested as pure functions.',
@@ -280,6 +290,7 @@ const FLUTTER_TEST_GROUPS = [
   {
     rule: 'flutter_theme_test_gap',
     codePaths: [
+      'gui/lib/src/theme/gfrm_app_theme.dart',
       'gui/lib/src/theme/gfrm_theme.dart',
       'gui/lib/src/theme/gfrm_colors.dart',
       'gui/lib/src/theme/gfrm_typography.dart',
@@ -292,6 +303,7 @@ const FLUTTER_TEST_GROUPS = [
       /GfrmColors/,
       /GfrmTypography/,
       /GfrmTheme/,
+      /GfrmAppTheme/,
       /ColorScheme/,
       /ThemeData/,
     ],

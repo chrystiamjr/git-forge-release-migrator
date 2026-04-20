@@ -216,7 +216,18 @@ async function main() {
     let inlineCommentsPublished = true;
 
     await dismissPreviousReviews(owner, repo, result.marker);
-    const existingComments = await paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/comments`);
+    let existingComments = [];
+
+    try {
+        existingComments = await paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/comments`);
+    } catch (error) {
+        if (!isInlineCommentPermissionError(error)) {
+            throw error;
+        }
+
+        inlineCommentsPublished = false;
+    }
+
     const findings = Array.isArray(result.findings) ? result.findings : [];
     const {unpublishedFindings, alreadyPublishedFindings} = partitionPublishedFindings(
         findings,
