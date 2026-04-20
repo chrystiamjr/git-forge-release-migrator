@@ -2,7 +2,7 @@
 
 import 'package:gfrm_dart/src/application/preflight_check.dart';
 
-import '../../application/run/desktop_preflight_check_item.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_preflight_check_item.dart';
 
 DesktopPreflightCheckItem mapDesktopPreflightCheckToItem(PreflightCheck check) {
   return DesktopPreflightCheckItem(

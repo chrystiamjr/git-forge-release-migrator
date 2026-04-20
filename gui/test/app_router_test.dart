@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:gfrm_gui/src/app/app_routes.dart';
+import 'package:gfrm_gui/src/app/navigation/app_routes.dart';
 
 void main() {
   test('route map exposes all primary and settings destinations', () {

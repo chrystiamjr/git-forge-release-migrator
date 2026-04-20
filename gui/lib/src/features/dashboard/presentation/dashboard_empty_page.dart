@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:gfrm_gui/src/app/app_routes.dart';
+import 'package:gfrm_gui/src/app/navigation/app_routes.dart';
 import 'package:gfrm_gui/src/core/widgets/atoms/gfrm_button.dart';
 import 'package:gfrm_gui/src/core/widgets/molecules/gfrm_empty_state.dart';
 import 'package:gfrm_gui/src/core/widgets/molecules/gfrm_stat_card.dart';

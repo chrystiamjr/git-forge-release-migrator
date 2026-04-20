@@ -1,8 +1,8 @@
-import 'desktop_artifacts_summary.dart';
-import 'desktop_preflight_summary.dart';
-import 'desktop_run_count_summary.dart';
-import 'desktop_run_failure_summary.dart';
-import 'desktop_run_progress_item.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_artifacts_summary.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_preflight_summary.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_count_summary.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_failure_summary.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_progress_item.dart';
 
 const Object _desktopRunSnapshotUnset = Object();
 

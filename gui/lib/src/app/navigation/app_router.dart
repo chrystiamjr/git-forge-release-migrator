@@ -1,14 +1,14 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gfrm_gui/src/app/placeholders/gfrm_route_placeholder.dart';
+import 'package:gfrm_gui/src/app/shell/gfrm_shell_page.dart';
 import 'package:gfrm_gui/src/features/dashboard/presentation/dashboard_empty_page.dart';
 import 'package:gfrm_gui/src/features/history/presentation/history_empty_page.dart';
 import 'package:gfrm_gui/src/features/results/presentation/results_empty_page.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import 'app_routes.dart';
-import 'gfrm_route_placeholder.dart';
-import 'gfrm_shell_page.dart';
 
 part 'app_router.g.dart';
 

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:gfrm_gui/src/app/app_router.dart';
+import 'package:gfrm_gui/src/app/navigation/app_router.dart';
 import 'package:gfrm_gui/src/theme/gfrm_app_theme.dart';
 
 class GfrmApp extends ConsumerWidget {

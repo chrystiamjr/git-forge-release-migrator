@@ -1,4 +1,4 @@
-import 'desktop_preflight_check_item.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_preflight_check_item.dart';
 
 final class DesktopPreflightSummary {
   const DesktopPreflightSummary({

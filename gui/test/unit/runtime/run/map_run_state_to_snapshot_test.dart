@@ -9,7 +9,7 @@ import 'package:gfrm_dart/src/runtime_events/run_state_phase.dart';
 import 'package:gfrm_dart/src/runtime_events/run_state_preflight_summary.dart';
 import 'package:gfrm_dart/src/runtime_events/run_state_release_snapshot.dart';
 import 'package:gfrm_dart/src/runtime_events/run_state_tag_snapshot.dart';
-import 'package:gfrm_gui/src/runtime/run/map_run_state_to_snapshot.dart';
+import 'package:gfrm_gui/src/runtime/run/mappers/map_run_state_to_snapshot.dart';
 
 void main() {
   group('mapRunStateToSnapshot', () {

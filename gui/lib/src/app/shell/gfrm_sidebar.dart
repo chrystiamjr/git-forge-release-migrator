@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:gfrm_gui/src/app/app_routes.dart';
-import 'package:gfrm_gui/src/app/gfrm_logo.dart';
+import 'package:gfrm_gui/src/app/navigation/app_routes.dart';
+import 'package:gfrm_gui/src/app/shell/gfrm_logo.dart';
 import 'package:gfrm_gui/src/theme/gfrm_app_theme.dart';
 
 class GfrmSidebar extends StatelessWidget {
