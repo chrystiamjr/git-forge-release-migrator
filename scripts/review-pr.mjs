@@ -285,10 +285,9 @@ const FLUTTER_TEST_GROUPS = [
       'gui/lib/src/theme/gfrm_typography.dart',
     ],
     testPaths: [
-      'gui/test/unit/theme/gfrm_app_theme_test.dart',
-      'gui/test/unit/theme/gfrm_theme_test.dart',
       'gui/test/widget/theme_test.dart',
     ],
+    testPathPatterns: [/^gui\/test\/unit\/theme\/.*_test\.dart$/],
     signalPatterns: [
       /GfrmColors/,
       /GfrmTypography/,
@@ -670,6 +669,13 @@ function hasChangedExactPath(files, candidatePaths) {
   return files.some((file) => candidateSet.has(file.filename));
 }
 
+function hasChangedPath(files, candidatePaths = [], candidatePatterns = []) {
+  const candidateSet = new Set(candidatePaths);
+  return files.some(
+    (file) => candidateSet.has(file.filename) || candidatePatterns.some((pattern) => pattern.test(file.filename)),
+  );
+}
+
 function fileMatchesSignalPatterns(file, signalPatterns = []) {
   if (!Array.isArray(signalPatterns) || signalPatterns.length === 0) {
     return true;
@@ -876,7 +882,7 @@ export function buildTargetedCoverageFindings(files) {
   const findings = [];
 
   for (const group of TARGETED_TEST_GROUPS) {
-    if (hasChangedExactPath(files, group.testPaths)) {
+    if (hasChangedPath(files, group.testPaths, group.testPathPatterns)) {
       continue;
     }
 
@@ -1128,7 +1134,7 @@ export function buildFlutterTargetedCoverageFindings(files) {
   const findings = [];
 
   for (const group of FLUTTER_TEST_GROUPS) {
-    if (hasChangedExactPath(files, group.testPaths)) {
+    if (hasChangedPath(files, group.testPaths, group.testPathPatterns)) {
       continue;
     }
 
