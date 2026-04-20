@@ -358,8 +358,8 @@ void main() {
       expect(releaseToggle.value, isFalse);
       expect(assetToggle.value, isFalse);
 
-      await tester.enterText(find.byKey(const ValueKey<String>('new-migration-include-pattern')), 'v2*');
-      await tester.enterText(find.byKey(const ValueKey<String>('new-migration-exclude-pattern')), 'v2.0.0');
+      await tester.enterText(find.byKey(const ValueKey<String>('new-migration-from-tag')), 'v2.0.1');
+      await tester.enterText(find.byKey(const ValueKey<String>('new-migration-to-tag')), 'v2.1.0');
       await tester.pumpAndSettle();
 
       expect(find.widgetWithText(Chip, 'v2.1.0'), findsOneWidget);
