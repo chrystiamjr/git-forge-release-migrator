@@ -40,6 +40,25 @@ function formatInlineComment(finding, marker) {
     return `${marker}\n${prefix} ${finding.message}`;
 }
 
+function inlineCommentSignature(path, line, body) {
+    return `${path ?? ''}\0${line ?? ''}\0${body ?? ''}`;
+}
+
+export function filterAlreadyPublishedFindings(findings, comments, marker) {
+    const existingCommentSignatures = new Set(
+        comments
+            .filter((comment) => String(comment.body || '').includes(marker))
+            .map((comment) => inlineCommentSignature(comment.path, comment.line, comment.body)),
+    );
+
+    return findings.filter(
+        (finding) =>
+            !existingCommentSignatures.has(
+                inlineCommentSignature(finding.path, finding.line, formatInlineComment(finding, marker)),
+            ),
+    );
+}
+
 function formatFindingSummary(finding) {
     const severity = finding.severity === 'blocking' ? 'blocking' : 'note';
     const location = finding.path && finding.line ? ` (${finding.path}:${finding.line})` : '';
@@ -102,17 +121,6 @@ async function dismissPreviousReviews(owner, repo, marker) {
         } catch {
             // Best-effort: dismiss may fail if token lacks permission or review was already dismissed.
         }
-    }
-}
-
-async function removePreviousInlineComments(owner, repo, marker) {
-    const comments = await paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/comments`);
-    const deletableComments = comments.filter((comment) => String(comment.body || '').includes(marker));
-
-    for (const comment of deletableComments) {
-        await githubRequest(`/repos/${owner}/${repo}/pulls/comments/${comment.id}`, {
-            method: 'DELETE',
-        });
     }
 }
 
@@ -185,19 +193,12 @@ async function main() {
     let inlineCommentsPublished = true;
 
     await dismissPreviousReviews(owner, repo, result.marker);
-
-    try {
-        await removePreviousInlineComments(owner, repo, result.marker);
-    } catch (error) {
-        if (!isInlineCommentPermissionError(error)) {
-            throw error;
-        }
-
-        inlineCommentsPublished = false;
-    }
+    const existingComments = await paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/comments`);
+    const findings = Array.isArray(result.findings) ? result.findings : [];
+    const unpublishedFindings = filterAlreadyPublishedFindings(findings, existingComments, result.marker);
 
     if (inlineCommentsPublished) {
-        for (const finding of result.findings) {
+        for (const finding of unpublishedFindings) {
             try {
                 await postInlineFinding(owner, repo, result.head_sha, finding, result.marker);
             } catch (error) {

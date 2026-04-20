@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  filterAlreadyPublishedFindings,
   isInlineCommentPermissionError,
   isSelfReviewApproveError,
   isSelfReviewRequestChangesError,
@@ -131,4 +132,31 @@ test('publishReviewResult rethrows unrelated approval failures', async () => {
     ),
     /server exploded/,
   );
+});
+
+test('filterAlreadyPublishedFindings skips duplicate automated inline comments', () => {
+  const marker = '<!-- auto-pr-review -->';
+  const findings = [
+    {
+      severity: 'note',
+      message: 'Theme, color, or typography definitions changed without test coverage.',
+      path: 'gui/lib/src/theme/gfrm_colors.dart',
+      line: 1,
+    },
+    {
+      severity: 'blocking',
+      message: 'Workflow still checks out main instead of the PR head SHA.',
+      path: '.github/workflows/auto-pr-review.yml',
+      line: 31,
+    },
+  ];
+  const comments = [
+    {
+      body: `${marker}\n[note] Theme, color, or typography definitions changed without test coverage.`,
+      path: 'gui/lib/src/theme/gfrm_colors.dart',
+      line: 1,
+    },
+  ];
+
+  assert.deepEqual(filterAlreadyPublishedFindings(findings, comments, marker), [findings[1]]);
 });

@@ -285,6 +285,7 @@ const FLUTTER_TEST_GROUPS = [
       'gui/lib/src/theme/gfrm_typography.dart',
     ],
     testPaths: [
+      'gui/test/unit/theme/gfrm_app_theme_test.dart',
       'gui/test/unit/theme/gfrm_theme_test.dart',
       'gui/test/widget/theme_test.dart',
     ],

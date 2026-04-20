@@ -797,6 +797,23 @@ test('buildFlutterTargetedCoverageFindings stays quiet when controller test chan
   assert.deepEqual(findings, []);
 });
 
+test('buildFlutterTargetedCoverageFindings stays quiet when app theme token test changed', () => {
+  const findings = buildFlutterTargetedCoverageFindings([
+    buildPatchedFile({
+      filename: 'gui/lib/src/theme/gfrm_colors.dart',
+      changes: 10,
+      patch: "@@ -1,1 +1,1 @@\n+part of 'gfrm_app_theme.dart';",
+    }),
+    buildPatchedFile({
+      filename: 'gui/test/unit/theme/gfrm_app_theme_test.dart',
+      changes: 12,
+      patch: '@@ -0,0 +1,1 @@\n+test added',
+    }),
+  ]);
+
+  assert.deepEqual(findings, []);
+});
+
 // --- buildMultiClassFindings ---
 
 test('buildMultiClassFindings blocks multiple classes in one Dart file', () => {
