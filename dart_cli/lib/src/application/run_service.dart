@@ -509,6 +509,8 @@ class RunService {
       'mode': options.commandName,
       'dry_run': options.dryRun,
       'skip_tags': options.skipTagMigration,
+      'skip_releases': options.skipReleaseMigration,
+      'skip_release_assets': options.skipReleaseAssetMigration,
     };
     if (options.settingsProfile.isNotEmpty) {
       payload['settings_profile'] = options.settingsProfile;

@@ -17,8 +17,8 @@ final class NewMigrationWizardState {
     this.migrateReleaseAssets = true,
     this.dryRun = true,
     this.settingsProfile = 'default',
-    this.includePattern = 'v*',
-    this.excludePattern = '',
+    this.fromTag = '',
+    this.toTag = '',
   });
 
   static const List<String> sampleTags = <String>[
@@ -46,19 +46,21 @@ final class NewMigrationWizardState {
   final bool migrateReleaseAssets;
   final bool dryRun;
   final String settingsProfile;
-  final String includePattern;
-  final String excludePattern;
+  final String fromTag;
+  final String toTag;
 
   bool get canValidateConnections => sourceUrl.trim().isNotEmpty && targetUrl.trim().isNotEmpty;
 
   bool get canContinueFromStepOne => sourceValidated && targetValidated;
 
   List<String> get matchingTags {
+    // Tags are filtered by semver range: fromTag to toTag (inclusive)
+    // Both should be in semver format: vX.Y.Z
     return sampleTags
         .where((String tag) {
-          final bool included = _matchesGlob(tag, includePattern);
-          final bool excluded = excludePattern.trim().isNotEmpty && _matchesGlob(tag, excludePattern);
-          return included && !excluded;
+          final bool afterFrom = fromTag.isEmpty || _isSemverGreaterOrEqual(tag, fromTag);
+          final bool beforeTo = toTag.isEmpty || _isSemverLessOrEqual(tag, toTag);
+          return afterFrom && beforeTo;
         })
         .toList(growable: false);
   }
@@ -72,8 +74,8 @@ final class NewMigrationWizardState {
       targetUrl: targetUrl.trim(),
       targetToken: targetToken.trim(),
       settingsProfile: settingsProfile.trim(),
-      fromTag: includePattern.trim(),
-      toTag: excludePattern.trim(),
+      fromTag: fromTag.trim(),
+      toTag: toTag.trim(),
       skipTagMigration: !migrateTags,
       skipReleaseMigration: !migrateReleases,
       skipReleaseAssetMigration: !migrateReleaseAssets,
@@ -96,8 +98,8 @@ final class NewMigrationWizardState {
     bool? migrateReleaseAssets,
     bool? dryRun,
     String? settingsProfile,
-    String? includePattern,
-    String? excludePattern,
+    String? fromTag,
+    String? toTag,
   }) {
     return NewMigrationWizardState(
       step: step ?? this.step,
@@ -114,14 +116,41 @@ final class NewMigrationWizardState {
       migrateReleaseAssets: migrateReleaseAssets ?? this.migrateReleaseAssets,
       dryRun: dryRun ?? this.dryRun,
       settingsProfile: settingsProfile ?? this.settingsProfile,
-      includePattern: includePattern ?? this.includePattern,
-      excludePattern: excludePattern ?? this.excludePattern,
+      fromTag: fromTag ?? this.fromTag,
+      toTag: toTag ?? this.toTag,
     );
   }
 
-  static bool _matchesGlob(String value, String pattern) {
-    final String normalizedPattern = pattern.trim().isEmpty ? '*' : pattern.trim();
-    final String escaped = RegExp.escape(normalizedPattern).replaceAll(r'\*', '.*');
-    return RegExp('^$escaped\$').hasMatch(value);
+  static bool _isSemverGreaterOrEqual(String tag, String minTag) {
+    return _compareSemver(tag, minTag) >= 0;
+  }
+
+  static bool _isSemverLessOrEqual(String tag, String maxTag) {
+    return _compareSemver(tag, maxTag) <= 0;
+  }
+
+  static int _compareSemver(String a, String b) {
+    // Extract semver numbers from vX.Y.Z format
+    final List<int> aParts = _extractSemverParts(a);
+    final List<int> bParts = _extractSemverParts(b);
+
+    for (int i = 0; i < 3; i++) {
+      if (aParts[i] != bParts[i]) {
+        return aParts[i].compareTo(bParts[i]);
+      }
+    }
+    return 0;
+  }
+
+  static List<int> _extractSemverParts(String tag) {
+    // Extract vX.Y.Z from tag, returning [0, 0, 0] if invalid format
+    final RegExp semverRegex = RegExp(r'^v(\d+)\.(\d+)\.(\d+)');
+    final RegExpMatch? match = semverRegex.firstMatch(tag);
+
+    if (match == null || match.groupCount < 3) {
+      return <int>[0, 0, 0];
+    }
+
+    return <int>[int.parse(match.group(1)!), int.parse(match.group(2)!), int.parse(match.group(3)!)];
   }
 }

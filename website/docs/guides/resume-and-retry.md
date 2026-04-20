@@ -49,4 +49,4 @@ Safe remediation patterns:
 
 - mirror the source repository into the target when the target can accept the full history
 - push a helper branch that carries the missing commit objects when you must preserve the current default branch
-- use `--skip-tags` only when the requested tags already exist in the target forge
+- use `--skip-tags` only when the target forge already contains all the tags you plan to migrate; this constraint is enforced at runtime

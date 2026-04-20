@@ -63,11 +63,11 @@ final class NewMigrationWizardController extends StateNotifier<NewMigrationWizar
     state = state.copyWith(settingsProfile: value);
   }
 
-  void updateIncludePattern(String value) {
-    state = state.copyWith(includePattern: value);
+  void updateFromTag(String value) {
+    state = state.copyWith(fromTag: value);
   }
 
-  void updateExcludePattern(String value) {
-    state = state.copyWith(excludePattern: value);
+  void updateToTag(String value) {
+    state = state.copyWith(toTag: value);
   }
 }

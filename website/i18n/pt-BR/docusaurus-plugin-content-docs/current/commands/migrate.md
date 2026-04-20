@@ -46,6 +46,7 @@ gfrm migrate \
 - `--download-workers` deve ser `1..16`
 - `--release-workers` deve ser `1..8`
 - se `--from-tag` e `--to-tag` estiverem presentes, a ordem semver precisa ser válida
+- `--skip-tags` só é permitido quando o forge de destino já tem tags existentes
 
 ## Fontes de token
 
@@ -71,6 +72,6 @@ gfrm migrate \
 - O banner ASCII fica reservado para `gfrm` e `gfrm --help`.
 - Antes de criar tags, `gfrm migrate` verifica se o forge de destino já contém o objeto de commit referenciado por cada tag de origem que ainda precisa ser migrada.
 - Se o histórico necessário estiver ausente, o comando falha cedo com orientações de remediação, incluindo snippets Git para mirror/branch auxiliar e sugestões nativas de GitHub, GitLab ou Bitbucket.
-- `--skip-tags` só é um atalho seguro quando as tags solicitadas já existem no forge de destino.
+- `--skip-tags` exige que o forge de destino já tenha tags existentes; essa restrição é validada em runtime e bloqueará a migração se violada.
 - `--skip-releases` migra somente tags e pula criação/atualização de releases.
 - `--skip-release-assets` cria ou atualiza releases sem baixar nem enviar assets de release.

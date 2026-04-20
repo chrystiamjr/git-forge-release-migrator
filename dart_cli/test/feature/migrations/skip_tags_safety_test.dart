@@ -1,16 +1,47 @@
 import 'dart:io';
 
+import 'package:gfrm_dart/src/application/preflight_check.dart';
+import 'package:gfrm_dart/src/application/preflight_service.dart';
 import 'package:gfrm_dart/src/core/adapters/provider_adapter.dart';
 import 'package:gfrm_dart/src/core/types/canonical_release.dart';
-import 'package:gfrm_dart/src/models/runtime_options.dart';
+import 'package:gfrm_dart/src/models/migration_context.dart';
 import 'package:test/test.dart';
 
-import '../../support/runtime_options_fixture.dart';
+import '../../support/migration_context_fixture.dart';
 import '../../support/temp_dir.dart';
 
-final class _SkipTagsTargetAdapterEmpty extends ProviderAdapter {
+final class _SourceAdapter extends ProviderAdapter {
   @override
-  String get name => 'skip-tags-target-empty';
+  String get name => 'stub-source';
+
+  @override
+  ProviderRef parseUrl(String url) {
+    return ProviderRef(
+      provider: 'github',
+      rawUrl: url,
+      baseUrl: 'https://github.com',
+      host: 'github.com',
+      resource: 'acme/source',
+    );
+  }
+
+  @override
+  CanonicalRelease toCanonicalRelease(Map<String, dynamic> payload) {
+    return CanonicalRelease.fromMap(payload);
+  }
+
+  @override
+  Future<List<String>> listTags(ProviderRef ref, String token) async => <String>[];
+
+  @override
+  Future<List<Map<String, dynamic>>> listReleases(ProviderRef ref, String token) async {
+    return <Map<String, dynamic>>[];
+  }
+}
+
+final class _TargetAdapterEmpty extends ProviderAdapter {
+  @override
+  String get name => 'stub-target-empty';
 
   @override
   ProviderRef parseUrl(String url) {
@@ -38,17 +69,17 @@ final class _SkipTagsTargetAdapterEmpty extends ProviderAdapter {
   }
 }
 
-final class _SkipTagsTargetAdapterWithTags extends ProviderAdapter {
+final class _TargetAdapterWithTags extends ProviderAdapter {
   @override
-  String get name => 'skip-tags-target-with-tags';
+  String get name => 'stub-target-with-tags';
 
   @override
   ProviderRef parseUrl(String url) {
     return ProviderRef(
-      provider: 'bitbucket',
+      provider: 'gitlab',
       rawUrl: url,
-      baseUrl: 'https://bitbucket.org',
-      host: 'bitbucket.org',
+      baseUrl: 'https://gitlab.com',
+      host: 'gitlab.com',
       resource: 'acme/target',
     );
   }
@@ -71,72 +102,89 @@ final class _SkipTagsTargetAdapterWithTags extends ProviderAdapter {
 }
 
 void main() {
-  group('--skip-tags safety:', () {
+  group('PreflightService.buildSkipTagsSafetyCheck():', () {
     test(
-      'when skipTagMigration=true and destination has existing tags, '
-      'it is safe to skip tag migration',
+      'when skipTagMigration=false, check returns null (no validation needed)',
       () async {
         final Directory temp = createTempDir('gfrm-skip-tags-safe-');
-        final RuntimeOptions options = buildRuntimeOptions(
-          workdir: '${temp.path}/results',
-          skipTagMigration: true,
+        final _SourceAdapter source = _SourceAdapter();
+        final _TargetAdapterWithTags target = _TargetAdapterWithTags();
+
+        final MigrationContext ctx = buildMigrationContext(
+          temp,
+          source,
+          target,
+          skipTagMigration: false,
+          targetTags: const {'v1.0.0', 'v1.1.0', 'v1.2.0'},
         );
 
-        // When skip-tags is enabled
-        expect(options.skipTagMigration, isTrue);
+        // When skip-tags is NOT enabled
+        expect(ctx.options.skipTagMigration, isFalse);
 
-        // Simulate that destination already has tags from a previous run
-        final List<String> destinationExistingTags = <String>['v1.0.0', 'v1.1.0', 'v1.2.0'];
+        final PreflightService service = PreflightService();
+        final PreflightCheck? check = service.buildSkipTagsSafetyCheck(ctx);
 
-        // This is safe because destination tags already exist
-        expect(destinationExistingTags, isNotEmpty);
+        // Check should be null - no safety concern
+        expect(check, isNull);
       },
     );
 
     test(
-      'when skipTagMigration=true and destination is empty, '
-      'it represents a safety concern that should be flagged',
-      () {
-        final RuntimeOptions options = buildRuntimeOptions(
-          skipTagMigration: true,
-        );
-
-        // When skip-tags is enabled
-        expect(options.skipTagMigration, isTrue);
-
-        // Simulate that destination has NO tags at all
-        final List<String> destinationEmptyTags = <String>[];
-
-        // This is a safety concern - destination is empty, so skipping tags means
-        // releases may have no corresponding tags to reference
-        expect(destinationEmptyTags, isEmpty);
-
-        // Critical Invariant: --skip-tags is only safe when destination tags already exist
-        // When destination is empty, --skip-tags should be rejected or require explicit confirmation
-      },
-    );
-
-    test(
-      'adapter can validate destination tag count before allowing skip-tags',
+      'when skipTagMigration=true and target is empty, check status=error with skip-tags-unsafe code',
       () async {
-        final _SkipTagsTargetAdapterWithTags adapterWithTags = _SkipTagsTargetAdapterWithTags();
-        final _SkipTagsTargetAdapterEmpty adapterEmpty = _SkipTagsTargetAdapterEmpty();
+        final Directory temp = createTempDir('gfrm-skip-tags-unsafe-');
+        final _SourceAdapter source = _SourceAdapter();
+        final _TargetAdapterEmpty target = _TargetAdapterEmpty();
 
-        final ProviderRef refWithTags = adapterWithTags.parseUrl('https://bitbucket.org/acme/target');
-        final ProviderRef refEmpty = adapterEmpty.parseUrl('https://gitlab.com/acme/target');
+        final MigrationContext ctx = buildMigrationContext(
+          temp,
+          source,
+          target,
+          skipTagMigration: true,
+          targetTags: const <String>{},
+        );
 
-        // Adapter with existing tags
-        final List<String> tagsWithData = await adapterWithTags.listTags(refWithTags, 'token');
-        expect(tagsWithData, isNotEmpty);
+        // When skip-tags is enabled AND target has no tags
+        expect(ctx.options.skipTagMigration, isTrue);
+        expect(ctx.targetTags, isEmpty);
 
-        // Adapter with no tags
-        final List<String> tagsEmpty = await adapterEmpty.listTags(refEmpty, 'token');
-        expect(tagsEmpty, isEmpty);
+        final PreflightService service = PreflightService();
+        final PreflightCheck? check = service.buildSkipTagsSafetyCheck(ctx);
 
-        // Safety validation logic:
-        // if (skipTagMigration && destinationTags.isEmpty) {
-        //   throw error('Cannot use --skip-tags when destination has no tags')
-        // }
+        // Check must be present with error status
+        expect(check, isNotNull);
+        expect(check!.status, equals(PreflightCheckStatus.error));
+        expect(check.code, equals('skip-tags-unsafe'));
+        expect(check.message, contains('not safe'));
+        expect(check.hint, isNotNull);
+        expect(check.hint, contains('target repository must already contain all tags'));
+      },
+    );
+
+    test(
+      'when skipTagMigration=true and target has existing tags, check returns null',
+      () async {
+        final Directory temp = createTempDir('gfrm-skip-tags-safe-with-tags-');
+        final _SourceAdapter source = _SourceAdapter();
+        final _TargetAdapterWithTags target = _TargetAdapterWithTags();
+
+        final MigrationContext ctx = buildMigrationContext(
+          temp,
+          source,
+          target,
+          skipTagMigration: true,
+          targetTags: const {'v1.0.0', 'v1.1.0', 'v1.2.0'},
+        );
+
+        // When skip-tags is enabled AND target already has tags
+        expect(ctx.options.skipTagMigration, isTrue);
+        expect(ctx.targetTags, isNotEmpty);
+
+        final PreflightService service = PreflightService();
+        final PreflightCheck? check = service.buildSkipTagsSafetyCheck(ctx);
+
+        // Check should be null - destination tags already exist, it is safe
+        expect(check, isNull);
       },
     );
   });

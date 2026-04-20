@@ -61,19 +61,19 @@ final class NewMigrationOptionsStep extends StatelessWidget {
                 children: <Widget>[
                   Expanded(
                     child: TextFormField(
-                      key: const ValueKey<String>('new-migration-include-pattern'),
-                      initialValue: state.includePattern,
-                      decoration: const InputDecoration(labelText: 'Include tags'),
-                      onChanged: controller.updateIncludePattern,
+                      key: const ValueKey<String>('new-migration-from-tag'),
+                      initialValue: state.fromTag,
+                      decoration: const InputDecoration(labelText: 'From tag (semver)'),
+                      onChanged: controller.updateFromTag,
                     ),
                   ),
                   SizedBox(width: unit.s4),
                   Expanded(
                     child: TextFormField(
-                      key: const ValueKey<String>('new-migration-exclude-pattern'),
-                      initialValue: state.excludePattern,
-                      decoration: const InputDecoration(labelText: 'Exclude tags'),
-                      onChanged: controller.updateExcludePattern,
+                      key: const ValueKey<String>('new-migration-to-tag'),
+                      initialValue: state.toTag,
+                      decoration: const InputDecoration(labelText: 'To tag (semver)'),
+                      onChanged: controller.updateToTag,
                     ),
                   ),
                 ],
