@@ -113,6 +113,25 @@ class RunService {
         runtime.targetRef,
         runtimeEventEmitter: runtimeEventEmitter,
       );
+      final PreflightCheck? skipTagsSafetyCheck = _preflightService.buildSkipTagsSafetyCheck(context);
+      if (skipTagsSafetyCheck != null) {
+        preflightChecks = <PreflightCheck>[
+          ...preflightChecks,
+          skipTagsSafetyCheck,
+        ];
+        _emitPreflightCompleted(runtimeEventEmitter, preflightChecks);
+        _emitRunFailed(
+          runtimeEventEmitter,
+          code: skipTagsSafetyCheck.code,
+          message: skipTagsSafetyCheck.message,
+          retryable: false,
+          phase: 'preflight',
+        );
+        return _preflightFailureResult(
+          prepared: prepared,
+          checks: preflightChecks,
+        );
+      }
       final List<MissingTargetCommit> missingTargetCommits = await _preflightService.findMissingTargetCommits(context);
       if (missingTargetCommits.isNotEmpty) {
         final PreflightCheck check = _preflightService.buildMissingTargetCommitCheck(context, missingTargetCommits);

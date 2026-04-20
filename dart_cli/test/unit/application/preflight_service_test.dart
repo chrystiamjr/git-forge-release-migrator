@@ -276,5 +276,57 @@ void main() {
       expect(check.hint, contains('git clone --mirror'));
       expect(check.hint, contains('Use --skip-tags only if the target already has the requested tags.'));
     });
+
+    test('buildSkipTagsSafetyCheck returns null when skip-tags is not enabled', () {
+      final PreflightService service = PreflightService();
+      final MigrationContext context = buildMigrationContext(
+        createTempDir('gfrm-preflight-skip-tags-safe-'),
+        _SourceAdapter(),
+        _TargetAdapter(),
+        selectedTags: const <String>['v1.0.0'],
+        skipTagMigration: false,
+      );
+
+      final PreflightCheck? check = service.buildSkipTagsSafetyCheck(context);
+
+      expect(check, isNull);
+    });
+
+    test('buildSkipTagsSafetyCheck returns error when skip-tags enabled but target has no tags', () {
+      final PreflightService service = PreflightService();
+      final MigrationContext context = buildMigrationContext(
+        createTempDir('gfrm-preflight-skip-tags-unsafe-'),
+        _SourceAdapter(),
+        _TargetAdapter(),
+        selectedTags: const <String>['v1.0.0'],
+        skipTagMigration: true,
+        targetTags: const <String>{},
+      );
+
+      final PreflightCheck? check = service.buildSkipTagsSafetyCheck(context);
+
+      expect(check, isNotNull);
+      expect(check!.status, PreflightCheckStatus.error);
+      expect(check.code, 'skip-tags-unsafe');
+      expect(check.message, contains('--skip-tags'));
+      expect(check.message, contains('no existing tags'));
+      expect(check.hint, contains('migrate tags by removing --skip-tags'));
+    });
+
+    test('buildSkipTagsSafetyCheck returns null when skip-tags enabled and target has existing tags', () {
+      final PreflightService service = PreflightService();
+      final MigrationContext context = buildMigrationContext(
+        createTempDir('gfrm-preflight-skip-tags-safe-existing-'),
+        _SourceAdapter(),
+        _TargetAdapter(),
+        selectedTags: const <String>['v1.0.0'],
+        skipTagMigration: true,
+        targetTags: const <String>{'v0.9.0', 'v1.0.0'},
+      );
+
+      final PreflightCheck? check = service.buildSkipTagsSafetyCheck(context);
+
+      expect(check, isNull);
+    });
   });
 }
