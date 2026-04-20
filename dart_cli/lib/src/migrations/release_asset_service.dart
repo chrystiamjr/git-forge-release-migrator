@@ -9,19 +9,8 @@ import '../core/types/canonical_release.dart';
 import '../core/types/canonical_source.dart';
 import '../core/types/phase.dart';
 import '../models/migration_context.dart';
+import 'release_asset_types.dart';
 import 'selection.dart';
-
-typedef _LinkedResults = ({bool ok, String name, String url, String outputPath});
-typedef _LinkDownloadPlan = ({CanonicalLink link, String name, String outputPath});
-typedef _SourceResults = ({bool ok, bool fallback, String format, String name, String url, String outputPath});
-typedef _SourceDownloadPlan = ({CanonicalSource source, String name, String outputPath});
-
-typedef DownloadedAssetResult = ({
-  List<String> downloaded,
-  List<Map<String, String>> missingLinks,
-  List<Map<String, String>> missingSources,
-  List<String> sourceFallbackFormats,
-});
 
 final class ReleaseAssetService {
   ReleaseAssetService({required this.logger});
@@ -53,13 +42,13 @@ final class ReleaseAssetService {
     CanonicalRelease canonical,
     Directory assetsDir,
   ) async {
-    final List<_LinkDownloadPlan> linkPlans = _buildLinkPlans(canonical, assetsDir.path);
-    final List<_SourceDownloadPlan> sourcePlans = _buildSourcePlans(tag, canonical, assetsDir.path, linkPlans);
+    final List<LinkDownloadPlan> linkPlans = _buildLinkPlans(canonical, assetsDir.path);
+    final List<SourceDownloadPlan> sourcePlans = _buildSourcePlans(tag, canonical, assetsDir.path, linkPlans);
 
-    final List<_LinkedResults> linkResults = await Concurrency.mapWithLimit<_LinkDownloadPlan, _LinkedResults>(
+    final List<LinkedResults> linkResults = await Concurrency.mapWithLimit<LinkDownloadPlan, LinkedResults>(
       items: linkPlans,
       limit: ctx.options.downloadWorkers,
-      task: (_LinkDownloadPlan plan, int _) async {
+      task: (LinkDownloadPlan plan, int _) async {
         final bool ok = await ctx.source.downloadCanonicalLink(
           DownloadLinkInput(
             providerRef: ctx.sourceRef,
@@ -78,10 +67,10 @@ final class ReleaseAssetService {
       },
     );
 
-    final List<_SourceResults> sourceResults = await Concurrency.mapWithLimit<_SourceDownloadPlan, _SourceResults>(
+    final List<SourceResults> sourceResults = await Concurrency.mapWithLimit<SourceDownloadPlan, SourceResults>(
       items: sourcePlans,
       limit: ctx.options.downloadWorkers,
-      task: (_SourceDownloadPlan plan, int _) async {
+      task: (SourceDownloadPlan plan, int _) async {
         final bool ok = await ctx.source.downloadCanonicalSource(
           DownloadSourceInput(
             providerRef: ctx.sourceRef,
@@ -116,7 +105,7 @@ final class ReleaseAssetService {
       }
     }
 
-    for (final _SourceResults result in sourceResults) {
+    for (final SourceResults result in sourceResults) {
       if (result.ok) {
         downloaded.add(result.outputPath);
         continue;
@@ -195,9 +184,9 @@ final class ReleaseAssetService {
     await notesFile.writeAsString(buffer.toString(), mode: FileMode.append);
   }
 
-  List<_LinkDownloadPlan> _buildLinkPlans(CanonicalRelease canonical, String assetsPath) {
+  List<LinkDownloadPlan> _buildLinkPlans(CanonicalRelease canonical, String assetsPath) {
     final Set<String> usedNames = <String>{};
-    final List<_LinkDownloadPlan> plans = <_LinkDownloadPlan>[];
+    final List<LinkDownloadPlan> plans = <LinkDownloadPlan>[];
     for (final CanonicalLink link in canonical.assets.links) {
       final String name = _assetNameForLink(link);
       final String outputName = SelectionService.reserveOutputName(usedNames, name);
@@ -206,16 +195,15 @@ final class ReleaseAssetService {
     return plans;
   }
 
-  List<_SourceDownloadPlan> _buildSourcePlans(
+  List<SourceDownloadPlan> _buildSourcePlans(
     String tag,
     CanonicalRelease canonical,
     String assetsPath,
-    List<_LinkDownloadPlan> linkPlans,
+    List<LinkDownloadPlan> linkPlans,
   ) {
-    final Set<String> usedNames =
-        linkPlans.map<String>((_LinkDownloadPlan plan) => p.basename(plan.outputPath)).toSet();
+    final Set<String> usedNames = linkPlans.map<String>((LinkDownloadPlan plan) => p.basename(plan.outputPath)).toSet();
 
-    final List<_SourceDownloadPlan> plans = <_SourceDownloadPlan>[];
+    final List<SourceDownloadPlan> plans = <SourceDownloadPlan>[];
     for (final CanonicalSource source in canonical.assets.sources) {
       final String name = _assetNameForSource(source, tag);
       final String prefix = source.format.isEmpty ? 'source' : source.format;

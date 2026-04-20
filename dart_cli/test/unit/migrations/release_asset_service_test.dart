@@ -4,6 +4,7 @@ import 'package:gfrm_dart/src/core/adapters/provider_adapter.dart';
 import 'package:gfrm_dart/src/core/logging.dart';
 import 'package:gfrm_dart/src/core/types/canonical_release.dart';
 import 'package:gfrm_dart/src/migrations/release_asset_service.dart';
+import 'package:gfrm_dart/src/migrations/release_asset_types.dart';
 import 'package:gfrm_dart/src/models/migration_context.dart';
 import '../../support/logging.dart';
 import '../../support/migration_context_fixture.dart';
