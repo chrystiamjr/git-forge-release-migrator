@@ -1,6 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_preflight_check_item.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_preflight_summary.dart';
 import 'package:gfrm_gui/src/features/new_migration/application/new_migration_wizard_controller.dart';
+import 'package:gfrm_gui/src/features/new_migration/application/new_migration_wizard_state.dart';
 import 'package:gfrm_gui/src/features/new_migration/domain/migration_provider_option.dart';
 
 void main() {
@@ -79,6 +82,55 @@ void main() {
       expect(request.settingsProfile, 'release');
       expect(request.fromTag, 'v1.0.0');
       expect(request.toTag, 'v1.9.0');
+    });
+
+    test('maps wizard state to DesktopPreflightRequest', () {
+      final ProviderContainer container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      final NewMigrationWizardController controller = container.read(newMigrationWizardProvider.notifier);
+
+      controller.selectSourceProvider(MigrationProviderOption.github);
+      controller.selectTargetProvider(MigrationProviderOption.gitlab);
+      controller.updateSourceUrl(' https://github.com/acme/source ');
+      controller.updateTargetUrl(' https://gitlab.com/acme/target ');
+      controller.updateSourceToken(' source-token ');
+      controller.updateTargetToken(' target-token ');
+      controller.updateSettingsProfile(' release ');
+
+      final request = container.read(newMigrationWizardProvider).toPreflightRequest();
+
+      expect(request.sourceProvider, 'github');
+      expect(request.targetProvider, 'gitlab');
+      expect(request.sourceUrl, 'https://github.com/acme/source');
+      expect(request.targetUrl, 'https://gitlab.com/acme/target');
+      expect(request.sourceToken, 'source-token');
+      expect(request.targetToken, 'target-token');
+      expect(request.settingsProfile, 'release');
+    });
+
+    test('blocking preflight errors disable migration start while warnings allow it', () {
+      final DesktopPreflightSummary blocked = DesktopPreflightSummary(
+        status: 'failed',
+        checks: const <DesktopPreflightCheckItem>[
+          DesktopPreflightCheckItem(code: 'source', message: 'Missing source token.', status: 'error'),
+        ],
+        checkCount: 1,
+        blockingCount: 1,
+        warningCount: 0,
+      );
+      final DesktopPreflightSummary warningOnly = DesktopPreflightSummary(
+        status: 'warning',
+        checks: const <DesktopPreflightCheckItem>[
+          DesktopPreflightCheckItem(code: 'profile', message: 'Profile missing.', status: 'warning'),
+        ],
+        checkCount: 1,
+        blockingCount: 0,
+        warningCount: 1,
+      );
+
+      expect(NewMigrationWizardState(preflightSummary: blocked).canStartMigration, isFalse);
+      expect(NewMigrationWizardState(preflightSummary: warningOnly).canStartMigration, isTrue);
     });
   });
 }
