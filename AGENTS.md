@@ -131,6 +131,18 @@ Safe defaults:
 - keep docs and tests aligned with implementation
 - update this file only when contract, invariants, or architecture actually change
 
+## Token Budget
+
+Default agent behavior for this repository:
+
+- Keep task threads short. When a PR/ticket closes and context is large, suggest starting a fresh thread with a handoff of 20 lines or fewer.
+- Do not repeat large plans, diffs, logs, JSON payloads, or previously established context. Summarize only the current decision, blocker, or result.
+- For long commands, write output to `/tmp/<task>.log` and report only exit code plus the relevant failing lines or final summary.
+- Use focused validation during development. Run full suites only before commit/push or when the risk justifies it.
+- For PR review work, inspect unresolved inline threads first. Do not load resolved review history unless investigating stale/duplicate review behavior.
+- `$self-review` defaults to active diff plus directly related files. Review the entire project only when explicitly requested.
+- Prefer concise final handoffs: changed behavior, validation, commit/push/PR state, and remaining blockers only.
+
 Engineering rules:
 
 - avoid `var`; prefer explicit typing and `final`
