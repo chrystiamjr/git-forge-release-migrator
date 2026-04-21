@@ -65,6 +65,35 @@ Examples of runtime events exposed in this release:
 
 These events can mirror progress state and written artifact paths, including `summary.json` and `failed-tags.txt`.
 
+## `run_started` Event Structure
+
+The `run_started` event is emitted when a migration begins, after preflight validation passes. It contains:
+
+```json
+{
+  "type": "run_started",
+  "source_provider": "github",
+  "target_provider": "gitlab",
+  "mode": "migrate",
+  "dry_run": false,
+  "skip_tags": false,
+  "skip_releases": false,
+  "skip_release_assets": false,
+  "settings_profile": "my-profile"
+}
+```
+
+**Fields:**
+- `type`: Always `"run_started"`
+- `source_provider`: Source forge (`github`, `gitlab`, `bitbucket`)
+- `target_provider`: Target forge (`github`, `gitlab`, `bitbucket`)
+- `mode`: Command name (`migrate` or `resume`)
+- `dry_run`: Whether the run is in dry-run mode
+- `skip_tags`: Whether tag migration is skipped (from `--skip-tags`)
+- `skip_releases`: Whether release migration is skipped (from `--skip-releases`)
+- `skip_release_assets`: Whether release asset migration is skipped (from `--skip-release-assets`)
+- `settings_profile`: Optional settings profile name (if provided)
+
 ## Public contract
 
 Use runtime events when you need ordered runtime visibility inside the app, tests, or future GUI layers.
