@@ -88,6 +88,9 @@ final class SummaryWriter {
         'to': options.toTag.isEmpty ? '<end>' : options.toTag,
       },
       'dry_run': options.dryRun,
+      'skip_tag_migration': options.skipTagMigration,
+      'skip_release_migration': options.skipReleaseMigration,
+      'skip_release_asset_migration': options.skipReleaseAssetMigration,
       'counts': <String, int>{
         'tags_created': tagCounts.created,
         'tags_skipped': tagCounts.skipped,
@@ -121,6 +124,9 @@ final class SummaryWriter {
       '  Tag range: ${options.fromTag.isEmpty ? '<start>' : options.fromTag} -> ${options.toTag.isEmpty ? '<end>' : options.toTag}',
     );
     logger.info('  Dry-run: ${options.dryRun}');
+    logger.info('  Skip tags: ${options.skipTagMigration}');
+    logger.info('  Skip releases: ${options.skipReleaseMigration}');
+    logger.info('  Skip release assets: ${options.skipReleaseAssetMigration}');
     logger.info('  Tags created: ${tagCounts.created}');
     logger.info('  Tags skipped: ${tagCounts.skipped}');
     logger.info('  Tags failed: ${tagCounts.failed}');

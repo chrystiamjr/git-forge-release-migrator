@@ -173,6 +173,8 @@ final class CliParserCatalog {
     parser.addOption('download-workers', defaultsTo: '4');
     parser.addOption('release-workers', defaultsTo: '1');
     parser.addFlag('skip-tags', defaultsTo: false, negatable: false);
+    parser.addFlag('skip-releases', defaultsTo: false, negatable: false);
+    parser.addFlag('skip-release-assets', defaultsTo: false, negatable: false);
     parser.addFlag('dry-run', defaultsTo: false, negatable: false);
     parser.addFlag('no-banner', defaultsTo: false, negatable: false);
     parser.addFlag('quiet', defaultsTo: false, negatable: false);

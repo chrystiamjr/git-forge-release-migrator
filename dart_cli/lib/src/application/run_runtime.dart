@@ -68,6 +68,8 @@ void _logRuntimeHeader(
   );
   logger.info('  Dry-run: ${options.dryRun}');
   logger.info('  Skip tags: ${options.skipTagMigration}');
+  logger.info('  Skip releases: ${options.skipReleaseMigration}');
+  logger.info('  Skip release assets: ${options.skipReleaseAssetMigration}');
   logger.info('  Download workers: ${options.downloadWorkers}');
   logger.info('  Release workers: ${options.releaseWorkers}');
   logger.info('  Session token mode: ${options.sessionTokenMode}');

@@ -66,6 +66,42 @@ Exemplos de runtime events expostos nesta entrega:
 Esses eventos podem espelhar estado de progresso e caminhos de artefatos gravados, incluindo `summary.json` e
 `failed-tags.txt`.
 
+## Estrutura do Evento `run_started`
+
+O evento `run_started` é emitido como parte do stream ordenado de runtime events. No sink JSONL, é encapsulado em um `RuntimeEventEnvelope`:
+
+```json
+{
+  "event_type": "run_started",
+  "timestamp": "2026-04-20T20:30:00.000Z",
+  "payload": {
+    "source_provider": "github",
+    "target_provider": "gitlab",
+    "mode": "migrate",
+    "dry_run": false,
+    "skip_tags": false,
+    "skip_releases": false,
+    "skip_release_assets": false,
+    "settings_profile": "my-profile"
+  }
+}
+```
+
+**Estrutura do envelope:**
+- `event_type`: Sempre `"run_started"`
+- `timestamp`: Timestamp ISO 8601 quando o evento foi emitido
+- `payload`: Dados específicos do evento (veja campos abaixo)
+
+**Campos do payload:**
+- `source_provider`: Forge de origem (`github`, `gitlab`, `bitbucket`)
+- `target_provider`: Forge de destino (`github`, `gitlab`, `bitbucket`)
+- `mode`: Nome do comando (`migrate` ou `resume`)
+- `dry_run`: Se a execução está em modo dry-run
+- `skip_tags`: Se a migração de tags está pulada (de `--skip-tags`)
+- `skip_releases`: Se a migração de releases está pulada (de `--skip-releases`)
+- `skip_release_assets`: Se a migração de assets de releases está pulada (de `--skip-release-assets`)
+- `settings_profile`: Nome opcional do perfil de configuração (se fornecido)
+
 ## Contrato público
 
 Use runtime events quando você precisar de visibilidade ordenada do runtime dentro da aplicação, testes ou futuras

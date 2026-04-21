@@ -10,6 +10,8 @@ RuntimeOptions buildOptions({
   String sessionFile = '',
   String workdir = '',
   String checkpointFile = '',
+  bool skipReleaseMigration = false,
+  bool skipReleaseAssetMigration = false,
 }) {
   return RuntimeOptions(
     commandName: commandMigrate,
@@ -21,6 +23,8 @@ RuntimeOptions buildOptions({
     targetToken: 'target-token',
     migrationOrder: 'github-to-gitlab',
     skipTagMigration: false,
+    skipReleaseMigration: skipReleaseMigration,
+    skipReleaseAssetMigration: skipReleaseAssetMigration,
     fromTag: 'v1.0.0',
     toTag: 'v2.0.0',
     dryRun: false,
@@ -91,8 +95,22 @@ void main() {
       expect(payload['settings_profile'], 'default');
       expect(payload['source_token_env'], 'SRC_ENV');
       expect(payload['target_token_env'], 'DST_ENV');
+      expect(payload['skip_release_migration'], isFalse);
+      expect(payload['skip_release_asset_migration'], isFalse);
       expect(payload.containsKey('source_token'), isFalse);
       expect(payload.containsKey('target_token'), isFalse);
+    });
+
+    test('toSessionPayload stores release skip flags', () {
+      final RuntimeOptions options = buildOptions(
+        skipReleaseMigration: true,
+        skipReleaseAssetMigration: true,
+      );
+
+      final Map<String, dynamic> payload = options.toSessionPayload();
+
+      expect(payload['skip_release_migration'], isTrue);
+      expect(payload['skip_release_asset_migration'], isTrue);
     });
 
     test('copyWith updates only selected fields', () {
@@ -100,11 +118,15 @@ void main() {
 
       final RuntimeOptions changed = options.copyWith(
         dryRun: true,
+        skipReleaseMigration: true,
+        skipReleaseAssetMigration: true,
         workdir: '/tmp/custom-workdir',
         downloadWorkers: 8,
       );
 
       expect(changed.dryRun, isTrue);
+      expect(changed.skipReleaseMigration, isTrue);
+      expect(changed.skipReleaseAssetMigration, isTrue);
       expect(changed.workdir, '/tmp/custom-workdir');
       expect(changed.downloadWorkers, 8);
       expect(changed.sourceProvider, options.sourceProvider);

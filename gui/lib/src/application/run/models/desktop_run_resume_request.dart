@@ -10,6 +10,8 @@ final class DesktopRunResumeRequest {
     this.fromTag = '',
     this.toTag = '',
     this.skipTagMigration = false,
+    this.skipReleaseMigration = false,
+    this.skipReleaseAssetMigration = false,
     this.dryRun = false,
     this.workdir = '',
     this.logFile = '',
@@ -29,6 +31,8 @@ final class DesktopRunResumeRequest {
   final String fromTag;
   final String toTag;
   final bool skipTagMigration;
+  final bool skipReleaseMigration;
+  final bool skipReleaseAssetMigration;
   final bool dryRun;
   final String workdir;
   final String logFile;

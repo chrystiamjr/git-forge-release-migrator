@@ -23,6 +23,8 @@ class RuntimeOptions {
     required this.targetToken,
     required this.migrationOrder,
     required this.skipTagMigration,
+    required this.skipReleaseMigration,
+    required this.skipReleaseAssetMigration,
     required this.fromTag,
     required this.toTag,
     required this.dryRun,
@@ -59,6 +61,8 @@ class RuntimeOptions {
   final String targetToken;
   final String migrationOrder;
   final bool skipTagMigration;
+  final bool skipReleaseMigration;
+  final bool skipReleaseAssetMigration;
   final String fromTag;
   final String toTag;
   final bool dryRun;
@@ -95,6 +99,8 @@ class RuntimeOptions {
     String? targetToken,
     String? migrationOrder,
     bool? skipTagMigration,
+    bool? skipReleaseMigration,
+    bool? skipReleaseAssetMigration,
     String? fromTag,
     String? toTag,
     bool? dryRun,
@@ -131,6 +137,8 @@ class RuntimeOptions {
       targetToken: targetToken ?? this.targetToken,
       migrationOrder: migrationOrder ?? this.migrationOrder,
       skipTagMigration: skipTagMigration ?? this.skipTagMigration,
+      skipReleaseMigration: skipReleaseMigration ?? this.skipReleaseMigration,
+      skipReleaseAssetMigration: skipReleaseAssetMigration ?? this.skipReleaseAssetMigration,
       fromTag: fromTag ?? this.fromTag,
       toTag: toTag ?? this.toTag,
       dryRun: dryRun ?? this.dryRun,
@@ -202,6 +210,8 @@ class RuntimeOptions {
       'from_tag': fromTag,
       'to_tag': toTag,
       'skip_tag_migration': skipTagMigration,
+      'skip_release_migration': skipReleaseMigration,
+      'skip_release_asset_migration': skipReleaseAssetMigration,
       'download_workers': downloadWorkers,
       'release_workers': releaseWorkers,
       'saved_at': TimeUtils.utcTimestamp(),

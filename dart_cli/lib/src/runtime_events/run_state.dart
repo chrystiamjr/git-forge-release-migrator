@@ -21,6 +21,8 @@ final class RunState {
     required this.mode,
     required this.dryRun,
     required this.skipTags,
+    required this.skipReleases,
+    required this.skipReleaseAssets,
     required this.settingsProfile,
     required this.preflightSummary,
     required this.tagSnapshots,
@@ -45,6 +47,8 @@ final class RunState {
         mode = '',
         dryRun = false,
         skipTags = false,
+        skipReleases = false,
+        skipReleaseAssets = false,
         settingsProfile = '',
         preflightSummary = const RunStatePreflightSummary.initial(),
         tagSnapshots = const <String, RunStateTagSnapshot>{},
@@ -67,6 +71,8 @@ final class RunState {
   final String mode;
   final bool dryRun;
   final bool skipTags;
+  final bool skipReleases;
+  final bool skipReleaseAssets;
   final String settingsProfile;
   final RunStatePreflightSummary preflightSummary;
   final Map<String, RunStateTagSnapshot> tagSnapshots;
@@ -100,6 +106,8 @@ final class RunState {
     String? mode,
     bool? dryRun,
     bool? skipTags,
+    bool? skipReleases,
+    bool? skipReleaseAssets,
     String? settingsProfile,
     RunStatePreflightSummary? preflightSummary,
     Map<String, RunStateTagSnapshot>? tagSnapshots,
@@ -123,6 +131,8 @@ final class RunState {
       mode: mode ?? this.mode,
       dryRun: dryRun ?? this.dryRun,
       skipTags: skipTags ?? this.skipTags,
+      skipReleases: skipReleases ?? this.skipReleases,
+      skipReleaseAssets: skipReleaseAssets ?? this.skipReleaseAssets,
       settingsProfile: settingsProfile ?? this.settingsProfile,
       preflightSummary: preflightSummary ?? this.preflightSummary,
       tagSnapshots: tagSnapshots ?? this.tagSnapshots,
@@ -149,6 +159,8 @@ final class RunState {
       'mode': mode,
       'dry_run': dryRun,
       'skip_tags': skipTags,
+      'skip_releases': skipReleases,
+      'skip_release_assets': skipReleaseAssets,
       'settings_profile': settingsProfile,
       'preflight': preflightSummary.toMap(),
       'tag_counts': <String, dynamic>{

@@ -102,7 +102,6 @@ jobs:
 
       - name: Run automated review analysis
         if: steps.pr.outputs.number != '' && steps.review-token.outputs.configured == 'true'
-        continue-on-error: true
         env:
           GH_TOKEN: ${{ env.GH_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}

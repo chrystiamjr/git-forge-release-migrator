@@ -28,6 +28,8 @@ RuntimeOptions buildRuntimeOptionsForSummary({
     targetToken: 'dst-token',
     migrationOrder: 'github-to-gitlab',
     skipTagMigration: false,
+    skipReleaseMigration: false,
+    skipReleaseAssetMigration: false,
     fromTag: fromTag,
     toTag: toTag,
     dryRun: false,

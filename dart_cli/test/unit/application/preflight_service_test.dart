@@ -38,24 +38,21 @@ final class _SourceAdapter extends ProviderAdapter {
 }
 
 final class _TargetAdapter extends ProviderAdapter {
-  _TargetAdapter({this.commitExistsResult = true});
+  _TargetAdapter({this.commitExistsResult = true, this.provider = 'gitlab'});
 
   final bool commitExistsResult;
+  final String provider;
 
   @override
   String get name => 'stub-target';
 
   @override
   ProviderRef parseUrl(String url) {
-    if (!url.startsWith('https://gitlab.com/')) {
-      throw ArgumentError('Invalid GitLab repository URL: $url');
-    }
-
     return ProviderRef(
-      provider: 'gitlab',
+      provider: provider,
       rawUrl: url,
-      baseUrl: 'https://gitlab.com',
-      host: 'gitlab.com',
+      baseUrl: 'https://$provider.com',
+      host: '$provider.com',
       resource: 'acme/target',
     );
   }
@@ -222,6 +219,31 @@ void main() {
       expect(missing.single.commitSha, 'deadbeef');
     });
 
+    test('findMissingTargetCommits still checks tag readiness when release migration is disabled', () async {
+      final PreflightService service = PreflightService();
+      final MigrationContext context = buildMigrationContext(
+        createTempDir('gfrm-preflight-skip-releases-'),
+        _SourceAdapter(),
+        _TargetAdapter(commitExistsResult: false),
+        selectedTags: const <String>['v1.0.0'],
+        skipReleaseMigration: true,
+        releases: const <Map<String, dynamic>>[
+          <String, dynamic>{
+            'tag_name': 'v1.0.0',
+            'name': 'v1.0.0',
+            'description_markdown': '',
+            'commit_sha': 'deadbeef',
+            'assets': <String, dynamic>{'links': <dynamic>[], 'sources': <dynamic>[]},
+          },
+        ],
+      );
+
+      final List<MissingTargetCommit> missing = await service.findMissingTargetCommits(context);
+
+      expect(missing, hasLength(1));
+      expect(missing.single.commitSha, 'deadbeef');
+    });
+
     test('buildMissingTargetCommitCheck includes remediation guidance', () {
       final PreflightService service = PreflightService();
       final MigrationContext context = buildMigrationContext(
@@ -250,6 +272,89 @@ void main() {
       expect(check.message, contains('v1.0.0 -> deadbeef'));
       expect(check.hint, contains('git clone --mirror'));
       expect(check.hint, contains('Use --skip-tags only if the target already has the requested tags.'));
+    });
+
+    test('buildMissingTargetCommitCheck includes truncation and provider-specific guidance', () {
+      final PreflightService service = PreflightService();
+      final MigrationContext githubContext = buildMigrationContext(
+        createTempDir('gfrm-preflight-check-github-'),
+        _SourceAdapter(),
+        _TargetAdapter(provider: 'github'),
+        targetProvider: 'github',
+        selectedTags: const <String>['v1.0.0'],
+      );
+      final MigrationContext bitbucketContext = buildMigrationContext(
+        createTempDir('gfrm-preflight-check-bitbucket-'),
+        _SourceAdapter(),
+        _TargetAdapter(provider: 'bitbucket'),
+        targetProvider: 'bitbucket',
+        selectedTags: const <String>['v1.0.0'],
+      );
+      final List<MissingTargetCommit> missing = List<MissingTargetCommit>.generate(
+        6,
+        (int index) => MissingTargetCommit(tag: 'v1.0.$index', commitSha: 'sha$index'),
+      );
+
+      final PreflightCheck githubCheck = service.buildMissingTargetCommitCheck(githubContext, missing);
+      final PreflightCheck bitbucketCheck = service.buildMissingTargetCommitCheck(bitbucketContext, missing);
+
+      expect(githubCheck.message, contains('v1.0.0, v1.0.1, v1.0.2, ...'));
+      expect(githubCheck.hint, contains('- ...'));
+      expect(githubCheck.hint, contains('GitHub Importer'));
+      expect(bitbucketCheck.hint, contains('Bitbucket Cloud import repository'));
+    });
+
+    test('buildSkipTagsSafetyCheck returns null when skip-tags is not enabled', () {
+      final PreflightService service = PreflightService();
+      final MigrationContext context = buildMigrationContext(
+        createTempDir('gfrm-preflight-skip-tags-safe-'),
+        _SourceAdapter(),
+        _TargetAdapter(),
+        selectedTags: const <String>['v1.0.0'],
+        skipTagMigration: false,
+      );
+
+      final PreflightCheck? check = service.buildSkipTagsSafetyCheck(context);
+
+      expect(check, isNull);
+    });
+
+    test('buildSkipTagsSafetyCheck returns error when skip-tags enabled but target has no tags', () {
+      final PreflightService service = PreflightService();
+      final MigrationContext context = buildMigrationContext(
+        createTempDir('gfrm-preflight-skip-tags-unsafe-'),
+        _SourceAdapter(),
+        _TargetAdapter(),
+        selectedTags: const <String>['v1.0.0'],
+        skipTagMigration: true,
+        targetTags: const <String>{},
+      );
+
+      final PreflightCheck? check = service.buildSkipTagsSafetyCheck(context);
+
+      expect(check, isNotNull);
+      expect(check!.status, PreflightCheckStatus.error);
+      expect(check.code, 'skip-tags-unsafe');
+      expect(check.message, contains('--skip-tags'));
+      expect(check.message, contains('missing 1 required tag(s)'));
+      expect(check.message, contains('v1.0.0'));
+      expect(check.hint, contains('migrate tags by removing --skip-tags'));
+    });
+
+    test('buildSkipTagsSafetyCheck returns null when skip-tags enabled and target has existing tags', () {
+      final PreflightService service = PreflightService();
+      final MigrationContext context = buildMigrationContext(
+        createTempDir('gfrm-preflight-skip-tags-safe-existing-'),
+        _SourceAdapter(),
+        _TargetAdapter(),
+        selectedTags: const <String>['v1.0.0'],
+        skipTagMigration: true,
+        targetTags: const <String>{'v0.9.0', 'v1.0.0'},
+      );
+
+      final PreflightCheck? check = service.buildSkipTagsSafetyCheck(context);
+
+      expect(check, isNull);
     });
   });
 }

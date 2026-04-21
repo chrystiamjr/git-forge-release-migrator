@@ -1,17 +1,41 @@
 #!/bin/sh
 
-# ── Dart format + analyze ───────────────────────────────────────────────────
-cd dart_cli || exit 1
+# ── Dart/Flutter format + analyze ───────────────────────────────────────────
+run_dart() {
+  if command -v fvm >/dev/null 2>&1; then
+    fvm dart "$@"
+  else
+    dart "$@"
+  fi
+}
 
-if command -v fvm >/dev/null 2>&1; then
-  fvm dart format -l 120 --set-exit-if-changed bin lib test
-  fvm dart analyze --fatal-infos
-else
-  dart format -l 120 --set-exit-if-changed bin lib test
-  dart analyze --fatal-infos
+run_flutter() {
+  if command -v fvm >/dev/null 2>&1; then
+    fvm flutter "$@"
+  else
+    flutter "$@"
+  fi
+}
+
+(cd dart_cli && run_dart format -l 120 bin lib test) || exit 1
+(cd gui && run_dart format -l 120 lib test) || exit 1
+
+FORMATTED=$(git diff --name-only -- dart_cli/bin dart_cli/lib dart_cli/test gui/lib gui/test)
+if [ -n "$FORMATTED" ]; then
+  echo ""
+  echo "Formatter updated files. Stage them and commit again:"
+  echo "$FORMATTED" | sed 's/^/  - /'
+  echo ""
+  exit 1
 fi
 
-cd ..
+if command -v fvm >/dev/null 2>&1; then
+  (cd dart_cli && fvm dart analyze --fatal-infos) || exit 1
+else
+  (cd dart_cli && dart analyze --fatal-infos) || exit 1
+fi
+
+(cd gui && run_flutter analyze) || exit 1
 
 # ── PT-BR translation completeness check ───────────────────────────────────
 # Run only when website i18n files or React source are staged

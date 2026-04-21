@@ -49,6 +49,7 @@ final class _TargetAdapter extends ProviderAdapter {
 
   final Future<void> Function(ProviderRef, String, String, String, CanonicalRelease)? onCreateTag;
   final Set<String> _createdTags = <String>{};
+  int publishReleaseCount = 0;
 
   @override
   String get name => 'target';
@@ -103,7 +104,10 @@ final class _TargetAdapter extends ProviderAdapter {
       const ExistingReleaseInfo(exists: false, shouldRetry: false, reason: '');
 
   @override
-  Future<String> publishRelease(PublishReleaseInput input) async => 'created';
+  Future<String> publishRelease(PublishReleaseInput input) async {
+    publishReleaseCount += 1;
+    return 'created';
+  }
 }
 
 final class _ReleaseSourceAdapter extends ProviderAdapter {
@@ -305,6 +309,41 @@ void main() {
       expect((summary['counts'] as Map<String, dynamic>)['tags_failed'], 1);
       expect(summary['retry_command'], contains('gfrm resume --tags-file'));
       expect(File('${options.effectiveWorkdir()}/failed-tags.txt').readAsStringSync(), 'v1.0.0\n');
+    });
+
+    test('execute skips release phase when release migration is disabled', () async {
+      final Directory temp = createTempDir('gfrm-engine-skip-releases-');
+      final RuntimeOptions options = buildRuntimeOptions(
+        workdir: '${temp.path}/results',
+        skipReleaseMigration: true,
+      );
+
+      final _ReleaseSourceAdapter source = _ReleaseSourceAdapter(
+        releases: <Map<String, dynamic>>[buildMinimalReleasePayload('v1.0.0')],
+      );
+      final _TargetAdapter target = _TargetAdapter();
+      final ProviderRegistry registry = ProviderRegistry(<String, ProviderAdapter>{
+        'github': source,
+        'gitlab': target,
+      });
+      final MigrationEngine engine = MigrationEngine(
+        registry: registry,
+        logger: createSilentLogger(),
+      );
+
+      await engine.run(
+        options,
+        source.parseUrl(options.sourceUrl),
+        target.parseUrl(options.targetUrl),
+      );
+
+      final File summaryFile = File('${options.effectiveWorkdir()}/summary.json');
+      final Map<String, dynamic> summary = jsonDecode(summaryFile.readAsStringSync()) as Map<String, dynamic>;
+      final Map<String, dynamic> counts = summary['counts'] as Map<String, dynamic>;
+
+      expect(counts['tags_created'], 1);
+      expect(counts['releases_created'], 0);
+      expect(target.publishReleaseCount, 0);
     });
   });
 }

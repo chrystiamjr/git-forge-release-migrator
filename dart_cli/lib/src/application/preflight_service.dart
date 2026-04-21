@@ -254,6 +254,32 @@ class PreflightService {
     return missing;
   }
 
+  PreflightCheck? buildSkipTagsSafetyCheck(MigrationContext ctx) {
+    if (!ctx.options.skipTagMigration || ctx.options.skipReleaseMigration) {
+      return null;
+    }
+
+    final List<String> missingTags = ctx.selectedTags.where((String tag) => !ctx.targetTags.contains(tag)).toList();
+    if (missingTags.isEmpty) {
+      return null;
+    }
+
+    final String targetProvider = SelectionService.capitalizeProvider(ctx.options.targetProvider);
+    final String previewTags = missingTags.take(3).join(', ');
+    final String suffix = missingTags.length > 3 ? ', ...' : '';
+
+    return PreflightCheck(
+      status: PreflightCheckStatus.error,
+      code: 'skip-tags-unsafe',
+      message: '--skip-tags is not safe because $targetProvider is missing ${missingTags.length} required tag(s). '
+          'Missing tags: $previewTags$suffix.',
+      hint: 'The target repository must already contain all tags you plan to migrate before using --skip-tags. '
+          'Either: (1) migrate tags by removing --skip-tags, or (2) ensure $targetProvider already has the required tags '
+          'from a previous migration before retrying releases.',
+      field: fieldTagHistory,
+    );
+  }
+
   PreflightCheck buildMissingTargetCommitCheck(
     MigrationContext ctx,
     List<MissingTargetCommit> missing,

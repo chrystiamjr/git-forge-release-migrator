@@ -27,6 +27,8 @@ gfrm migrate \
 
 - `--settings-profile <name>`
 - `--skip-tags`
+- `--skip-releases`
+- `--skip-release-assets`
 - `--from-tag <tag>`
 - `--to-tag <tag>`
 - `--dry-run`
@@ -44,6 +46,20 @@ gfrm migrate \
 - `--download-workers` must be `1..16`
 - `--release-workers` must be `1..8`
 - if both `--from-tag` and `--to-tag` are present, the semver order must be valid
+- `--skip-tags` is only allowed when the target forge already has existing tags
+
+## Migration order and release selection
+
+Migration always proceeds in two phases, regardless of `--skip-*` flags:
+
+1. **Tag phase**: All selected tags migrate before any release work begins
+2. **Release phase**: Releases matching semver tags (`vX.Y.Z`) are created/updated after tags complete
+
+**Release selection**: Only tags matching the semver pattern `vX.Y.Z` generate corresponding releases. For example:
+- `v1.0.0`, `v2.1.3` → releases are migrated
+- `v2.1.3-rc1`, `release-1.0`, `main`, `alpha` → no corresponding release is migrated (tag-only)
+
+This order is mandatory and ensures tags exist before releases are created. To skip either phase, use `--skip-tags` or `--skip-releases`.
 
 ## Token sources
 
@@ -69,4 +85,6 @@ gfrm migrate \
 - The ASCII banner is reserved for `gfrm` and `gfrm --help`.
 - Before tag creation, `gfrm migrate` verifies that the target forge already contains the commit object referenced by each source tag that still needs migration.
 - If required commit history is missing, the command exits early with remediation guidance, including mirror/helper-branch Git snippets and platform-native suggestions for GitHub, GitLab, or Bitbucket.
-- `--skip-tags` is only a safe workaround when the requested tags already exist in the target forge.
+- `--skip-tags` requires the target forge to already have existing tags; this constraint is validated at runtime and will block migration if violated.
+- `--skip-releases` migrates tags only and skips release creation/update.
+- `--skip-release-assets` creates or updates releases without downloading or uploading release assets.

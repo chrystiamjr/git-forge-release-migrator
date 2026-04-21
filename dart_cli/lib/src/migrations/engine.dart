@@ -102,6 +102,14 @@ class MigrationEngine {
 
   Future<MigrationExecutionResult> execute(MigrationContext ctx) async {
     final TagMigrationCounts tagCounts = await TagPhaseRunner(logger: logger).run(ctx);
+    if (ctx.options.skipReleaseMigration) {
+      logger.info('Release migration is disabled (--skip-releases)');
+      return MigrationExecutionResult(
+        tagCounts: tagCounts,
+        releaseCounts: ReleaseMigrationCounts(),
+      );
+    }
+
     final ReleaseMigrationCounts releaseCounts = await ReleasePhaseRunner(logger: logger).run(ctx);
     return MigrationExecutionResult(
       tagCounts: tagCounts,

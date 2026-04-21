@@ -50,6 +50,7 @@ final class _StubTargetAdapter extends ProviderAdapter {
   final String publishResult;
   final Future<String> Function(PublishReleaseInput input)? onPublish;
   final ExistingReleaseInfo? existingReleaseOverride;
+  int? lastExpectedLinkAssets;
 
   @override
   String get name => 'stub-target';
@@ -79,6 +80,7 @@ final class _StubTargetAdapter extends ProviderAdapter {
     String tag,
     int expectedLinkAssets,
   ) async {
+    lastExpectedLinkAssets = expectedLinkAssets;
     if (existingReleaseOverride != null) {
       return existingReleaseOverride!;
     }
@@ -142,6 +144,46 @@ void main() {
 
       expect(counts.created, 1);
       expect(publishCalled, isTrue);
+    });
+
+    test('publishes release metadata without assets when asset migration is disabled', () async {
+      final Directory temp = createTempDir('gfrm-rel-phase-skip-assets-');
+
+      PublishReleaseInput? publishedInput;
+      final _StubTargetAdapter target = _StubTargetAdapter(
+        tagExistsResult: true,
+        onPublish: (PublishReleaseInput input) async {
+          publishedInput = input;
+          return 'created';
+        },
+      );
+      final MigrationContext ctx = buildMigrationContext(
+        temp,
+        _StubSourceAdapter(),
+        target,
+        selectedTags: <String>['v1.0.0'],
+        targetTags: <String>{'v1.0.0'},
+        releases: <Map<String, dynamic>>[
+          buildMinimalReleasePayload(
+            'v1.0.0',
+            links: <Map<String, dynamic>>[
+              buildLinkAsset(name: 'notes', url: 'https://example.com/notes.txt'),
+            ],
+            sources: <Map<String, dynamic>>[
+              buildSourceAsset(name: 'source.zip', url: 'https://example.com/source.zip', format: 'zip'),
+            ],
+          ),
+        ],
+        skipReleaseAssetMigration: true,
+      );
+
+      final ReleaseMigrationCounts counts = await ReleasePhaseRunner(logger: logger).run(ctx);
+
+      expect(counts.created, 1);
+      expect(target.lastExpectedLinkAssets, 0);
+      expect(publishedInput, isNotNull);
+      expect(publishedInput!.downloadedFiles, isEmpty);
+      expect(publishedInput!.expectedAssets, 0);
     });
 
     test('emits release runtime events for dry-run flow', () async {

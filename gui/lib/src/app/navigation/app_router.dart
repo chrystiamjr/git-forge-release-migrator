@@ -5,6 +5,7 @@ import 'package:gfrm_gui/src/app/placeholders/gfrm_route_placeholder.dart';
 import 'package:gfrm_gui/src/app/shell/gfrm_shell_page.dart';
 import 'package:gfrm_gui/src/features/dashboard/presentation/dashboard_empty_page.dart';
 import 'package:gfrm_gui/src/features/history/presentation/history_empty_page.dart';
+import 'package:gfrm_gui/src/features/new_migration/presentation/new_migration_page.dart';
 import 'package:gfrm_gui/src/features/results/presentation/results_empty_page.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -38,12 +39,7 @@ GoRouter appRouter(Ref ref) {
           GoRoute(
             path: AppRoute.newMigration.path,
             pageBuilder: (BuildContext context, GoRouterState state) {
-              return _page(
-                const GfrmRoutePlaceholder(
-                  title: 'New Migration',
-                  description: 'Wizard placeholder for source, target, filters, preflight, and confirmation.',
-                ),
-              );
+              return _page(const NewMigrationPage());
             },
           ),
           GoRoute(

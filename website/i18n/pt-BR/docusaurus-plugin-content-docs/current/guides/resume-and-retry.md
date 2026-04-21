@@ -49,4 +49,4 @@ Padrões seguros de remediação:
 
 - espelhar o repositório de origem no destino quando o destino puder receber o histórico completo
 - publicar uma branch auxiliar com os objetos de commit ausentes quando a branch default atual precisar ser preservada
-- usar `--skip-tags` somente quando as tags solicitadas já existirem no forge de destino
+- usar `--skip-tags` somente quando o forge de destino já contiver todas as tags que você planeja migrar; essa restrição é enforçada em runtime
