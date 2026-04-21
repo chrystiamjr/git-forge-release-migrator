@@ -126,7 +126,7 @@ void main() {
         ),
       );
 
-      expect(find.text('1 blocking errors must be resolved before migration can start.'), findsOneWidget);
+      expect(find.text('1 blocking error must be resolved before migration can start.'), findsOneWidget);
       expect(find.byKey(const ValueKey<String>('new-migration-preflight-blocking-banner')), findsOneWidget);
     });
 

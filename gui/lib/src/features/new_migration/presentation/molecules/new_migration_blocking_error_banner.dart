@@ -14,13 +14,13 @@ final class NewMigrationBlockingErrorBanner extends StatelessWidget {
     return Container(
       key: const ValueKey<String>('new-migration-preflight-blocking-banner'),
       padding: EdgeInsets.all(unit.s3),
-      decoration: const BoxDecoration(
-        color: Color(0xFFFFEBEE),
-        border: Border(left: BorderSide(color: Color(0xFFE53935), width: 3)),
+      decoration: BoxDecoration(
+        color: GfrmAppTheme.colors.errorLight,
+        border: Border(left: BorderSide(color: GfrmAppTheme.colors.error, width: 3)),
       ),
       child: Text(
-        '$blockingCount blocking errors must be resolved before migration can start.',
-        style: GfrmAppTheme.typography.bodyMedium.copyWith(color: const Color(0xFFC62828)),
+        '$blockingCount blocking ${blockingCount == 1 ? 'error' : 'errors'} must be resolved before migration can start.',
+        style: GfrmAppTheme.typography.bodyMedium.copyWith(color: GfrmAppTheme.colors.error),
       ),
     );
   }

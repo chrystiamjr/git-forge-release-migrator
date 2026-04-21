@@ -39,6 +39,7 @@ final class NewMigrationPreflightStep extends StatelessWidget {
               icon: Icons.play_arrow,
               isSuccess: true,
               height: 40,
+              // TODO: Implement migration start flow after preflight review
               onPressed: state.canStartMigration ? () {} : null,
             ),
           ],

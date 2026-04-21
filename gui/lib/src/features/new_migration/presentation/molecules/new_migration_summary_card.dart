@@ -10,7 +10,7 @@ final class NewMigrationSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = GfrmAppTheme.colors;
+    final GfrmColors colors = GfrmAppTheme.colors;
     final unit = GfrmAppTheme.unit;
 
     return Container(
@@ -50,7 +50,7 @@ final class NewMigrationSummaryCard extends StatelessWidget {
             icon: Icons.play_circle_outline,
             label: 'Mode',
             value: state.dryRun ? 'Dry Run' : 'Live',
-            valueColor: state.dryRun ? const Color(0xFFFB8C00) : colors.success,
+            valueColor: state.dryRun ? GfrmAppTheme.colors.warning : colors.success,
           ),
         ],
       ),
@@ -58,7 +58,7 @@ final class NewMigrationSummaryCard extends StatelessWidget {
   }
 
   Widget _summaryRow({required IconData icon, required String label, required String value, Color? valueColor}) {
-    final colors = GfrmAppTheme.colors;
+    final GfrmColors colors = GfrmAppTheme.colors;
     final unit = GfrmAppTheme.unit;
 
     return Padding(

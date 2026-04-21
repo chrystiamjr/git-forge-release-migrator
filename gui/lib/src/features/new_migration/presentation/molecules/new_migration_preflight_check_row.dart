@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:gfrm_gui/src/application/run/models/desktop_preflight_check_item.dart';
 import 'package:gfrm_gui/src/core/widgets/atoms/gfrm_badge.dart';
 import 'package:gfrm_gui/src/core/widgets/molecules/gfrm_checklist_item.dart';
+import 'package:gfrm_gui/src/theme/gfrm_app_theme.dart';
 
 final class NewMigrationPreflightCheckRow extends StatelessWidget {
   const NewMigrationPreflightCheckRow({required this.item, required this.hasBlockingErrors, super.key});
@@ -46,31 +47,31 @@ final class NewMigrationPreflightCheckRow extends StatelessWidget {
 
   Color _iconColor() {
     if (item.isBlocking) {
-      return const Color(0xFFC62828);
+      return GfrmAppTheme.colors.error;
     }
     if (item.isWarning) {
-      return const Color(0xFFE65100);
+      return GfrmAppTheme.colors.warning;
     }
-    return const Color(0xFF2E7D32);
+    return GfrmAppTheme.colors.success;
   }
 
   Color _badgeBackgroundColor() {
     if (item.isBlocking) {
-      return const Color(0xFFFFEBEE);
+      return GfrmAppTheme.colors.errorLight;
     }
     if (item.isWarning) {
-      return const Color(0xFFFFF3E0);
+      return GfrmAppTheme.colors.warningLight;
     }
     return const Color(0xFFE8F5E9);
   }
 
   Color _badgeTextColor() {
     if (item.isBlocking) {
-      return const Color(0xFFC62828);
+      return GfrmAppTheme.colors.error;
     }
     if (item.isWarning) {
-      return const Color(0xFFE65100);
+      return GfrmAppTheme.colors.warning;
     }
-    return const Color(0xFF2E7D32);
+    return GfrmAppTheme.colors.success;
   }
 }
