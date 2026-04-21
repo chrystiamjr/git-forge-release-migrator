@@ -51,3 +51,12 @@ Se o arquivo de sessão padrão não existir, inicie uma nova execução com `mi
 - `--skip-tags` exige que o forge de destino já tenha tags existentes; essa restrição é validada em runtime e bloqueará a migração se violada.
 - `--skip-releases` retoma somente a migração de tags e pula criação/atualização de releases.
 - `--skip-release-assets` retoma criação/atualização de releases sem baixar nem enviar assets de release.
+
+## Seleção de releases durante o resume
+
+Ao retomar uma migração:
+
+- **Flags de skip salvos** são preservados do comando `migrate` inicial (a menos que substituídos com novos flags `--skip-*` no resume)
+- **Seleção de releases ainda aponta apenas para tags semver** (formato `vX.Y.Z`)
+- **Releases incompletos** são retentados primeiro, depois tags/releases restantes continuam na ordem padrão de duas fases
+- Itens que falharam são retentados apenas se caírem dentro das fases ativas (ex: se `--skip-releases` for definido, falhas de releases não são retentadas)

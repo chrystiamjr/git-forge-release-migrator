@@ -48,6 +48,19 @@ gfrm migrate \
 - if both `--from-tag` and `--to-tag` are present, the semver order must be valid
 - `--skip-tags` is only allowed when the target forge already has existing tags
 
+## Migration order and release selection
+
+Migration always proceeds in two phases, regardless of `--skip-*` flags:
+
+1. **Tag phase**: All selected tags migrate before any release work begins
+2. **Release phase**: Releases matching semver tags (`vX.Y.Z`) are created/updated after tags complete
+
+**Release selection**: Only tags matching the semver pattern `vX.Y.Z` generate corresponding releases. For example:
+- `v1.0.0`, `v2.1.3-rc1` → releases are migrated
+- `release-1.0`, `main`, `alpha` → no corresponding release is migrated (tag-only)
+
+This order is mandatory and ensures tags exist before releases are created. To skip either phase, use `--skip-tags` or `--skip-releases`.
+
 ## Token sources
 
 1. Settings token (`token_env`, then `token_plain`)

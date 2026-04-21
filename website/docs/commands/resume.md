@@ -51,3 +51,12 @@ If the default session file does not exist, start a new `migrate` run instead.
 - `--skip-tags` requires the target forge to already have existing tags; this constraint is validated at runtime and will block migration if violated.
 - `--skip-releases` resumes tag migration only and skips release creation/update.
 - `--skip-release-assets` resumes release creation/update without downloading or uploading release assets.
+
+## Release selection during resume
+
+When resuming a migration:
+
+- **Saved skip flags** are preserved from the initial `migrate` command (unless overridden with new `--skip-*` flags on resume)
+- **Release selection still targets semver tags only** (`vX.Y.Z` format)
+- **Incomplete releases** are retried first, then remaining tags/releases proceed in the standard two-phase order
+- Failed items are only retried if they fall within the active phases (e.g., if `--skip-releases` is set, release failures are not retried)
