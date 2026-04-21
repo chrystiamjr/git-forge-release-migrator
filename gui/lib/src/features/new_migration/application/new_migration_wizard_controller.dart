@@ -6,7 +6,7 @@ final StateNotifierProvider<NewMigrationWizardController, NewMigrationWizardStat
     StateNotifierProvider<NewMigrationWizardController, NewMigrationWizardState>(NewMigrationWizardController.new);
 
 final class NewMigrationWizardController extends StateNotifier<NewMigrationWizardState> {
-  NewMigrationWizardController(Ref ref) : super(const NewMigrationWizardState());
+  NewMigrationWizardController(_) : super(const NewMigrationWizardState());
 
   void selectSourceProvider(MigrationProviderOption provider) {
     state = state.copyWith(sourceProvider: provider, sourceValidated: false);

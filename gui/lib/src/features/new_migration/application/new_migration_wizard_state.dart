@@ -55,9 +55,13 @@ final class NewMigrationWizardState {
 
   List<String> get matchingTags {
     // Tags are filtered by semver range: fromTag to toTag (inclusive)
-    // Both should be in semver format: vX.Y.Z
+    // Only semver tags matching vX.Y.Z format are included (strict validation)
     return sampleTags
         .where((String tag) {
+          // First validate strict semver format
+          if (!_isStrictSemver(tag)) {
+            return false;
+          }
           final bool afterFrom = fromTag.isEmpty || _isSemverGreaterOrEqual(tag, fromTag);
           final bool beforeTo = toTag.isEmpty || _isSemverLessOrEqual(tag, toTag);
           return afterFrom && beforeTo;
@@ -142,9 +146,15 @@ final class NewMigrationWizardState {
     return 0;
   }
 
+  static bool _isStrictSemver(String tag) {
+    // Match strict vX.Y.Z format (no suffixes like -rc1 or -beta)
+    return RegExp(r'^v\d+\.\d+\.\d+$').hasMatch(tag);
+  }
+
   static List<int> _extractSemverParts(String tag) {
-    // Extract vX.Y.Z from tag, returning [0, 0, 0] if invalid format
-    final RegExp semverRegex = RegExp(r'^v(\d+)\.(\d+)\.(\d+)');
+    // Extract vX.Y.Z from tag, returning [0, 0, 0] for invalid format
+    // Use strict regex: must end with \d+.\d+.\d+
+    final RegExp semverRegex = RegExp(r'^v(\d+)\.(\d+)\.(\d+)$');
     final RegExpMatch? match = semverRegex.firstMatch(tag);
 
     if (match == null || match.groupCount < 3) {

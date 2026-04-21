@@ -67,24 +67,31 @@ These events can mirror progress state and written artifact paths, including `su
 
 ## `run_started` Event Structure
 
-The `run_started` event is emitted when a migration begins, after preflight validation passes. It contains:
+The `run_started` event is emitted as part of the ordered runtime event stream. In the JSONL sink, it is wrapped in a `RuntimeEventEnvelope`:
 
 ```json
 {
-  "type": "run_started",
-  "source_provider": "github",
-  "target_provider": "gitlab",
-  "mode": "migrate",
-  "dry_run": false,
-  "skip_tags": false,
-  "skip_releases": false,
-  "skip_release_assets": false,
-  "settings_profile": "my-profile"
+  "event_type": "run_started",
+  "timestamp": "2026-04-20T20:30:00.000Z",
+  "payload": {
+    "source_provider": "github",
+    "target_provider": "gitlab",
+    "mode": "migrate",
+    "dry_run": false,
+    "skip_tags": false,
+    "skip_releases": false,
+    "skip_release_assets": false,
+    "settings_profile": "my-profile"
+  }
 }
 ```
 
-**Fields:**
-- `type`: Always `"run_started"`
+**Envelope structure:**
+- `event_type`: Always `"run_started"`
+- `timestamp`: ISO 8601 timestamp when the event was emitted
+- `payload`: Event-specific data (see fields below)
+
+**Payload fields:**
 - `source_provider`: Source forge (`github`, `gitlab`, `bitbucket`)
 - `target_provider`: Target forge (`github`, `gitlab`, `bitbucket`)
 - `mode`: Command name (`migrate` or `resume`)

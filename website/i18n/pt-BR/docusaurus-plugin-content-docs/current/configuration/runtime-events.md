@@ -68,24 +68,31 @@ Esses eventos podem espelhar estado de progresso e caminhos de artefatos gravado
 
 ## Estrutura do Evento `run_started`
 
-O evento `run_started` é emitido quando uma migração inicia, após a validação de preflight passar. Ele contém:
+O evento `run_started` é emitido como parte do stream ordenado de runtime events. No sink JSONL, é encapsulado em um `RuntimeEventEnvelope`:
 
 ```json
 {
-  "type": "run_started",
-  "source_provider": "github",
-  "target_provider": "gitlab",
-  "mode": "migrate",
-  "dry_run": false,
-  "skip_tags": false,
-  "skip_releases": false,
-  "skip_release_assets": false,
-  "settings_profile": "my-profile"
+  "event_type": "run_started",
+  "timestamp": "2026-04-20T20:30:00.000Z",
+  "payload": {
+    "source_provider": "github",
+    "target_provider": "gitlab",
+    "mode": "migrate",
+    "dry_run": false,
+    "skip_tags": false,
+    "skip_releases": false,
+    "skip_release_assets": false,
+    "settings_profile": "my-profile"
+  }
 }
 ```
 
-**Campos:**
-- `type`: Sempre `"run_started"`
+**Estrutura do envelope:**
+- `event_type`: Sempre `"run_started"`
+- `timestamp`: Timestamp ISO 8601 quando o evento foi emitido
+- `payload`: Dados específicos do evento (veja campos abaixo)
+
+**Campos do payload:**
 - `source_provider`: Forge de origem (`github`, `gitlab`, `bitbucket`)
 - `target_provider`: Forge de destino (`github`, `gitlab`, `bitbucket`)
 - `mode`: Nome do comando (`migrate` ou `resume`)
