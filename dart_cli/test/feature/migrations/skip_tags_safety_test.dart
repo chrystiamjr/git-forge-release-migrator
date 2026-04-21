@@ -141,6 +141,7 @@ void main() {
           source,
           target,
           skipTagMigration: true,
+          selectedTags: const <String>['v1.0.0', 'v1.1.0'],
           targetTags: const <String>{},
         );
 
@@ -155,14 +156,15 @@ void main() {
         expect(check, isNotNull);
         expect(check!.status, equals(PreflightCheckStatus.error));
         expect(check.code, equals('skip-tags-unsafe'));
-        expect(check.message, contains('not safe'));
+        expect(check.message, contains('missing 2 required tag(s)'));
+        expect(check.message, contains('v1.0.0, v1.1.0'));
         expect(check.hint, isNotNull);
         expect(check.hint, contains('target repository must already contain all tags'));
       },
     );
 
     test(
-      'when skipTagMigration=true and target has existing tags, check returns null',
+      'when skipTagMigration=true and target has all selected tags, check returns null',
       () async {
         final Directory temp = createTempDir('gfrm-skip-tags-safe-with-tags-');
         final _SourceAdapter source = _SourceAdapter();
@@ -173,6 +175,7 @@ void main() {
           source,
           target,
           skipTagMigration: true,
+          selectedTags: const <String>['v1.0.0', 'v1.1.0', 'v1.2.0'],
           targetTags: const {'v1.0.0', 'v1.1.0', 'v1.2.0'},
         );
 
@@ -184,6 +187,56 @@ void main() {
         final PreflightCheck? check = service.buildSkipTagsSafetyCheck(ctx);
 
         // Check should be null - destination tags already exist, it is safe
+        expect(check, isNull);
+      },
+    );
+
+    test(
+      'when skipTagMigration=true and target misses one selected tag, check status=error',
+      () async {
+        final Directory temp = createTempDir('gfrm-skip-tags-partial-');
+        final _SourceAdapter source = _SourceAdapter();
+        final _TargetAdapterWithTags target = _TargetAdapterWithTags();
+
+        final MigrationContext ctx = buildMigrationContext(
+          temp,
+          source,
+          target,
+          skipTagMigration: true,
+          selectedTags: const <String>['v1.0.0', 'v1.1.0', 'v9.9.9'],
+          targetTags: const {'v1.0.0', 'v1.1.0'},
+        );
+
+        final PreflightService service = PreflightService();
+        final PreflightCheck? check = service.buildSkipTagsSafetyCheck(ctx);
+
+        expect(check, isNotNull);
+        expect(check!.status, equals(PreflightCheckStatus.error));
+        expect(check.code, equals('skip-tags-unsafe'));
+        expect(check.message, contains('v9.9.9'));
+      },
+    );
+
+    test(
+      'when skipTagMigration=true and release migration is skipped, check returns null',
+      () async {
+        final Directory temp = createTempDir('gfrm-skip-tags-no-releases-');
+        final _SourceAdapter source = _SourceAdapter();
+        final _TargetAdapterEmpty target = _TargetAdapterEmpty();
+
+        final MigrationContext ctx = buildMigrationContext(
+          temp,
+          source,
+          target,
+          skipTagMigration: true,
+          skipReleaseMigration: true,
+          selectedTags: const <String>['v1.0.0'],
+          targetTags: const <String>{},
+        );
+
+        final PreflightService service = PreflightService();
+        final PreflightCheck? check = service.buildSkipTagsSafetyCheck(ctx);
+
         expect(check, isNull);
       },
     );

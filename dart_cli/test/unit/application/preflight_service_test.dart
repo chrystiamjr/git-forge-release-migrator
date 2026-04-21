@@ -38,24 +38,21 @@ final class _SourceAdapter extends ProviderAdapter {
 }
 
 final class _TargetAdapter extends ProviderAdapter {
-  _TargetAdapter({this.commitExistsResult = true});
+  _TargetAdapter({this.commitExistsResult = true, this.provider = 'gitlab'});
 
   final bool commitExistsResult;
+  final String provider;
 
   @override
   String get name => 'stub-target';
 
   @override
   ProviderRef parseUrl(String url) {
-    if (!url.startsWith('https://gitlab.com/')) {
-      throw ArgumentError('Invalid GitLab repository URL: $url');
-    }
-
     return ProviderRef(
-      provider: 'gitlab',
+      provider: provider,
       rawUrl: url,
-      baseUrl: 'https://gitlab.com',
-      host: 'gitlab.com',
+      baseUrl: 'https://$provider.com',
+      host: '$provider.com',
       resource: 'acme/target',
     );
   }
@@ -277,6 +274,36 @@ void main() {
       expect(check.hint, contains('Use --skip-tags only if the target already has the requested tags.'));
     });
 
+    test('buildMissingTargetCommitCheck includes truncation and provider-specific guidance', () {
+      final PreflightService service = PreflightService();
+      final MigrationContext githubContext = buildMigrationContext(
+        createTempDir('gfrm-preflight-check-github-'),
+        _SourceAdapter(),
+        _TargetAdapter(provider: 'github'),
+        targetProvider: 'github',
+        selectedTags: const <String>['v1.0.0'],
+      );
+      final MigrationContext bitbucketContext = buildMigrationContext(
+        createTempDir('gfrm-preflight-check-bitbucket-'),
+        _SourceAdapter(),
+        _TargetAdapter(provider: 'bitbucket'),
+        targetProvider: 'bitbucket',
+        selectedTags: const <String>['v1.0.0'],
+      );
+      final List<MissingTargetCommit> missing = List<MissingTargetCommit>.generate(
+        6,
+        (int index) => MissingTargetCommit(tag: 'v1.0.$index', commitSha: 'sha$index'),
+      );
+
+      final PreflightCheck githubCheck = service.buildMissingTargetCommitCheck(githubContext, missing);
+      final PreflightCheck bitbucketCheck = service.buildMissingTargetCommitCheck(bitbucketContext, missing);
+
+      expect(githubCheck.message, contains('v1.0.0, v1.0.1, v1.0.2, ...'));
+      expect(githubCheck.hint, contains('- ...'));
+      expect(githubCheck.hint, contains('GitHub Importer'));
+      expect(bitbucketCheck.hint, contains('Bitbucket Cloud import repository'));
+    });
+
     test('buildSkipTagsSafetyCheck returns null when skip-tags is not enabled', () {
       final PreflightService service = PreflightService();
       final MigrationContext context = buildMigrationContext(
@@ -309,7 +336,8 @@ void main() {
       expect(check!.status, PreflightCheckStatus.error);
       expect(check.code, 'skip-tags-unsafe');
       expect(check.message, contains('--skip-tags'));
-      expect(check.message, contains('no existing tags'));
+      expect(check.message, contains('missing 1 required tag(s)'));
+      expect(check.message, contains('v1.0.0'));
       expect(check.hint, contains('migrate tags by removing --skip-tags'));
     });
 

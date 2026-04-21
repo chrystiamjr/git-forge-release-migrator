@@ -56,8 +56,8 @@ Migração sempre prossegue em duas fases, independentemente dos flags `--skip-*
 2. **Fase de releases**: Releases correspondentes a tags semver (`vX.Y.Z`) são criadas/atualizadas após as tags serem concluídas
 
 **Seleção de releases**: Apenas tags que correspondem ao padrão semver `vX.Y.Z` geram releases correspondentes. Por exemplo:
-- `v1.0.0`, `v2.1.3-rc1` → releases são migradas
-- `release-1.0`, `main`, `alpha` → nenhum release correspondente é migrado (somente tag)
+- `v1.0.0`, `v2.1.3` → releases são migradas
+- `v2.1.3-rc1`, `release-1.0`, `main`, `alpha` → nenhum release correspondente é migrado (somente tag)
 
 Essa ordem é obrigatória e garante que tags existam antes que releases sejam criadas. Para pular qualquer fase, use `--skip-tags` ou `--skip-releases`.
 
