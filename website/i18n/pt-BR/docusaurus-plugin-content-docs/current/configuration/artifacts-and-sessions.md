@@ -93,7 +93,7 @@ Cada `summary.json` inclui:
 Quando os flags `skip_*` são definidos, os contadores refletem itens que foram realmente migrados. Quando você retoma com `gfrm resume`:
 - O contexto da sessão salva preserva os flags de skip do comando `migrate` inicial
 - Itens que falharam da fase pulada não são retentados (ex: se `--skip-releases` foi definido, apenas falhas de tags estão em `failed-tags.txt`)
-- Você pode alterar os flags de skip na retomada para mudar o que será retentado (ex: retentarrelease depois de corrigir um problema temporário de asset)
+- Você pode alterar os flags de skip na retomada para mudar o que será retentado (ex: retentar release depois de corrigir um problema temporário de asset)
 
 ### Triagem e Retry
 

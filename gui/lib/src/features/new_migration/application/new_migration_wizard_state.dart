@@ -54,11 +54,12 @@ final class NewMigrationWizardState {
   bool get canContinueFromStepOne => sourceValidated && targetValidated;
 
   List<String> get matchingTags {
-    // Tags are filtered by semver range: fromTag to toTag (inclusive)
-    // Only semver tags matching vX.Y.Z format are included (strict validation)
+    if (!_isEmptyOrStrictSemver(fromTag) || !_isEmptyOrStrictSemver(toTag)) {
+      return <String>[];
+    }
+
     return sampleTags
         .where((String tag) {
-          // First validate strict semver format
           if (!_isStrictSemver(tag)) {
             return false;
           }
@@ -78,8 +79,8 @@ final class NewMigrationWizardState {
       targetUrl: targetUrl.trim(),
       targetToken: targetToken.trim(),
       settingsProfile: settingsProfile.trim(),
-      fromTag: fromTag.trim(),
-      toTag: toTag.trim(),
+      fromTag: _validatedRangeTag(fromTag, 'fromTag'),
+      toTag: _validatedRangeTag(toTag, 'toTag'),
       skipTagMigration: !migrateTags,
       skipReleaseMigration: !migrateReleases,
       skipReleaseAssetMigration: !migrateReleaseAssets,
@@ -134,7 +135,6 @@ final class NewMigrationWizardState {
   }
 
   static int _compareSemver(String a, String b) {
-    // Extract semver numbers from vX.Y.Z format
     final List<int> aParts = _extractSemverParts(a);
     final List<int> bParts = _extractSemverParts(b);
 
@@ -147,13 +147,24 @@ final class NewMigrationWizardState {
   }
 
   static bool _isStrictSemver(String tag) {
-    // Match strict vX.Y.Z format (no suffixes like -rc1 or -beta)
     return RegExp(r'^v\d+\.\d+\.\d+$').hasMatch(tag);
   }
 
+  static bool _isEmptyOrStrictSemver(String tag) {
+    final String trimmed = tag.trim();
+    return trimmed.isEmpty || _isStrictSemver(trimmed);
+  }
+
+  static String _validatedRangeTag(String tag, String fieldName) {
+    final String trimmed = tag.trim();
+    if (trimmed.isEmpty || _isStrictSemver(trimmed)) {
+      return trimmed;
+    }
+
+    throw ArgumentError.value(tag, fieldName, 'Expected strict semver tag format vX.Y.Z.');
+  }
+
   static List<int> _extractSemverParts(String tag) {
-    // Extract vX.Y.Z from tag, returning [0, 0, 0] for invalid format
-    // Use strict regex: must end with \d+.\d+.\d+
     final RegExp semverRegex = RegExp(r'^v(\d+)\.(\d+)\.(\d+)$');
     final RegExpMatch? match = semverRegex.firstMatch(tag);
 

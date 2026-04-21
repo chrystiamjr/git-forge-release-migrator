@@ -32,6 +32,18 @@ void main() {
       expect(container.read(newMigrationWizardProvider).matchingTags, <String>['v2.1.0', 'v2.0.1']);
     });
 
+    test('blocks invalid semver range from matching tag preview and request mapping', () {
+      final ProviderContainer container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      final NewMigrationWizardController controller = container.read(newMigrationWizardProvider.notifier);
+
+      controller.updateFromTag('v2');
+
+      expect(container.read(newMigrationWizardProvider).matchingTags, isEmpty);
+      expect(container.read(newMigrationWizardProvider).toRunStartRequest, throwsArgumentError);
+    });
+
     test('maps wizard state to DesktopRunStartRequest', () {
       final ProviderContainer container = ProviderContainer();
       addTearDown(container.dispose);
