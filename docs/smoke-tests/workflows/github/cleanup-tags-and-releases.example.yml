@@ -1,0 +1,44 @@
+# Example GitHub Actions workflow for gfrm smoke testing.
+#
+# Copy this file to .github/workflows/cleanup-tags-and-releases.yml in your
+# throwaway test repository. Do NOT install this in production repos — it
+# deletes EVERY release and tag in the repository.
+#
+# Trigger manually:
+#   gh workflow run cleanup-tags-and-releases.yml --ref main
+# Or via the gfrm smoke command, which dispatches it over the REST API.
+
+name: Cleanup tags and releases
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    name: Delete all releases and tags
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Delete all releases and tags
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          echo "Deleting releases from ${REPOSITORY}..."
+          gh release list --repo "${REPOSITORY}" --limit 1000 --json tagName --jq '.[].tagName' | while read -r tag; do
+            if [ -n "${tag}" ]; then
+              gh release delete "${tag}" --repo "${REPOSITORY}" --yes --cleanup-tag || true
+            fi
+          done
+
+          echo "Deleting remaining tags from ${REPOSITORY}..."
+          gh api --paginate "repos/${REPOSITORY}/git/matching-refs/tags" --jq '.[].ref' | while read -r ref; do
+            if [ -n "${ref}" ]; then
+              gh api --method DELETE "repos/${REPOSITORY}/git/${ref}" || true
+            fi
+          done

@@ -1,0 +1,174 @@
+# Example GitHub Actions workflow for gfrm smoke testing.
+#
+# Copy this file to .github/workflows/create-fake-releases.yml in your
+# throwaway test repository. Do NOT install this in production repos.
+#
+# It generates a batch of fake semver tags and releases with a per-run
+# timestamp suffix so repeated smoke runs do not churn the same tag
+# identifiers (which triggers forge abuse detection).
+#
+# Trigger manually:
+#   gh workflow run create-fake-releases.yml --ref main
+# Or via the gfrm smoke command, which dispatches it over the REST API.
+
+name: Create fake tags and releases
+
+on:
+  workflow_dispatch:
+    inputs:
+      prefix:
+        description: Semver tag prefix used for generated releases
+        required: false
+        default: v4.3.
+      start:
+        description: First patch version to generate
+        required: false
+        default: "0"
+      first_compare_tag:
+        description: Tag used as the compare base for the first generated release
+        required: false
+        default: v4.2.0
+      count:
+        description: Number of fake releases to create
+        required: false
+        default: "10"
+      seed_branch:
+        description: Shared seed branch used as the tag target
+        required: false
+        default: gfrm-shared-seed
+
+permissions:
+  contents: write
+
+jobs:
+  create:
+    name: Create fake release data
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create fake tags and releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PREFIX: ${{ inputs.prefix }}
+          START: ${{ inputs.start }}
+          FIRST_COMPARE_TAG: ${{ inputs.first_compare_tag }}
+          COUNT: ${{ inputs.count }}
+          SEED_BRANCH: ${{ inputs.seed_branch }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          ensure_seed_branch() {
+            if git ls-remote --exit-code --heads origin "${SEED_BRANCH}" >/dev/null 2>&1; then
+              git fetch --depth=1 origin "${SEED_BRANCH}"
+              git rev-parse "origin/${SEED_BRANCH}"
+              return
+            fi
+
+            current_ref="$(git rev-parse --abbrev-ref HEAD)"
+            git switch --orphan "${SEED_BRANCH}"
+            git rm -rf . >/dev/null 2>&1 || true
+
+            printf '%s\n' "gfrm shared migration test seed" > .gfrm-shared-seed
+
+            git add .gfrm-shared-seed
+            GIT_AUTHOR_NAME="GFRM Test Seed" \
+              GIT_AUTHOR_EMAIL="gfrm-test@example.invalid" \
+              GIT_AUTHOR_DATE="2026-01-01T00:00:00Z" \
+              GIT_COMMITTER_NAME="GFRM Test Seed" \
+              GIT_COMMITTER_EMAIL="gfrm-test@example.invalid" \
+              GIT_COMMITTER_DATE="2026-01-01T00:00:00Z" \
+              git commit -m "chore: add shared gfrm test seed" >/dev/null
+
+            seed_sha="$(git rev-parse HEAD)"
+            git push origin "${SEED_BRANCH}"
+            git switch "${current_ref}"
+            printf '%s\n' "${seed_sha}"
+          }
+
+          seed_sha="$(ensure_seed_branch)"
+          echo "Using shared seed commit ${seed_sha} from ${SEED_BRANCH}"
+
+          # Per-run suffix keeps each smoke run's tag identifiers unique, so
+          # forge abuse heuristics do not see the same create+delete cycle on
+          # identical tag names across runs. Same suffix is reused for every
+          # tag within one run so compare links between consecutive tags
+          # remain valid.
+          run_suffix="$(date -u +%Y%m%d%H%M%S)"
+          echo "Run suffix: ${run_suffix}"
+
+          end=$((START + COUNT - 1))
+
+          for number in $(seq "${START}" "${end}"); do
+            tag="${PREFIX}${number}-${run_suffix}"
+            version="${tag#v}"
+            previous_patch=$((number - 1))
+            previous_tag="${PREFIX}${previous_patch}-${run_suffix}"
+            title="${tag}"
+            release_date="$(date +%F)"
+            notes_file="release-notes-${version}.md"
+
+            if [ "${number}" -eq "${START}" ]; then
+              previous_tag="${FIRST_COMPARE_TAG}"
+            fi
+
+            cat > "${notes_file}" <<EOF
+          ## [${version}](https://github.com/${REPOSITORY}/compare/${previous_tag}...${tag}) (${release_date})
+
+          ### :sparkles: Melhorias/Novidades
+
+          * **release:** publicar pacote fake ${version} para validar migracoes do GFRM ([fake${number}01](https://github.com/${REPOSITORY}/commit/${seed_sha}))
+          * **mobile:** adicionar fluxo de exemplo para simular notas de versao de aplicativo ([fake${number}02](https://github.com/${REPOSITORY}/commit/${seed_sha}))
+          * **assets:** anexar APKs fake para os canais bypass, local, staging e producao ([fake${number}03](https://github.com/${REPOSITORY}/commit/${seed_sha}))
+
+          ### :bug: Correções
+
+          * **correcoes:** ajustar metadados fake para cobrir assets APK e notas de release ([fake${number}04](https://github.com/${REPOSITORY}/commit/${seed_sha}))
+          * **sincronizacao:** corrigir caso de teste fake para reprocessamento de releases ([fake${number}05](https://github.com/${REPOSITORY}/commit/${seed_sha}))
+
+          ### :wrench: Manutenção
+
+          * **ci:** manter dados artificiais determinicos para testes automatizados do GFRM ([fake${number}06](https://github.com/${REPOSITORY}/commit/${seed_sha}))
+          EOF
+
+            assets=(
+              "${version}-bypass.apk"
+              "${version}-local.apk"
+              "${version}-staging.apk"
+              "${version}.apk"
+            )
+
+            for asset in "${assets[@]}"; do
+              cat > "${asset}" <<EOF
+          Fake APK placeholder
+
+          Repository: ${REPOSITORY}
+          Release: ${tag}
+          Asset: ${asset}
+          Channel: ${asset%.apk}
+          Purpose: GFRM migration test data only.
+          EOF
+            done
+
+            if gh release view "${tag}" --repo "${REPOSITORY}" >/dev/null 2>&1; then
+              echo "Release ${tag} already exists; skipping."
+              rm -f "${notes_file}" "${assets[@]}"
+              continue
+            fi
+
+            gh release create "${tag}" "${assets[@]}" \
+              --repo "${REPOSITORY}" \
+              --target "${seed_sha}" \
+              --title "${title}" \
+              --notes-file "${notes_file}"
+
+            rm -f "${notes_file}" "${assets[@]}"
+          done

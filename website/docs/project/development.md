@@ -13,7 +13,6 @@ From the repository root:
 yarn lint:dart
 yarn test:dart
 yarn coverage:dart
-./scripts/smoke-test.sh
 ```
 
 ## Coverage artifacts

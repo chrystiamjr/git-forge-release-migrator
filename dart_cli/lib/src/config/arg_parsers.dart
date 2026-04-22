@@ -11,6 +11,7 @@ final class CliParserCatalog {
   static const String _demoDescription = 'Run local demo simulation.';
   static const String _setupDescription = 'Interactive bootstrap for settings profiles.';
   static const String _settingsDescription = 'Manage token/profile settings.';
+  static const String _smokeDescription = 'Run real end-to-end smoke test against throwaway source/target test repos.';
 
   static ArgParser buildRootParser() {
     final ArgParser parser = ArgParser();
@@ -20,6 +21,7 @@ final class CliParserCatalog {
     parser.addCommand(commandDemo, _buildDemoParser());
     parser.addCommand(commandSetup, _buildSetupParser());
     parser.addCommand(commandSettings, buildSettingsParser());
+    parser.addCommand(commandSmoke, _buildSmokeParser());
 
     return parser;
   }
@@ -77,6 +79,16 @@ final class CliParserCatalog {
         '  demo      Run local demo simulation.\n'
         '  setup     Interactive bootstrap for settings profiles.\n'
         '  settings  Manage token/profile settings.\n'
+        '  smoke     Real end-to-end smoke test against throwaway test repos.\n'
+        '\n'
+        '${parser.usage}';
+  }
+
+  static String buildSmokeUsage() {
+    final ArgParser parser = _buildSmokeParser();
+    return 'Usage: $publicCommandName smoke [options]\n'
+        '\n'
+        '$_smokeDescription\n'
         '\n'
         '${parser.usage}';
   }
@@ -241,6 +253,27 @@ final class CliParserCatalog {
     parser.addFlag('local', defaultsTo: false, negatable: false);
     parser.addFlag('yes', defaultsTo: false, negatable: false);
     parser.addFlag('force', defaultsTo: false, negatable: false);
+    parser.addFlag('help', abbr: 'h', defaultsTo: false, negatable: false);
+
+    return parser;
+  }
+
+  static ArgParser _buildSmokeParser() {
+    final ArgParser parser = ArgParser();
+    parser.addOption('source-provider');
+    parser.addOption('source-url');
+    parser.addOption('target-provider');
+    parser.addOption('target-url');
+    parser.addOption('mode', defaultsTo: 'happy-path');
+    parser.addFlag('skip-setup', defaultsTo: false, negatable: false);
+    parser.addFlag('skip-teardown', defaultsTo: false, negatable: false);
+    parser.addOption('cooldown-seconds', defaultsTo: '15');
+    parser.addOption('poll-interval', defaultsTo: '10');
+    parser.addOption('poll-timeout', defaultsTo: '300');
+    parser.addOption('settings-profile', defaultsTo: '');
+    parser.addOption('workdir', defaultsTo: '');
+    parser.addFlag('quiet', defaultsTo: false, negatable: false);
+    parser.addFlag('json', defaultsTo: false, negatable: false);
     parser.addFlag('help', abbr: 'h', defaultsTo: false, negatable: false);
 
     return parser;

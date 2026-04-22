@@ -17,6 +17,8 @@
     "prepare": "husky",
     "lint:dart": "cd dart_cli && node ../scripts/run-dart.js format -l 120 --output=none --set-exit-if-changed bin lib test && node ../scripts/run-dart.js analyze --fatal-infos",
     "test:dart": "cd dart_cli && node ../scripts/run-dart.js test",
+    "run:dart": "cd dart_cli && node ../scripts/run-dart.js run bin/gfrm_dart.dart",
+    "build:dart": "cd dart_cli && node -e \"require('fs').mkdirSync('build',{recursive:true})\" && node ../scripts/run-dart.js compile exe bin/gfrm_dart.dart -o build/gfrm",
     "coverage:dart": "cd dart_cli && node ../scripts/run-dart.js test --coverage=coverage/ && node ../scripts/run-dart.js run coverage:format_coverage --lcov --in=coverage/ --out=coverage/lcov.info --report-on=lib && node ../scripts/run-dart.js run coverde --update-check disabled report --input coverage/lcov.info --output coverage/html && node ../scripts/package-coverage-html.js && node ../scripts/run-dart.js run coverde --update-check disabled check 80 --input coverage/lcov.info --file-coverage-log-level overview",
     "coverage:dart:html": "cd dart_cli && node ../scripts/run-dart.js run coverde --update-check disabled report --input coverage/lcov.info --output coverage/html",
     "coverage:dart:text": "cd dart_cli && node ../scripts/run-dart.js test --coverage=coverage/ && node ../scripts/run-dart.js run coverage:format_coverage --in=coverage/ --out=coverage/coverage.txt --report-on=lib --pretty-print",

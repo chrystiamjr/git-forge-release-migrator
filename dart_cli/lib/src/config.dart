@@ -5,6 +5,7 @@ import 'package:args/args.dart';
 import 'config/arg_parsers.dart';
 import 'config/types/cli_request.dart';
 import 'config/types/setup_command_options.dart';
+import 'config/types/smoke_command_options.dart';
 import 'config/validators.dart';
 import 'core/session_store.dart';
 import 'core/settings.dart';
@@ -12,6 +13,7 @@ import 'models/runtime_options.dart';
 
 export 'config/types/cli_request.dart';
 export 'config/types/setup_command_options.dart';
+export 'config/types/smoke_command_options.dart';
 
 const Map<String, String> _providerMap = <String, String>{
   'github': 'github',
@@ -530,6 +532,62 @@ CliRequest _parseSetupRequest(ArgResults command) {
   );
 }
 
+CliRequest _parseSmokeRequest(ArgResults command) {
+  final String sourceProvider = _normalizeProvider(_requiredString(command, 'source-provider'));
+  final String targetProvider = _normalizeProvider(_requiredString(command, 'target-provider'));
+  ConfigValidators.validateProviderValue('source', sourceProvider, _knownProviders);
+  ConfigValidators.validateProviderValue('target', targetProvider, _knownProviders);
+
+  if (sourceProvider == targetProvider) {
+    throw const FormatException('Source and target providers must differ for smoke testing.');
+  }
+
+  final String sourceUrl = _requiredString(command, 'source-url');
+  final String targetUrl = _requiredString(command, 'target-url');
+
+  final String mode = _optionalString(command, 'mode');
+  final String resolvedMode = mode.isEmpty ? smokeModeHappyPath : mode;
+  if (!smokeModes.contains(resolvedMode)) {
+    throw FormatException(
+      '--mode must be one of: ${smokeModes.join(", ")}. Got: $resolvedMode',
+    );
+  }
+
+  final int cooldownSeconds = _optionalInt(command, 'cooldown-seconds', 15);
+  final int pollIntervalSeconds = _optionalInt(command, 'poll-interval', 10);
+  final int pollTimeoutSeconds = _optionalInt(command, 'poll-timeout', 300);
+
+  if (cooldownSeconds < 0) {
+    throw const FormatException('--cooldown-seconds must be >= 0');
+  }
+  if (pollIntervalSeconds <= 0) {
+    throw const FormatException('--poll-interval must be > 0');
+  }
+  if (pollTimeoutSeconds <= 0) {
+    throw const FormatException('--poll-timeout must be > 0');
+  }
+
+  return CliRequest(
+    command: commandSmoke,
+    smoke: SmokeCommandOptions(
+      sourceProvider: sourceProvider,
+      sourceUrl: sourceUrl,
+      targetProvider: targetProvider,
+      targetUrl: targetUrl,
+      mode: resolvedMode,
+      skipSetup: _optionalBool(command, 'skip-setup'),
+      skipTeardown: _optionalBool(command, 'skip-teardown'),
+      cooldownSeconds: cooldownSeconds,
+      pollIntervalSeconds: pollIntervalSeconds,
+      pollTimeoutSeconds: pollTimeoutSeconds,
+      settingsProfile: _optionalString(command, 'settings-profile'),
+      workdir: _optionalString(command, 'workdir'),
+      quiet: _optionalBool(command, 'quiet'),
+      jsonOutput: _optionalBool(command, 'json'),
+    ),
+  );
+}
+
 CliRequest _parseCliRequest(
   List<String> argv, {
   String? cwd,
@@ -559,6 +617,7 @@ CliRequest _parseCliRequest(
       commandDemo => CliRequest(command: 'help', usage: CliParserCatalog.buildDemoUsage()),
       commandSetup => CliRequest(command: 'help', usage: CliParserCatalog.buildSetupUsage()),
       commandSettings => CliRequest(command: 'help', usage: CliParserCatalog.buildSettingsUsage()),
+      commandSmoke => CliRequest(command: 'help', usage: CliParserCatalog.buildSmokeUsage()),
       _ => CliRequest(command: 'help', usage: CliParserCatalog.buildUsage()),
     };
   }
@@ -597,6 +656,9 @@ CliRequest _parseCliRequest(
 
     case commandSettings:
       return _parseSettingsCommand(commandResult);
+
+    case commandSmoke:
+      return _parseSmokeRequest(commandResult);
 
     default:
       throw ArgumentError('Unsupported command: $commandName');

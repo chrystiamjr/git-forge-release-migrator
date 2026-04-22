@@ -71,6 +71,7 @@ Supported public subcommands:
 - `demo`
 - `setup`
 - `settings`
+- `smoke`
 
 CLI help behavior:
 
@@ -86,7 +87,6 @@ Preferred local workflow (from repository root):
 yarn lint:dart
 yarn test:dart
 yarn coverage:dart
-./scripts/smoke-test.sh
 ```
 
 Equivalent direct Dart/FVM commands (from `dart_cli`):
@@ -153,8 +153,6 @@ CI enforces a minimum line coverage of **80%**, uploads both `coverage/lcov.info
 no longer depends on `genhtml`.
 
 `yarn coverage:dart` is part of the expected local validation flow and should pass before changes are finalized.
-
-`./scripts/smoke-test.sh` runs a local end-to-end smoke test against the compiled binary (no external forge credentials required).
 
 Husky hooks:
 

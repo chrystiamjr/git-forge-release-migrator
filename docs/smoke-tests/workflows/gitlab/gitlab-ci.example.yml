@@ -1,0 +1,262 @@
+# Example GitLab CI pipeline for gfrm smoke testing.
+#
+# Copy this file to .gitlab-ci.yml at the root of your throwaway test
+# project. Do NOT install this in production projects — it deletes EVERY
+# release, tag, and generic package in the project.
+#
+# Required CI/CD variables on the test project:
+#   GITLAB_PERSONAL_TOKEN   (masked) — needed by cleanup_tags_and_releases
+#                           because CI_JOB_TOKEN cannot delete all test data.
+#
+# Trigger manually from the GitLab UI (CI/CD → Pipelines → Run pipeline)
+# or via the gfrm smoke command, which creates the pipeline over REST.
+
+stages:
+  - test_data
+
+workflow:
+  rules:
+    - if: '($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api") && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: always
+    - when: never
+
+default:
+  image: alpine:3.20
+  before_script:
+    - apk add --no-cache curl git jq
+
+variables:
+  FAKE_RELEASE_PREFIX: "v4.3."
+  FAKE_RELEASE_START: "0"
+  FAKE_RELEASE_COUNT: "10"
+  FAKE_RELEASE_FIRST_COMPARE_TAG: "v4.2.0"
+  FAKE_PACKAGE_NAME: "gfrm-test-release"
+  FAKE_RELEASE_SEED_BRANCH: "gfrm-shared-seed"
+
+.gitlab_api:
+  before_script:
+    - apk add --no-cache curl git jq
+    - |
+      set -eu
+
+      if [ -n "${GITLAB_PERSONAL_TOKEN:-}" ]; then
+        export GFRM_GITLAB_AUTH_HEADER="PRIVATE-TOKEN: ${GITLAB_PERSONAL_TOKEN}"
+      else
+        export GFRM_GITLAB_AUTH_HEADER="JOB-TOKEN: ${CI_JOB_TOKEN}"
+      fi
+
+      gitlab_api() {
+        curl --silent --show-error --fail --header "${GFRM_GITLAB_AUTH_HEADER}" "$@"
+      }
+
+      urlencode() {
+        jq --null-input --raw-output --arg value "$1" '$value | @uri'
+      }
+
+      git_auth_header() {
+        if [ -n "${GITLAB_PERSONAL_TOKEN:-}" ]; then
+          printf 'AUTHORIZATION: basic %s' "$(printf 'oauth2:%s' "${GITLAB_PERSONAL_TOKEN}" | base64 | tr -d '\n')"
+          return
+        fi
+
+        printf 'AUTHORIZATION: basic %s' "$(printf 'gitlab-ci-token:%s' "${CI_JOB_TOKEN}" | base64 | tr -d '\n')"
+      }
+
+      ensure_seed_branch() {
+        if git ls-remote --exit-code --heads origin "${FAKE_RELEASE_SEED_BRANCH}" >/dev/null 2>&1; then
+          git fetch --depth=1 origin "${FAKE_RELEASE_SEED_BRANCH}"
+          git rev-parse "origin/${FAKE_RELEASE_SEED_BRANCH}"
+          return
+        fi
+
+        current_ref="$(git rev-parse --abbrev-ref HEAD || true)"
+        git switch --orphan "${FAKE_RELEASE_SEED_BRANCH}"
+        git rm -rf . >/dev/null 2>&1 || true
+
+        printf '%s\n' "gfrm shared migration test seed" > .gfrm-shared-seed
+
+        git add .gfrm-shared-seed
+        GIT_AUTHOR_NAME="GFRM Test Seed" \
+          GIT_AUTHOR_EMAIL="gfrm-test@example.invalid" \
+          GIT_AUTHOR_DATE="2026-01-01T00:00:00Z" \
+          GIT_COMMITTER_NAME="GFRM Test Seed" \
+          GIT_COMMITTER_EMAIL="gfrm-test@example.invalid" \
+          GIT_COMMITTER_DATE="2026-01-01T00:00:00Z" \
+          git commit -m "chore: add shared gfrm test seed" >/dev/null
+
+        seed_sha="$(git rev-parse HEAD)"
+        if ! git -c http.extraheader="$(git_auth_header)" push origin "${FAKE_RELEASE_SEED_BRANCH}"; then
+          echo "Failed to push ${FAKE_RELEASE_SEED_BRANCH}. Ensure GITLAB_PERSONAL_TOKEN is available to this pipeline or CI_JOB_TOKEN can push branches." >&2
+          exit 1
+        fi
+
+        if [ "${current_ref}" = "HEAD" ] || [ -z "${current_ref}" ]; then
+          git switch --detach "${CI_COMMIT_SHA}"
+        else
+          git switch "${current_ref}"
+        fi
+
+        printf '%s\n' "${seed_sha}"
+      }
+
+create_fake_releases:
+  stage: test_data
+  extends: .gitlab_api
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+    - when: never
+  script:
+    - |
+      set -eu
+
+      seed_sha="$(ensure_seed_branch)"
+      echo "Using shared seed commit ${seed_sha} from ${FAKE_RELEASE_SEED_BRANCH}"
+
+      # Per-run suffix keeps each smoke run's tag identifiers unique, so
+      # forge abuse heuristics do not see the same create+delete cycle on
+      # identical tag names across runs. Same suffix is reused for every
+      # tag within one run so compare links between consecutive tags
+      # remain valid.
+      run_suffix="$(date -u +%Y%m%d%H%M%S)"
+      echo "Run suffix: ${run_suffix}"
+
+      end=$((FAKE_RELEASE_START + FAKE_RELEASE_COUNT - 1))
+
+      for number in $(seq "${FAKE_RELEASE_START}" "${end}"); do
+        tag="${FAKE_RELEASE_PREFIX}${number}-${run_suffix}"
+        version="${tag#v}"
+        previous_patch=$((number - 1))
+        previous_tag="${FAKE_RELEASE_PREFIX}${previous_patch}-${run_suffix}"
+        release_date="$(date +%F)"
+        notes_file="release-notes-${version}.md"
+
+        if [ "${number}" -eq "${FAKE_RELEASE_START}" ]; then
+          previous_tag="${FAKE_RELEASE_FIRST_COMPARE_TAG}"
+        fi
+
+        cat > "${notes_file}" <<EOF
+      ## [${version}](${CI_PROJECT_URL}/-/compare/${previous_tag}...${tag}) (${release_date})
+
+      ### :sparkles: Melhorias/Novidades
+
+      * **release:** publicar pacote fake ${version} para validar migracoes do GFRM ([fake${number}01](${CI_PROJECT_URL}/-/commit/${seed_sha}))
+      * **mobile:** adicionar fluxo de exemplo para simular notas de versao de aplicativo ([fake${number}02](${CI_PROJECT_URL}/-/commit/${seed_sha}))
+      * **assets:** anexar APKs fake para os canais bypass, local, staging e producao ([fake${number}03](${CI_PROJECT_URL}/-/commit/${seed_sha}))
+
+      ### :bug: Correções
+
+      * **correcoes:** ajustar metadados fake para cobrir assets APK e notas de release ([fake${number}04](${CI_PROJECT_URL}/-/commit/${seed_sha}))
+      * **sincronizacao:** corrigir caso de teste fake para reprocessamento de releases ([fake${number}05](${CI_PROJECT_URL}/-/commit/${seed_sha}))
+
+      ### :wrench: Manutenção
+
+      * **ci:** manter dados artificiais determinicos para testes automatizados do GFRM ([fake${number}06](${CI_PROJECT_URL}/-/commit/${seed_sha}))
+      EOF
+
+        encoded_tag="$(urlencode "${tag}")"
+        if gitlab_api "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/releases/${encoded_tag}" >/dev/null 2>&1; then
+          echo "Release ${tag} already exists; skipping."
+          rm -f "${notes_file}"
+          continue
+        fi
+
+        assets="${version}-bypass.apk ${version}-local.apk ${version}-staging.apk ${version}.apk"
+
+        release_links="[]"
+
+        for asset in ${assets}; do
+          cat > "${asset}" <<EOF
+      Fake APK placeholder
+
+      Project: ${CI_PROJECT_PATH}
+      Release: ${tag}
+      Asset: ${asset}
+      Channel: ${asset%.apk}
+      Purpose: GFRM migration test data only.
+      EOF
+
+          package_url="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${FAKE_PACKAGE_NAME}/${version}/${asset}"
+          gitlab_api --request PUT --upload-file "${asset}" "${package_url}"
+          release_links="$(printf '%s' "${release_links}" | jq --compact-output --arg name "${asset}" --arg url "${package_url}" '. + [{name: $name, url: $url, link_type: "package"}]')"
+        done
+
+        if ! gitlab_api --request POST --data-urlencode "tag_name=${tag}" --data-urlencode "ref=${seed_sha}" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/repository/tags" >/dev/null 2>&1; then
+          echo "Tag ${tag} already exists or could not be created; continuing."
+        fi
+
+        jq --null-input \
+          --arg tag_name "${tag}" \
+          --arg name "${tag}" \
+          --rawfile description "${notes_file}" \
+          --arg ref "${seed_sha}" \
+          --argjson links "${release_links}" \
+          '{tag_name: $tag_name, name: $name, description: $description, ref: $ref, assets: {links: $links}}' > release.json
+
+        gitlab_api --request POST --header "Content-Type: application/json" --data @release.json "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/releases"
+
+        rm -f "${notes_file}" ${assets} release.json
+      done
+
+cleanup_tags_and_releases:
+  stage: test_data
+  extends: .gitlab_api
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+    - when: never
+  script:
+    - |
+      set -eu
+
+      if [ -z "${GITLAB_PERSONAL_TOKEN:-}" ]; then
+        echo "cleanup_tags_and_releases requires GITLAB_PERSONAL_TOKEN as a masked CI/CD variable because CI_JOB_TOKEN cannot delete all test data." >&2
+        exit 1
+      fi
+
+      while true; do
+        releases="$(gitlab_api "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/releases?per_page=100&page=1")"
+        count="$(printf '%s' "${releases}" | jq 'length')"
+
+        if [ "${count}" -eq 0 ]; then
+          break
+        fi
+
+        for tag in $(printf '%s' "${releases}" | jq --raw-output '.[].tag_name'); do
+          if [ -n "${tag}" ]; then
+            encoded_tag="$(urlencode "${tag}")"
+            gitlab_api --request DELETE "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/releases/${encoded_tag}"
+          fi
+        done
+      done
+
+      while true; do
+        tags="$(gitlab_api "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/repository/tags?per_page=100&page=1")"
+        count="$(printf '%s' "${tags}" | jq 'length')"
+
+        if [ "${count}" -eq 0 ]; then
+          break
+        fi
+
+        for tag in $(printf '%s' "${tags}" | jq --raw-output '.[].name'); do
+          if [ -n "${tag}" ]; then
+            encoded_tag="$(urlencode "${tag}")"
+            gitlab_api --request DELETE "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/repository/tags/${encoded_tag}"
+          fi
+        done
+      done
+
+      while true; do
+        packages="$(gitlab_api "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages?package_type=generic&package_name=${FAKE_PACKAGE_NAME}&per_page=100&page=1")"
+        count="$(printf '%s' "${packages}" | jq 'length')"
+
+        if [ "${count}" -eq 0 ]; then
+          break
+        fi
+
+        for package_id in $(printf '%s' "${packages}" | jq --raw-output '.[].id'); do
+          if [ -n "${package_id}" ]; then
+            gitlab_api --request DELETE "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/${package_id}"
+          fi
+        done
+      done

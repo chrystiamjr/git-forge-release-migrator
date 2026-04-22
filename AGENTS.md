@@ -2,6 +2,8 @@
 
 High-signal context for coding agents working in this repository.
 
+**Global context:** See `.github/instructions/caveman.instructions.md` for caveman ultra patterns.
+
 ## Quick Start
 
 1. Read this file and `dart_cli/README.md` before touching code.
@@ -46,6 +48,7 @@ Public CLI commands:
 - `gfrm migrate`
 - `gfrm resume`
 - `gfrm demo`
+- `gfrm smoke`
 - `gfrm setup`
 - `gfrm settings`
 
