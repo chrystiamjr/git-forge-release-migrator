@@ -138,12 +138,13 @@ Safe defaults:
 
 Default agent behavior for this repository:
 
-- Keep task threads short. When a PR/ticket closes and context is large, suggest starting a fresh thread with a handoff of 20 lines or fewer.
+- Default to one thread per PR/ticket. When a PR/ticket closes, start a fresh thread with a handoff of 20 lines or fewer.
 - Do not repeat large plans, diffs, logs, JSON payloads, or previously established context. Summarize only the current decision, blocker, or result.
 - For long commands, write output to `/tmp/<task>.log` and report only exit code plus the relevant failing lines or final summary.
 - Use focused validation during development. Run full suites only before commit/push or when the risk justifies it.
 - For PR review work, inspect unresolved inline threads first. Do not load resolved review history unless investigating stale/duplicate review behavior.
-- `$self-review` defaults to active diff plus directly related files. Review the entire project only when explicitly requested.
+- `$self-review` defaults to active diff plus directly related files, with `max_relevant_files=8` unless explicitly expanded.
+- Review/fix loops default to `max_review_cycles=2` unless a user explicitly asks for deeper passes.
 - Prefer concise final handoffs: changed behavior, validation, commit/push/PR state, and remaining blockers only.
 
 Engineering rules:

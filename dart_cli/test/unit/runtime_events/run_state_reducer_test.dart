@@ -155,10 +155,12 @@ void main() {
       expect(states[1].preflightSummary.status, 'ok');
       expect(states[1].preflightSummary.checkCount, 4);
       expect(states[1].activePhase.value, 'preflight');
+      expect(states[1].totalTags, 1);
 
       expect(states[2].activePhase.value, 'tags');
       expect(states[2].tagCreatedCount, 1);
       expect(states[2].releaseCreatedCount, 0);
+      expect(states[2].totalTags, 1);
 
       expect(states[3].activePhase.value, 'releases');
       expect(states[3].tagCreatedCount, 1);
@@ -372,6 +374,7 @@ List<RuntimeEventEnvelope> _successfulRunStream() {
         'check_count': 4,
         'blocking_count': 0,
         'warning_count': 1,
+        'total_tags': 1,
       },
     ),
     _event(

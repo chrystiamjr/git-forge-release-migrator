@@ -165,6 +165,9 @@ final class _ThrowingDesktopRunController implements DesktopRunController {
   Stream<DesktopRunSnapshot> get snapshots => const Stream<DesktopRunSnapshot>.empty();
 
   @override
+  Stream<String> get logStream => const Stream<String>.empty();
+
+  @override
   Future<DesktopPreflightSummary> evaluatePreflight(DesktopPreflightRequest request) {
     throw StateError('preflight failed');
   }

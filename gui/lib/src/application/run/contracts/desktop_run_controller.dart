@@ -11,6 +11,8 @@ abstract interface class DesktopRunController {
 
   Stream<DesktopRunSnapshot> get snapshots;
 
+  Stream<String> get logStream;
+
   Future<DesktopPreflightSummary> evaluatePreflight(DesktopPreflightRequest request);
 
   Future<DesktopRunSession> startRun(DesktopRunStartRequest request);

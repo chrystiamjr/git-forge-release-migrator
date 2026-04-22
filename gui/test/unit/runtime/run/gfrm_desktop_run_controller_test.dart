@@ -92,6 +92,73 @@ void main() {
       expect(snapshots.last.tagCounts.created, 1);
       expect(snapshots.last.releaseCounts.created, 1);
       expect(controller.currentSnapshot.completionStatus, 'success');
+      expect(controller.currentSnapshot.progressPercent, 1.0);
+      expect(controller.currentSnapshot.elapsedTime, isNot(Duration.zero));
+      expect(controller.currentSnapshot.estimatedRemainingTime, isNull);
+    });
+
+    test('logStream emits formatted lines during run', () async {
+      final Directory tempDir = await Directory.systemTemp.createTemp('gfrm-gui-log-');
+      addTearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
+      final List<String> logLines = <String>[];
+      final StreamSubscription<String> logSub = controller.logStream.listen(logLines.add);
+      addTearDown(logSub.cancel);
+
+      final session = await controller.startRun(
+        DesktopRunStartRequest(
+          sourceProvider: 'github',
+          sourceUrl: 'https://github.com/acme/source',
+          sourceToken: 'source-token',
+          targetProvider: 'gitlab',
+          targetUrl: 'https://gitlab.com/acme/target',
+          targetToken: 'target-token',
+          workdir: tempDir.path,
+        ),
+      );
+      await session.completion;
+      await Future<void>.delayed(Duration.zero);
+
+      expect(logLines, isNotEmpty);
+      expect(logLines.any((line) => line.contains('Run started')), isTrue);
+      expect(logLines.any((line) => line.contains('run_completed') || line.contains('Run completed')), isTrue);
+    });
+
+    test('snapshot progressPercent moves toward 1 as tags are processed', () async {
+      final Directory tempDir = await Directory.systemTemp.createTemp('gfrm-gui-progress-');
+      addTearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
+      final List<double> progressValues = <double>[];
+      final StreamSubscription<DesktopRunSnapshot> sub = controller.snapshots.listen(
+        (s) => progressValues.add(s.progressPercent),
+      );
+      addTearDown(sub.cancel);
+
+      final session = await controller.startRun(
+        DesktopRunStartRequest(
+          sourceProvider: 'github',
+          sourceUrl: 'https://github.com/acme/source',
+          sourceToken: 'source-token',
+          targetProvider: 'gitlab',
+          targetUrl: 'https://gitlab.com/acme/target',
+          targetToken: 'target-token',
+          workdir: tempDir.path,
+        ),
+      );
+      await session.completion;
+      await Future<void>.delayed(Duration.zero);
+
+      expect(progressValues, isNotEmpty);
+      expect(progressValues.any((double progress) => progress > 0.0 && progress < 1.0), isTrue);
+      expect(progressValues.last, 1.0);
     });
 
     test('resumes run with typed completion', () async {
