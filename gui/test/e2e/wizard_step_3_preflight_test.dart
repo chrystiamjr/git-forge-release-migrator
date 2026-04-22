@@ -168,7 +168,7 @@ void main() {
       );
     });
 
-    testWidgets('keeps Start Migration enabled when only warnings exist', (WidgetTester tester) async {
+    testWidgets('keeps Start Migration disabled until run start is implemented', (WidgetTester tester) async {
       final NewMigrationWizardState state = NewMigrationWizardState(
         sourceUrl: 'https://github.com/acme/source',
         targetUrl: 'https://gitlab.com/acme/target',
@@ -202,7 +202,7 @@ void main() {
       expect(find.byKey(const ValueKey<String>('new-migration-preflight-blocking-banner')), findsNothing);
       expect(
         tester.widget<InkWell>(find.ancestor(of: find.text('START MIGRATION'), matching: find.byType(InkWell))).onTap,
-        isNotNull,
+        isNull,
       );
     });
 

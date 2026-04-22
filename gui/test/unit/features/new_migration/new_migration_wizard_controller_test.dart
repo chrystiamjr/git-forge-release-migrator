@@ -1,7 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gfrm_gui/src/application/run/contracts/desktop_run_controller.dart';
 import 'package:gfrm_gui/src/application/run/models/desktop_preflight_check_item.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_preflight_request.dart';
 import 'package:gfrm_gui/src/application/run/models/desktop_preflight_summary.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_action_result.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_resume_request.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_session.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_snapshot.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_start_request.dart';
 import 'package:gfrm_gui/src/features/new_migration/application/new_migration_wizard_controller.dart';
 import 'package:gfrm_gui/src/features/new_migration/application/new_migration_wizard_state.dart';
 import 'package:gfrm_gui/src/features/new_migration/domain/migration_provider_option.dart';
@@ -132,5 +139,51 @@ void main() {
       expect(NewMigrationWizardState(preflightSummary: blocked).canStartMigration, isFalse);
       expect(NewMigrationWizardState(preflightSummary: warningOnly).canStartMigration, isTrue);
     });
+
+    test('moves to step three with blocking preflight summary when evaluation throws', () async {
+      final ProviderContainer container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      final NewMigrationWizardController controller = container.read(newMigrationWizardProvider.notifier);
+
+      await controller.reviewPreflight(_ThrowingDesktopRunController());
+
+      final NewMigrationWizardState state = container.read(newMigrationWizardProvider);
+      expect(state.step, 3);
+      expect(state.preflightSummary.status, 'failed');
+      expect(state.preflightSummary.blockingCount, 1);
+      expect(state.preflightSummary.checks.single.code, 'preflight_exception');
+    });
   });
+}
+
+final class _ThrowingDesktopRunController implements DesktopRunController {
+  @override
+  DesktopRunSnapshot get currentSnapshot => const DesktopRunSnapshot.initial();
+
+  @override
+  Stream<DesktopRunSnapshot> get snapshots => const Stream<DesktopRunSnapshot>.empty();
+
+  @override
+  Future<DesktopPreflightSummary> evaluatePreflight(DesktopPreflightRequest request) {
+    throw StateError('preflight failed');
+  }
+
+  @override
+  Future<DesktopRunSession> startRun(DesktopRunStartRequest request) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<DesktopRunSession> resumeRun(DesktopRunResumeRequest request) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<DesktopRunActionResult> cancelActiveRun() {
+    throw UnimplementedError();
+  }
+
+  @override
+  void dispose() {}
 }

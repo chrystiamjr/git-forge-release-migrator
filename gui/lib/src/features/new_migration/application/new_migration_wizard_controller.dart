@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_preflight_check_item.dart';
 import 'package:gfrm_gui/src/application/run/contracts/desktop_run_controller.dart';
 import 'package:gfrm_gui/src/application/run/models/desktop_preflight_summary.dart';
 import 'package:gfrm_gui/src/features/new_migration/application/new_migration_wizard_state.dart';
@@ -62,8 +63,28 @@ final class NewMigrationWizardController extends StateNotifier<NewMigrationWizar
   }
 
   Future<void> reviewPreflight(DesktopRunController runController) async {
-    final DesktopPreflightSummary summary = await runController.evaluatePreflight(state.toPreflightRequest());
-    state = state.copyWith(preflightSummary: summary, step: 3);
+    try {
+      final DesktopPreflightSummary summary = await runController.evaluatePreflight(state.toPreflightRequest());
+      state = state.copyWith(preflightSummary: summary, step: 3);
+    } catch (_) {
+      state = state.copyWith(
+        preflightSummary: const DesktopPreflightSummary(
+          status: 'failed',
+          checks: <DesktopPreflightCheckItem>[
+            DesktopPreflightCheckItem(
+              code: 'preflight_exception',
+              message: 'Preflight could not be completed.',
+              status: 'error',
+              hint: 'Review the repository settings and try again.',
+            ),
+          ],
+          checkCount: 1,
+          blockingCount: 1,
+          warningCount: 0,
+        ),
+        step: 3,
+      );
+    }
   }
 
   void setMigrateTags(bool value) {

@@ -62,7 +62,7 @@ final class NewMigrationPreflightCheckRow extends StatelessWidget {
     if (item.isWarning) {
       return GfrmAppTheme.colors.warningLight;
     }
-    return const Color(0xFFE8F5E9);
+    return GfrmAppTheme.colors.successLight;
   }
 
   Color _badgeTextColor() {

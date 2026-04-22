@@ -34,14 +34,7 @@ final class NewMigrationPreflightStep extends StatelessWidget {
               onPressed: () => controller.goToStep(2),
             ),
             SizedBox(width: unit.s3),
-            GfrmButton(
-              label: 'Start Migration',
-              icon: Icons.play_arrow,
-              isSuccess: true,
-              height: 40,
-              // TODO: Implement migration start flow after preflight review
-              onPressed: state.canStartMigration ? () {} : null,
-            ),
+            GfrmButton(label: 'Start Migration', icon: Icons.play_arrow, isSuccess: true, height: 40, onPressed: null),
           ],
         ),
       ],
