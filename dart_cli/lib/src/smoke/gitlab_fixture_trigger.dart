@@ -34,8 +34,7 @@ final class GitLabFixtureTrigger extends FixtureTrigger {
         'Accept': 'application/json',
       };
 
-  String get _projectPath =>
-      Uri.encodeComponent('${coords.workspace}/${coords.repo}');
+  String get _projectPath => Uri.encodeComponent('${coords.workspace}/${coords.repo}');
 
   String get _apiBase => 'https://${coords.host}/api/v4';
 
@@ -58,29 +57,37 @@ final class GitLabFixtureTrigger extends FixtureTrigger {
   }
 
   Future<String> _createPipeline() async {
-    final String url = '$_apiBase/projects/$_projectPath/pipeline?ref=main';
+    final String ref = Uri.encodeQueryComponent(await _defaultBranch());
+    final String url = '$_apiBase/projects/$_projectPath/pipeline?ref=$ref';
     final dynamic response = await http.requestJson(
       url,
       method: 'POST',
       headers: _headers,
     );
-    final Map<String, dynamic> data =
-        (response is Map<String, dynamic>) ? response : <String, dynamic>{};
+    final Map<String, dynamic> data = (response is Map<String, dynamic>) ? response : <String, dynamic>{};
     final dynamic id = data['id'];
     if (id == null) {
-      throw HttpRequestError(
-          'GitLab pipeline creation did not return an id: $data');
+      throw HttpRequestError('GitLab pipeline creation did not return an id: $data');
     }
     return id.toString();
   }
 
+  Future<String> _defaultBranch() async {
+    final String url = '$_apiBase/projects/$_projectPath';
+    final dynamic response = await http.requestJson(url, headers: _headers);
+    final Map<String, dynamic> data = response is Map<String, dynamic> ? response : <String, dynamic>{};
+    final String branch = (data['default_branch'] ?? '').toString().trim();
+    if (branch.isEmpty) {
+      throw HttpRequestError('GitLab project metadata did not include default_branch');
+    }
+    return branch;
+  }
+
   Future<String> _findJob(String pipelineId, String jobName) async {
-    final String url =
-        '$_apiBase/projects/$_projectPath/pipelines/$pipelineId/jobs';
+    final String url = '$_apiBase/projects/$_projectPath/pipelines/$pipelineId/jobs';
     final dynamic response = await http.requestJson(url, headers: _headers);
     if (response is! List<dynamic>) {
-      throw HttpRequestError(
-          'GitLab jobs listing returned non-list for pipeline $pipelineId');
+      throw HttpRequestError('GitLab jobs listing returned non-list for pipeline $pipelineId');
     }
 
     for (final dynamic entry in response) {
@@ -106,8 +113,7 @@ final class GitLabFixtureTrigger extends FixtureTrigger {
 
     while (DateTime.now().isBefore(deadline)) {
       final dynamic response = await http.requestJson(url, headers: _headers);
-      final Map<String, dynamic> data =
-          (response is Map<String, dynamic>) ? response : <String, dynamic>{};
+      final Map<String, dynamic> data = (response is Map<String, dynamic>) ? response : <String, dynamic>{};
       final String status = (data['status'] ?? '').toString();
 
       if (status == 'success') {

@@ -4,6 +4,11 @@ import '../config/types/smoke_command_options.dart';
 import '../core/logging.dart';
 import 'artifact_validator.dart';
 import 'fixture_trigger.dart';
+import 'smoke_phase_outcome.dart';
+import 'smoke_result.dart';
+
+export 'smoke_phase_outcome.dart';
+export 'smoke_result.dart';
 
 typedef SmokeDelay = Future<void> Function(Duration duration);
 
@@ -16,26 +21,6 @@ Future<void> _defaultDelay(Duration duration) {
 /// Returns the run directory where `summary.json` landed. Injected so the
 /// runner is testable without spinning up the real migration engine.
 typedef MigrationCallback = Future<Directory> Function();
-
-/// Phase outcome shown in the final summary line.
-final class SmokePhaseOutcome {
-  const SmokePhaseOutcome({
-    required this.name,
-    required this.succeeded,
-    this.detail = '',
-  });
-
-  final String name;
-  final bool succeeded;
-  final String detail;
-}
-
-final class SmokeResult {
-  const SmokeResult({required this.exitCode, required this.phases});
-
-  final int exitCode;
-  final List<SmokePhaseOutcome> phases;
-}
 
 /// Orchestrates the end-to-end smoke flow:
 ///   setup → cooldown → migrate → validate → cooldown → teardown
@@ -86,14 +71,12 @@ final class SmokeRunner {
       runDir = await migrate();
     } catch (exc) {
       logger.error('Migration failed: $exc');
-      phases.add(SmokePhaseOutcome(
-          name: 'migrate', succeeded: false, detail: exc.toString()));
+      phases.add(SmokePhaseOutcome(name: 'migrate', succeeded: false, detail: exc.toString()));
       return SmokeResult(exitCode: 1, phases: phases);
     }
     phases.add(SmokePhaseOutcome(name: 'migrate', succeeded: true));
 
-    final RetryExpectation retryExpectation =
-        _retryExpectationFor(options.mode);
+    final RetryExpectation retryExpectation = _retryExpectationFor(options.mode);
     final ValidationReport report = validator.validate(
       runDir: runDir,
       expectedCommand: 'migrate',
@@ -115,8 +98,7 @@ final class SmokeRunner {
 
     if (!options.skipTeardown) {
       logger.info('Cleaning up source (${sourceTrigger.provider}) ...');
-      final FixtureRunResult teardown =
-          await sourceTrigger.cleanupTagsAndReleases();
+      final FixtureRunResult teardown = await sourceTrigger.cleanupTagsAndReleases();
       phases.add(SmokePhaseOutcome(
         name: 'teardown',
         succeeded: teardown.isSuccess,
@@ -146,7 +128,7 @@ final class SmokeRunner {
     return switch (mode) {
       smokeModeHappyPath => RetryExpectation.empty,
       smokeModeContractCheck => RetryExpectation.empty,
-      smokeModePartialFailureResume => RetryExpectation.any,
+      smokeModePartialFailureResume => RetryExpectation.nonempty,
       _ => RetryExpectation.any,
     };
   }

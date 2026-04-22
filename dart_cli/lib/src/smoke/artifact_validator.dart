@@ -1,26 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
-/// Retry-command expectation for the smoke artifact contract.
-enum RetryExpectation {
-  /// `summary.retry_command` must be empty or missing.
-  empty,
+import 'retry_expectation.dart';
+import 'validation_report.dart';
 
-  /// `summary.retry_command` must be present and start with `gfrm resume`.
-  nonempty,
-
-  /// Either presence or absence is acceptable.
-  any,
-}
-
-/// Validation result for a single migration run directory.
-final class ValidationReport {
-  const ValidationReport(
-      {required this.passed, this.errors = const <String>[]});
-
-  final bool passed;
-  final List<String> errors;
-}
+export 'retry_expectation.dart';
+export 'validation_report.dart';
 
 /// Asserts that a migration run directory matches the expected artifact
 /// contract used by the smoke flow.
@@ -57,8 +42,7 @@ final class ArtifactValidator {
 
     Map<String, dynamic> summary;
     try {
-      summary =
-          jsonDecode(summaryFile.readAsStringSync()) as Map<String, dynamic>;
+      summary = jsonDecode(summaryFile.readAsStringSync()) as Map<String, dynamic>;
     } catch (exc) {
       return ValidationReport(
         passed: false,
@@ -73,8 +57,7 @@ final class ArtifactValidator {
 
     final String command = (summary['command'] ?? '').toString();
     if (command != expectedCommand) {
-      errors.add(
-          'summary.json command must be "$expectedCommand", got "$command"');
+      errors.add('summary.json command must be "$expectedCommand", got "$command"');
     }
 
     final String retryCommand = (summary['retry_command'] ?? '').toString();
@@ -91,28 +74,26 @@ final class ArtifactValidator {
         break;
       case RetryExpectation.nonempty:
         if (retryCommand.isEmpty) {
-          errors.add(
-              'retry_command expected non-empty (partial failure required)');
+          errors.add('retry_command expected non-empty (partial failure required)');
         }
-        if (retryCommand.isNotEmpty &&
-            !retryCommand.startsWith('gfrm resume')) {
-          errors.add(
-              'retry_command must start with "gfrm resume", got "$retryCommand"');
+        if (retryCommand.isNotEmpty && !retryCommand.startsWith('gfrm resume')) {
+          errors.add('retry_command must start with "gfrm resume", got "$retryCommand"');
         }
         if (retryCommand.isNotEmpty && !retryCommand.contains('--tags-file')) {
-          errors.add(
-              'retry_command must include --tags-file, got "$retryCommand"');
+          errors.add('retry_command must include --tags-file, got "$retryCommand"');
         }
         if (retryShell.isEmpty) {
           errors.add('retry_command_shell expected non-empty');
         }
         break;
       case RetryExpectation.any:
+        if (retryCommand.isNotEmpty) {
+          _validateResumeRetryCommand(retryCommand, errors);
+        }
         break;
     }
 
-    final Map<String, dynamic> paths =
-        (summary['paths'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+    final Map<String, dynamic> paths = (summary['paths'] as Map<String, dynamic>?) ?? <String, dynamic>{};
     final String summaryFailedTags = (paths['failed_tags'] ?? '').toString();
     final String summaryLog = (paths['jsonl_log'] ?? '').toString();
     final String summaryWorkdir = (paths['workdir'] ?? '').toString();
@@ -128,5 +109,14 @@ final class ArtifactValidator {
     }
 
     return ValidationReport(passed: errors.isEmpty, errors: errors);
+  }
+
+  void _validateResumeRetryCommand(String retryCommand, List<String> errors) {
+    if (!retryCommand.startsWith('gfrm resume')) {
+      errors.add('retry_command must start with "gfrm resume", got "$retryCommand"');
+    }
+    if (!retryCommand.contains('--tags-file')) {
+      errors.add('retry_command must include --tags-file, got "$retryCommand"');
+    }
   }
 }

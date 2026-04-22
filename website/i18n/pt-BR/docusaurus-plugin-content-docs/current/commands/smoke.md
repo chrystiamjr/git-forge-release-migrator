@@ -41,7 +41,7 @@ Antes de rodar `gfrm smoke`:
 
 - Dois repositórios de teste descartáveis, um por forge, seguindo o [guia de smoke testing](../guides/smoke-testing.md).
 - Workflows de fixture instalados em cada repositório de teste (copiados de `docs/smoke-tests/workflows/<forge>/`).
-- Tokens pessoais disponíveis via `settings.yaml` (veja `gfrm setup`).
+- Tokens pessoais disponíveis via `settings.yaml` (veja `gfrm setup`) ou pelos aliases padrão de env var de cada provider.
 
 ## Opções
 
@@ -61,11 +61,11 @@ Antes de rodar `gfrm smoke`:
 | `--mode` | `happy-path` | Modo de execução: `happy-path`, `contract-check`, `partial-failure-resume` |
 | `--skip-setup` | off | Pula o passo de criar fixture. Use quando a origem já está populada |
 | `--skip-teardown` | off | Pula o passo de cleanup. Deixa a origem populada para inspeção |
-| `--cooldown-seconds` | `15` | Segundos entre fases (env: `GFRM_SMOKE_COOLDOWN`) |
+| `--cooldown-seconds` | `15` | Segundos entre fases |
 | `--poll-interval` | `10` | Segundos entre polls de status do CI |
 | `--poll-timeout` | `300` | Segundos máximos de espera de um workflow antes de falhar |
 
-### Passthrough para a migração
+### Opções de migração
 
 | Flag | Descrição |
 |---|---|
@@ -74,7 +74,9 @@ Antes de rodar `gfrm smoke`:
 | `--quiet` | Reduz a saída interativa |
 | `--json` | Emite logs em JSON |
 
-Qualquer flag aceita pelo `gfrm migrate` também é aceita pelo `gfrm smoke` e é encaminhada para a fase de migração.
+`gfrm smoke` aceita as opções listadas nesta página. Ele não encaminha flags arbitrárias do `gfrm migrate` para a fase de migração.
+
+A precedência de tokens segue o `gfrm migrate`: settings (`token_env`, depois `token_plain`) primeiro, depois aliases de env var do provider como `GITHUB_TOKEN`, `GH_TOKEN`, `GITLAB_TOKEN` e `BITBUCKET_TOKEN`. `--settings-profile` seleciona o profile de settings usado na resolução dos tokens de origem e destino.
 
 ## Modos
 
@@ -115,8 +117,9 @@ gfrm smoke \
 ### Contract check em CI
 
 ```bash
-GFRM_SMOKE_COOLDOWN=0 gfrm smoke \
+gfrm smoke \
   --mode contract-check \
+  --cooldown-seconds 0 \
   --source-provider bitbucket --source-url https://bitbucket.org/voce/gfrm-test-source \
   --target-provider github --target-url https://github.com/voce/gfrm-test-target
 ```

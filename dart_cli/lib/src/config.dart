@@ -539,7 +539,7 @@ CliRequest _parseSmokeRequest(ArgResults command) {
   ConfigValidators.validateProviderValue('target', targetProvider, _knownProviders);
 
   if (sourceProvider == targetProvider) {
-    throw ArgumentError('Source and target providers must differ for smoke testing.');
+    throw const FormatException('Source and target providers must differ for smoke testing.');
   }
 
   final String sourceUrl = _requiredString(command, 'source-url');
@@ -548,7 +548,7 @@ CliRequest _parseSmokeRequest(ArgResults command) {
   final String mode = _optionalString(command, 'mode');
   final String resolvedMode = mode.isEmpty ? smokeModeHappyPath : mode;
   if (!smokeModes.contains(resolvedMode)) {
-    throw ArgumentError(
+    throw FormatException(
       '--mode must be one of: ${smokeModes.join(", ")}. Got: $resolvedMode',
     );
   }
@@ -558,13 +558,13 @@ CliRequest _parseSmokeRequest(ArgResults command) {
   final int pollTimeoutSeconds = _optionalInt(command, 'poll-timeout', 300);
 
   if (cooldownSeconds < 0) {
-    throw ArgumentError('--cooldown-seconds must be >= 0');
+    throw const FormatException('--cooldown-seconds must be >= 0');
   }
   if (pollIntervalSeconds <= 0) {
-    throw ArgumentError('--poll-interval must be > 0');
+    throw const FormatException('--poll-interval must be > 0');
   }
   if (pollTimeoutSeconds <= 0) {
-    throw ArgumentError('--poll-timeout must be > 0');
+    throw const FormatException('--poll-timeout must be > 0');
   }
 
   return CliRequest(

@@ -17,6 +17,13 @@ void main() {
       expect(coords.repo, 'project');
     });
 
+    test('preserves GitLab nested group namespace', () {
+      final coords = parseRepoUrl('https://gitlab.com/group/subgroup/project.git');
+      expect(coords.host, 'gitlab.com');
+      expect(coords.workspace, 'group/subgroup');
+      expect(coords.repo, 'project');
+    });
+
     test('parses Bitbucket URL', () {
       final coords = parseRepoUrl('https://bitbucket.org/workspace/repo');
       expect(coords.host, 'bitbucket.org');

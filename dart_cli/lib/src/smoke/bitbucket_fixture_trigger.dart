@@ -38,8 +38,7 @@ final class BitbucketFixtureTrigger extends FixtureTrigger {
         'Accept': 'application/json',
       };
 
-  String get _apiBase =>
-      'https://api.${coords.host}/2.0/repositories/${coords.workspace}/${coords.repo}';
+  String get _apiBase => 'https://api.${coords.host}/2.0/repositories/${coords.workspace}/${coords.repo}';
 
   @override
   Future<FixtureRunResult> createFakeReleases() {
@@ -58,11 +57,12 @@ final class BitbucketFixtureTrigger extends FixtureTrigger {
 
   Future<String> _triggerPipeline(String name) async {
     final String url = '$_apiBase/pipelines/';
+    final String defaultBranch = await _defaultBranch();
     final Map<String, dynamic> body = <String, dynamic>{
       'target': <String, dynamic>{
         'ref_type': 'branch',
         'type': 'pipeline_ref_target',
-        'ref_name': 'main',
+        'ref_name': defaultBranch,
         'selector': <String, String>{
           'type': 'custom',
           'pattern': name,
@@ -76,14 +76,23 @@ final class BitbucketFixtureTrigger extends FixtureTrigger {
       jsonData: body,
       headers: _headers,
     );
-    final Map<String, dynamic> data =
-        (response is Map<String, dynamic>) ? response : <String, dynamic>{};
+    final Map<String, dynamic> data = (response is Map<String, dynamic>) ? response : <String, dynamic>{};
     final dynamic uuid = data['uuid'];
     if (uuid == null) {
-      throw HttpRequestError(
-          'Bitbucket pipeline trigger did not return uuid: $data');
+      throw HttpRequestError('Bitbucket pipeline trigger did not return uuid: $data');
     }
     return uuid.toString();
+  }
+
+  Future<String> _defaultBranch() async {
+    final dynamic response = await http.requestJson(_apiBase, headers: _headers);
+    final Map<String, dynamic> data = response is Map<String, dynamic> ? response : <String, dynamic>{};
+    final Map<String, dynamic> mainBranch = (data['mainbranch'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+    final String branch = (mainBranch['name'] ?? '').toString().trim();
+    if (branch.isEmpty) {
+      throw HttpRequestError('Bitbucket repository metadata did not include mainbranch.name');
+    }
+    return branch;
   }
 
   Future<FixtureRunResult> _pollPipeline(String pipelineUuid) async {
@@ -92,13 +101,10 @@ final class BitbucketFixtureTrigger extends FixtureTrigger {
 
     while (DateTime.now().isBefore(deadline)) {
       final dynamic response = await http.requestJson(url, headers: _headers);
-      final Map<String, dynamic> data =
-          (response is Map<String, dynamic>) ? response : <String, dynamic>{};
-      final Map<String, dynamic> state =
-          (data['state'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+      final Map<String, dynamic> data = (response is Map<String, dynamic>) ? response : <String, dynamic>{};
+      final Map<String, dynamic> state = (data['state'] as Map<String, dynamic>?) ?? <String, dynamic>{};
       final String name = (state['name'] ?? '').toString();
-      final Map<String, dynamic> result =
-          (state['result'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+      final Map<String, dynamic> result = (state['result'] as Map<String, dynamic>?) ?? <String, dynamic>{};
       final String resultName = (result['name'] ?? '').toString();
 
       if (name == 'COMPLETED') {

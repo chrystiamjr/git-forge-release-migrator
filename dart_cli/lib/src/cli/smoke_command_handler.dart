@@ -5,6 +5,7 @@ import '../application/run_result.dart';
 import '../application/run_service.dart';
 import '../config/types/smoke_command_options.dart';
 import '../core/console_output.dart';
+import '../core/exceptions/migration_phase_error.dart';
 import '../core/http.dart';
 import '../core/logging.dart';
 import '../core/settings.dart';
@@ -41,19 +42,18 @@ final class SmokeCommandHandler {
     RunService? runServiceOverride,
     HttpClientHelper? httpOverride,
   }) async {
-    final Map<String, dynamic> settingsPayload =
-        SettingsManager.loadEffectiveSettings(
+    final Map<String, dynamic> settingsPayload = SettingsManager.loadEffectiveSettings(
       cwd: cwd,
       env: env,
       homeDir: homeDir,
     );
-    final String settingsProfile = SettingsManager.resolveProfileName(
-        settingsPayload, smoke.settingsProfile);
+    final String settingsProfile = SettingsManager.resolveProfileName(settingsPayload, smoke.settingsProfile);
 
-    final String sourceToken = SettingsManager.tokenFromSettings(
-      settingsPayload,
-      settingsProfile,
-      smoke.sourceProvider,
+    final String sourceToken = _resolveToken(
+      settingsPayload: settingsPayload,
+      settingsProfile: settingsProfile,
+      provider: smoke.sourceProvider,
+      sideEnvName: defaultSourceTokenEnv,
       env: env,
     );
     if (sourceToken.isEmpty) {
@@ -64,10 +64,11 @@ final class SmokeCommandHandler {
       return 1;
     }
 
-    final String targetToken = SettingsManager.tokenFromSettings(
-      settingsPayload,
-      settingsProfile,
-      smoke.targetProvider,
+    final String targetToken = _resolveToken(
+      settingsPayload: settingsPayload,
+      settingsProfile: settingsProfile,
+      provider: smoke.targetProvider,
+      sideEnvName: defaultTargetTokenEnv,
       env: env,
     );
     if (targetToken.isEmpty) {
@@ -100,14 +101,11 @@ final class SmokeCommandHandler {
     );
 
     final Directory resultsRoot = Directory(
-      smoke.workdir.isNotEmpty
-          ? smoke.workdir
-          : '${Directory.current.path}/.tmp/smoke',
+      smoke.workdir.isNotEmpty ? smoke.workdir : '${Directory.current.path}/.tmp/smoke',
     );
     resultsRoot.createSync(recursive: true);
 
-    final RunService runService =
-        runServiceOverride ?? RunService(logger: logger);
+    final RunService runService = runServiceOverride ?? RunService(logger: logger);
 
     Future<Directory> migrate() async {
       final RuntimeOptions options = RuntimeOptions(
@@ -153,7 +151,7 @@ final class SmokeCommandHandler {
       final RunResult result = await runService.run(request);
 
       if (!result.isSuccess) {
-        throw StateError(
+        throw MigrationPhaseError(
           'Migration failed with exit code ${result.exitCode}. See ${result.summaryPath}',
         );
       }
@@ -203,7 +201,31 @@ final class SmokeCommandHandler {
           pollInterval: pollInterval,
           pollTimeout: pollTimeout,
         ),
-      _ => throw ArgumentError('Unknown provider: $provider'),
+      _ => throw MigrationPhaseError('Unknown provider: $provider'),
     };
+  }
+
+  String _resolveToken({
+    required Map<String, dynamic> settingsPayload,
+    required String settingsProfile,
+    required String provider,
+    required String sideEnvName,
+    required Map<String, String>? env,
+  }) {
+    final String fromSettings = SettingsManager.tokenFromSettings(
+      settingsPayload,
+      settingsProfile,
+      provider,
+      env: env,
+    );
+    if (fromSettings.isNotEmpty) {
+      return fromSettings;
+    }
+
+    return SettingsManager.tokenFromEnvAliases(
+      provider,
+      sideEnvName: sideEnvName,
+      env: env,
+    );
   }
 }

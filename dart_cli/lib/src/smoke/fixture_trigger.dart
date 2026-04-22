@@ -1,47 +1,9 @@
 import '../core/http.dart';
+import 'fixture_run_result.dart';
+import 'repo_coordinates.dart';
 
-/// Repository coordinates parsed from a forge URL.
-///
-/// The triple `(host, workspace, repo)` is all a `FixtureTrigger`
-/// implementation needs to build REST paths for the three supported forges.
-/// For GitHub and GitLab, `workspace` is the user/org namespace. For
-/// Bitbucket, `workspace` is the workspace slug and `repo` is the repo slug.
-final class RepoCoordinates {
-  const RepoCoordinates({
-    required this.host,
-    required this.workspace,
-    required this.repo,
-  });
-
-  final String host;
-  final String workspace;
-  final String repo;
-
-  @override
-  String toString() => '$host/$workspace/$repo';
-}
-
-/// Outcome of a fixture operation — create or cleanup.
-final class FixtureRunResult {
-  const FixtureRunResult({
-    required this.status,
-    required this.reference,
-    this.detail = '',
-  });
-
-  /// Human-readable status: `success` or `failed`.
-  final String status;
-
-  /// Forge-specific identifier that can be used to look up the run later
-  /// (workflow run id on GitHub, pipeline id on GitLab, pipeline uuid on
-  /// Bitbucket).
-  final String reference;
-
-  /// Additional diagnostic context, empty on success.
-  final String detail;
-
-  bool get isSuccess => status == 'success';
-}
+export 'fixture_run_result.dart';
+export 'repo_coordinates.dart';
 
 /// Abstract fixture orchestrator for a single forge.
 ///

@@ -9,8 +9,7 @@ Directory _tempDir() {
 }
 
 void _writeSummary(Directory runDir, Map<String, Object?> summary) {
-  File('${runDir.path}/summary.json')
-      .writeAsStringSync(const JsonEncoder.withIndent('  ').convert(summary));
+  File('${runDir.path}/summary.json').writeAsStringSync(const JsonEncoder.withIndent('  ').convert(summary));
   File('${runDir.path}/failed-tags.txt').writeAsStringSync('');
   File('${runDir.path}/migration-log.jsonl').writeAsStringSync('');
 }
@@ -110,6 +109,24 @@ void main() {
       );
 
       expect(report.passed, isTrue, reason: report.errors.join('; '));
+      runDir.deleteSync(recursive: true);
+    });
+
+    test('fails any expectation when present retry_command is not resumable', () {
+      final Directory runDir = _tempDir();
+      final Map<String, Object?> summary = _baseSummary(runDir);
+      summary['retry_command'] = 'gfrm migrate --tags-file x.txt';
+      summary['retry_command_shell'] = '/bin/bash';
+      _writeSummary(runDir, summary);
+
+      final ValidationReport report = validator.validate(
+        runDir: runDir,
+        expectedCommand: 'migrate',
+        retryExpectation: RetryExpectation.any,
+      );
+
+      expect(report.passed, isFalse);
+      expect(report.errors.any((String e) => e.contains('must start with "gfrm resume"')), isTrue);
       runDir.deleteSync(recursive: true);
     });
 

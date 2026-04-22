@@ -1232,5 +1232,69 @@ void main() {
         throwsArgumentError,
       );
     });
+
+    test('parseCliRequest builds smoke command options', () {
+      final CliRequest request = CliRequestParser.parseCliRequest(<String>[
+        commandSmoke,
+        '--source-provider',
+        'github',
+        '--source-url',
+        'https://github.com/source/repo',
+        '--target-provider',
+        'gitlab',
+        '--target-url',
+        'https://gitlab.com/target/repo',
+        '--mode',
+        smokeModeContractCheck,
+        '--skip-setup',
+        '--skip-teardown',
+        '--cooldown-seconds',
+        '0',
+        '--poll-interval',
+        '2',
+        '--poll-timeout',
+        '30',
+        '--settings-profile',
+        'smoke',
+        '--workdir',
+        '/tmp/smoke',
+        '--quiet',
+        '--json',
+      ]);
+
+      final SmokeCommandOptions smoke = request.smoke!;
+      expect(request.command, commandSmoke);
+      expect(smoke.sourceProvider, 'github');
+      expect(smoke.targetProvider, 'gitlab');
+      expect(smoke.mode, smokeModeContractCheck);
+      expect(smoke.skipSetup, isTrue);
+      expect(smoke.skipTeardown, isTrue);
+      expect(smoke.cooldownSeconds, 0);
+      expect(smoke.pollIntervalSeconds, 2);
+      expect(smoke.pollTimeoutSeconds, 30);
+      expect(smoke.settingsProfile, 'smoke');
+      expect(smoke.workdir, '/tmp/smoke');
+      expect(smoke.quiet, isTrue);
+      expect(smoke.jsonOutput, isTrue);
+    });
+
+    test('parseCliRequest rejects invalid smoke numeric options', () {
+      expect(
+        () => CliRequestParser.parseCliRequest(<String>[
+          commandSmoke,
+          '--source-provider',
+          'github',
+          '--source-url',
+          'https://github.com/source/repo',
+          '--target-provider',
+          'gitlab',
+          '--target-url',
+          'https://gitlab.com/target/repo',
+          '--poll-timeout',
+          '0',
+        ]),
+        throwsA(isA<FormatException>()),
+      );
+    });
   });
 }

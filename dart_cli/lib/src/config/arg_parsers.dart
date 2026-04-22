@@ -11,8 +11,7 @@ final class CliParserCatalog {
   static const String _demoDescription = 'Run local demo simulation.';
   static const String _setupDescription = 'Interactive bootstrap for settings profiles.';
   static const String _settingsDescription = 'Manage token/profile settings.';
-  static const String _smokeDescription =
-      'Run real end-to-end smoke test against throwaway source/target test repos.';
+  static const String _smokeDescription = 'Run real end-to-end smoke test against throwaway source/target test repos.';
 
   static ArgParser buildRootParser() {
     final ArgParser parser = ArgParser();

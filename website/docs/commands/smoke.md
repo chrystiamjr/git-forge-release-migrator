@@ -41,7 +41,7 @@ Before running `gfrm smoke`:
 
 - Two throwaway test repositories, one per forge, following the [smoke testing guide](../guides/smoke-testing.md).
 - Fixture CI workflows installed in each test repository (copied from `docs/smoke-tests/workflows/<forge>/`).
-- Personal tokens exposed via `settings.yaml` (see `gfrm setup`).
+- Personal tokens exposed via `settings.yaml` (see `gfrm setup`) or the standard provider env aliases.
 
 ## Options
 
@@ -61,11 +61,11 @@ Before running `gfrm smoke`:
 | `--mode` | `happy-path` | Execution mode: `happy-path`, `contract-check`, `partial-failure-resume` |
 | `--skip-setup` | off | Skip the fixture create step. Use when the source is already populated |
 | `--skip-teardown` | off | Skip the cleanup step. Leaves the source populated for inspection |
-| `--cooldown-seconds` | `15` | Seconds to sleep between phases (env: `GFRM_SMOKE_COOLDOWN`) |
+| `--cooldown-seconds` | `15` | Seconds to sleep between phases |
 | `--poll-interval` | `10` | Seconds between CI status polls |
 | `--poll-timeout` | `300` | Seconds to wait for a CI workflow before failing |
 
-### Migration passthrough
+### Migration options
 
 | Flag | Description |
 |---|---|
@@ -74,7 +74,9 @@ Before running `gfrm smoke`:
 | `--quiet` | Suppress interactive output |
 | `--json` | Emit JSON logs |
 
-Any flag accepted by `gfrm migrate` is also accepted by `gfrm smoke` and forwarded to the migration phase.
+`gfrm smoke` accepts the options listed on this page. It does not forward arbitrary `gfrm migrate` flags to the migration phase.
+
+Token precedence matches `gfrm migrate`: settings (`token_env`, then `token_plain`) first, then provider env aliases such as `GITHUB_TOKEN`, `GH_TOKEN`, `GITLAB_TOKEN`, and `BITBUCKET_TOKEN`. `--settings-profile` selects the settings profile used for both source and target token lookup.
 
 ## Modes
 
@@ -115,8 +117,9 @@ gfrm smoke \
 ### Contract check mode in CI
 
 ```bash
-GFRM_SMOKE_COOLDOWN=0 gfrm smoke \
+gfrm smoke \
   --mode contract-check \
+  --cooldown-seconds 0 \
   --source-provider bitbucket --source-url https://bitbucket.org/you/gfrm-test-source \
   --target-provider github --target-url https://github.com/you/gfrm-test-target
 ```

@@ -101,8 +101,7 @@ Directory _writeValidRunDir({bool partialFailure = false}) {
       'workdir': dir.path,
     },
   };
-  File('${dir.path}/summary.json')
-      .writeAsStringSync(const JsonEncoder.withIndent('  ').convert(summary));
+  File('${dir.path}/summary.json').writeAsStringSync(const JsonEncoder.withIndent('  ').convert(summary));
   File('${dir.path}/failed-tags.txt').writeAsStringSync('');
   File('${dir.path}/migration-log.jsonl').writeAsStringSync('');
   return dir;
@@ -116,8 +115,7 @@ void main() {
         onCleanup: () async => const FixtureRunResult(status: 'success', reference: 't1'),
       );
       final Directory runDir = _writeValidRunDir();
-      final ConsoleLogger logger =
-          ConsoleLogger(quiet: true, jsonOutput: false, output: _FakeOutput());
+      final ConsoleLogger logger = ConsoleLogger(quiet: true, jsonOutput: false, output: _FakeOutput());
 
       final SmokeRunner runner = SmokeRunner(
         options: _options(),
@@ -147,8 +145,7 @@ void main() {
         onCleanup: () async => const FixtureRunResult(status: 'success', reference: 't1'),
       );
       final Directory runDir = _writeValidRunDir();
-      final ConsoleLogger logger =
-          ConsoleLogger(quiet: true, jsonOutput: false, output: _FakeOutput());
+      final ConsoleLogger logger = ConsoleLogger(quiet: true, jsonOutput: false, output: _FakeOutput());
 
       final SmokeRunner runner = SmokeRunner(
         options: _options(skipSetup: true),
@@ -177,8 +174,7 @@ void main() {
         onCleanup: () async => const FixtureRunResult(status: 'success', reference: 't1'),
       );
       final Directory runDir = _writeValidRunDir();
-      final ConsoleLogger logger =
-          ConsoleLogger(quiet: true, jsonOutput: false, output: _FakeOutput());
+      final ConsoleLogger logger = ConsoleLogger(quiet: true, jsonOutput: false, output: _FakeOutput());
 
       final SmokeRunner runner = SmokeRunner(
         options: _options(skipTeardown: true),
@@ -206,8 +202,7 @@ void main() {
         onCleanup: () async => const FixtureRunResult(status: 'success', reference: 't1'),
       );
       bool migrateCalled = false;
-      final ConsoleLogger logger =
-          ConsoleLogger(quiet: true, jsonOutput: false, output: _FakeOutput());
+      final ConsoleLogger logger = ConsoleLogger(quiet: true, jsonOutput: false, output: _FakeOutput());
 
       final SmokeRunner runner = SmokeRunner(
         options: _options(),
@@ -234,8 +229,7 @@ void main() {
         onCreate: () async => const FixtureRunResult(status: 'success', reference: 'c1'),
         onCleanup: () async => const FixtureRunResult(status: 'success', reference: 't1'),
       );
-      final ConsoleLogger logger =
-          ConsoleLogger(quiet: true, jsonOutput: false, output: _FakeOutput());
+      final ConsoleLogger logger = ConsoleLogger(quiet: true, jsonOutput: false, output: _FakeOutput());
 
       final SmokeRunner runner = SmokeRunner(
         options: _options(),
@@ -261,8 +255,7 @@ void main() {
         onCleanup: () async => const FixtureRunResult(status: 'success', reference: 't1'),
       );
       final Directory runDir = _writeValidRunDir(partialFailure: true);
-      final ConsoleLogger logger =
-          ConsoleLogger(quiet: true, jsonOutput: false, output: _FakeOutput());
+      final ConsoleLogger logger = ConsoleLogger(quiet: true, jsonOutput: false, output: _FakeOutput());
 
       final SmokeRunner runner = SmokeRunner(
         options: _options(mode: smokeModeContractCheck),
@@ -282,14 +275,13 @@ void main() {
       runDir.deleteSync(recursive: true);
     });
 
-    test('partial-failure-resume mode accepts either retry shape', () async {
+    test('partial-failure-resume mode requires a retry command', () async {
       final _FakeTrigger trigger = _FakeTrigger(
         onCreate: () async => const FixtureRunResult(status: 'success', reference: 'c1'),
         onCleanup: () async => const FixtureRunResult(status: 'success', reference: 't1'),
       );
       final Directory runDir = _writeValidRunDir(partialFailure: true);
-      final ConsoleLogger logger =
-          ConsoleLogger(quiet: true, jsonOutput: false, output: _FakeOutput());
+      final ConsoleLogger logger = ConsoleLogger(quiet: true, jsonOutput: false, output: _FakeOutput());
 
       final SmokeRunner runner = SmokeRunner(
         options: _options(mode: smokeModePartialFailureResume),
@@ -302,6 +294,31 @@ void main() {
       final SmokeResult result = await runner.run();
 
       expect(result.exitCode, 0);
+
+      runDir.deleteSync(recursive: true);
+    });
+
+    test('partial-failure-resume mode fails when retry command is absent', () async {
+      final _FakeTrigger trigger = _FakeTrigger(
+        onCreate: () async => const FixtureRunResult(status: 'success', reference: 'c1'),
+        onCleanup: () async => const FixtureRunResult(status: 'success', reference: 't1'),
+      );
+      final Directory runDir = _writeValidRunDir();
+      final ConsoleLogger logger = ConsoleLogger(quiet: true, jsonOutput: false, output: _FakeOutput());
+
+      final SmokeRunner runner = SmokeRunner(
+        options: _options(mode: smokeModePartialFailureResume),
+        logger: logger,
+        sourceTrigger: trigger,
+        migrate: () async => runDir,
+        validator: const ArtifactValidator(),
+      );
+
+      final SmokeResult result = await runner.run();
+
+      expect(result.exitCode, 1);
+      expect(trigger.cleanupCalls, 0);
+      expect(result.phases.last.name, 'validate');
 
       runDir.deleteSync(recursive: true);
     });

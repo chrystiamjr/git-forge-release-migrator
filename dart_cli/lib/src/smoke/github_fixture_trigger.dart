@@ -57,15 +57,25 @@ final class GitHubFixtureTrigger extends FixtureTrigger {
   }
 
   Future<void> _dispatch(String workflowFile) async {
-    final String url =
-        '$_apiBase/repos/${coords.workspace}/${coords.repo}/actions/workflows/$workflowFile/dispatches';
-    final Map<String, String> body = <String, String>{'ref': 'main'};
+    final String url = '$_apiBase/repos/${coords.workspace}/${coords.repo}/actions/workflows/$workflowFile/dispatches';
+    final Map<String, String> body = <String, String>{'ref': await _defaultBranch()};
     await http.requestJson(
       url,
       method: 'POST',
       jsonData: body,
       headers: _headers,
     );
+  }
+
+  Future<String> _defaultBranch() async {
+    final String url = '$_apiBase/repos/${coords.workspace}/${coords.repo}';
+    final dynamic response = await http.requestJson(url, headers: _headers);
+    final Map<String, dynamic> data = response is Map<String, dynamic> ? response : <String, dynamic>{};
+    final String branch = (data['default_branch'] ?? '').toString().trim();
+    if (branch.isEmpty) {
+      throw HttpRequestError('GitHub repository metadata did not include default_branch');
+    }
+    return branch;
   }
 
   Future<String> _waitForRunId(String workflowFile, String beforeIso) async {
@@ -95,14 +105,12 @@ final class GitHubFixtureTrigger extends FixtureTrigger {
   }
 
   Future<FixtureRunResult> _pollRun(String runId) async {
-    final String url =
-        '$_apiBase/repos/${coords.workspace}/${coords.repo}/actions/runs/$runId';
+    final String url = '$_apiBase/repos/${coords.workspace}/${coords.repo}/actions/runs/$runId';
     final DateTime deadline = DateTime.now().add(pollTimeout);
 
     while (DateTime.now().isBefore(deadline)) {
       final dynamic response = await http.requestJson(url, headers: _headers);
-      final Map<String, dynamic> data =
-          (response is Map<String, dynamic>) ? response : <String, dynamic>{};
+      final Map<String, dynamic> data = (response is Map<String, dynamic>) ? response : <String, dynamic>{};
       final String status = (data['status'] ?? '').toString();
       final String conclusion = (data['conclusion'] ?? '').toString();
 
