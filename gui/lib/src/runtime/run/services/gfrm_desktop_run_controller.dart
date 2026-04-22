@@ -30,6 +30,7 @@ import 'package:gfrm_gui/src/runtime/run/mappers/map_desktop_run_start_request_t
 import 'package:gfrm_gui/src/runtime/run/mappers/map_preflight_checks_to_summary.dart';
 import 'package:gfrm_gui/src/runtime/run/mappers/map_run_result_to_completion.dart';
 import 'package:gfrm_gui/src/runtime/run/mappers/map_run_state_to_snapshot.dart';
+import 'package:gfrm_gui/src/runtime/run/services/runtime_log_event_sink.dart';
 import 'package:gfrm_gui/src/runtime/run/services/runtime_run_state_sink.dart';
 
 final class GfrmDesktopRunController implements DesktopRunController {
@@ -61,16 +62,21 @@ final class GfrmDesktopRunController implements DesktopRunController {
   final PreflightService _preflightService;
   final ProviderRegistryFactory _registryFactory;
   final StreamController<DesktopRunSnapshot> _snapshotController = StreamController<DesktopRunSnapshot>.broadcast();
+  final StreamController<String> _logController = StreamController<String>.broadcast();
 
   DesktopRunSnapshot _currentSnapshot = const DesktopRunSnapshot.initial();
   bool _runInFlight = false;
   int _nextSessionId = 0;
+  DateTime? _runStartedAt;
 
   @override
   DesktopRunSnapshot get currentSnapshot => _currentSnapshot;
 
   @override
   Stream<DesktopRunSnapshot> get snapshots => _snapshotController.stream;
+
+  @override
+  Stream<String> get logStream => _logController.stream;
 
   @override
   Future<DesktopPreflightSummary> evaluatePreflight(DesktopPreflightRequest request) async {
@@ -104,6 +110,7 @@ final class GfrmDesktopRunController implements DesktopRunController {
   @override
   void dispose() {
     _snapshotController.close();
+    _logController.close();
   }
 
   Future<DesktopRunSession> _launchRun({required RunRequest runtimeRequest}) async {
@@ -117,6 +124,7 @@ final class GfrmDesktopRunController implements DesktopRunController {
 
     _runInFlight = true;
     _currentSnapshot = initialSnapshot;
+    _runStartedAt = DateTime.now();
 
     unawaited(
       Future<void>.microtask(
@@ -137,12 +145,19 @@ final class GfrmDesktopRunController implements DesktopRunController {
         _emitSnapshot(mapRunStateToSnapshot(sessionId: sessionId, state: state));
       },
     );
+    final RuntimeLogEventSink logSink = RuntimeLogEventSink(
+      onLog: (line) {
+        if (!_logController.isClosed) {
+          _logController.add(line);
+        }
+      },
+    );
 
     try {
       final RunResult result = await _runService.run(
         RunRequest(
           options: runtimeRequest.options,
-          runtimeEventSinks: <RuntimeEventSink>[...runtimeRequest.runtimeEventSinks, stateSink],
+          runtimeEventSinks: <RuntimeEventSink>[...runtimeRequest.runtimeEventSinks, stateSink, logSink],
         ),
       );
 
@@ -169,7 +184,7 @@ final class GfrmDesktopRunController implements DesktopRunController {
       );
 
       _emitSnapshot(finalSnapshot);
-      completer.complete(mapRunResultToCompletion(result: result, snapshot: finalSnapshot));
+      completer.complete(mapRunResultToCompletion(result: result, snapshot: _currentSnapshot));
     } catch (error, stackTrace) {
       _logger.error(error.toString());
       final DesktopRunSnapshot failedSnapshot = _currentSnapshot.copyWith(
@@ -189,9 +204,19 @@ final class GfrmDesktopRunController implements DesktopRunController {
   }
 
   void _emitSnapshot(DesktopRunSnapshot snapshot) {
-    _currentSnapshot = snapshot;
+    final DateTime? startedAt = _runStartedAt;
+    final Duration elapsed = startedAt != null ? DateTime.now().difference(startedAt) : Duration.zero;
+    final double progress = snapshot.progressPercent;
+
+    Duration? remaining;
+    if (progress >= 0.01 && progress < 1.0) {
+      remaining = Duration(microseconds: (elapsed.inMicroseconds * (1.0 - progress) / progress).round());
+    }
+
+    final DesktopRunSnapshot timedSnapshot = snapshot.copyWith(elapsedTime: elapsed, estimatedRemainingTime: remaining);
+    _currentSnapshot = timedSnapshot;
     if (!_snapshotController.isClosed) {
-      _snapshotController.add(snapshot);
+      _snapshotController.add(timedSnapshot);
     }
   }
 

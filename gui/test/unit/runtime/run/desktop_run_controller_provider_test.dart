@@ -73,6 +73,9 @@ final class _FakeDesktopRunController implements DesktopRunController {
   @override
   Stream<DesktopRunSnapshot> get snapshots => _controller.stream;
 
+  @override
+  Stream<String> get logStream => const Stream<String>.empty();
+
   void emit(DesktopRunSnapshot snapshot) {
     currentSnapshot = snapshot;
     _controller.add(snapshot);

@@ -24,6 +24,8 @@ final class DesktopRunSnapshot {
     required this.failedTags,
     required this.canCancel,
     required this.canResume,
+    this.elapsedTime = Duration.zero,
+    this.estimatedRemainingTime,
   });
 
   const DesktopRunSnapshot.initial({this.sessionId = ''})
@@ -41,7 +43,9 @@ final class DesktopRunSnapshot {
       totalTags = 0,
       failedTags = 0,
       canCancel = false,
-      canResume = false;
+      canResume = false,
+      elapsedTime = Duration.zero,
+      estimatedRemainingTime = null;
 
   final String sessionId;
   final String runId;
@@ -59,6 +63,23 @@ final class DesktopRunSnapshot {
   final int failedTags;
   final bool canCancel;
   final bool canResume;
+  final Duration elapsedTime;
+  final Duration? estimatedRemainingTime;
+
+  double get progressPercent {
+    if (lifecycle == 'completed' || completionStatus.isNotEmpty) {
+      return 1.0;
+    }
+    if (totalTags <= 0) {
+      return 0.0;
+    }
+    final int processedTags = tagCounts.created + tagCounts.wouldCreate + tagCounts.skippedExisting + tagCounts.failed;
+    final int processedReleases =
+        releaseCounts.created + releaseCounts.wouldCreate + releaseCounts.skippedExisting + releaseCounts.failed;
+    final double tagProgress = processedTags / totalTags;
+    final double releaseProgress = processedReleases / totalTags;
+    return ((tagProgress + releaseProgress) / 2.0).clamp(0.0, 1.0);
+  }
 
   DesktopRunSnapshot copyWith({
     String? sessionId,
@@ -77,6 +98,8 @@ final class DesktopRunSnapshot {
     int? failedTags,
     bool? canCancel,
     bool? canResume,
+    Duration? elapsedTime,
+    Object? estimatedRemainingTime = _desktopRunSnapshotUnset,
   }) {
     return DesktopRunSnapshot(
       sessionId: sessionId ?? this.sessionId,
@@ -97,6 +120,10 @@ final class DesktopRunSnapshot {
       failedTags: failedTags ?? this.failedTags,
       canCancel: canCancel ?? this.canCancel,
       canResume: canResume ?? this.canResume,
+      elapsedTime: elapsedTime ?? this.elapsedTime,
+      estimatedRemainingTime: identical(estimatedRemainingTime, _desktopRunSnapshotUnset)
+          ? this.estimatedRemainingTime
+          : estimatedRemainingTime as Duration?,
     );
   }
 }

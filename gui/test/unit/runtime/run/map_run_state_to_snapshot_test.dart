@@ -86,6 +86,39 @@ void main() {
       expect(snapshot.preflight.status, 'idle');
       expect(snapshot.progressItems, isEmpty);
       expect(snapshot.canResume, isFalse);
+      expect(snapshot.elapsedTime, Duration.zero);
+      expect(snapshot.estimatedRemainingTime, isNull);
+      expect(snapshot.progressPercent, 0.0);
+    });
+
+    test('progressPercent reflects partial tag completion', () {
+      final RunState state = const RunState.initial().copyWith(
+        lifecycle: RunStateLifecycle.running,
+        activePhase: RunStatePhase.tags,
+        tagSnapshots: const <String, RunStateTagSnapshot>{
+          'v1.0.0': RunStateTagSnapshot(tag: 'v1.0.0', status: 'created', message: ''),
+          'v2.0.0': RunStateTagSnapshot(tag: 'v2.0.0', status: 'created', message: ''),
+        },
+        totalTags: 4,
+      );
+
+      final snapshot = mapRunStateToSnapshot(sessionId: 'session-3', state: state);
+
+      expect(snapshot.progressPercent, greaterThan(0.0));
+      expect(snapshot.progressPercent, lessThan(1.0));
+      expect(snapshot.progressPercent, closeTo(0.25, 0.01));
+    });
+
+    test('progressPercent is 1.0 when completionStatus is set', () {
+      final RunState state = const RunState.initial().copyWith(
+        lifecycle: RunStateLifecycle.running,
+        completionStatus: 'success',
+        totalTags: 2,
+      );
+
+      final snapshot = mapRunStateToSnapshot(sessionId: 'session-4', state: state);
+
+      expect(snapshot.progressPercent, 1.0);
     });
   });
 }
