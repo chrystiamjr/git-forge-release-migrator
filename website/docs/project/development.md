@@ -33,3 +33,7 @@ yarn docs:build
 
 Use `website/` as the public documentation source of truth. Keep `README.md` and `dart_cli/README.md` concise and
 aligned with the site.
+
+## GUI testing
+
+The Flutter desktop GUI has unit and E2E test suites. See [`gui/README.md` → Testing](https://github.com/chrystiamjr/git-forge-release-migrator/blob/main/gui/README.md#testing) for commands and structure.
