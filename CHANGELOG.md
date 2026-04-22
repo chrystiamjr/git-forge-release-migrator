@@ -1,3 +1,28 @@
+## [0.15.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.14.0...v0.15.0) (2026-04-22)
+
+### Features
+
+* **cli:** add smoke subcommand for end-to-end forge migration testing ([92fe95d](https://github.com/chrystiamjr/git-forge-release-migrator/commit/92fe95d29fe05f29a01fe6147acf827a6ff00771))
+* **gui:** add navigation empty states ([390d2bf](https://github.com/chrystiamjr/git-forge-release-migrator/commit/390d2bf896ddb7ebe05d50b4bd3a690fe0e52cbb))
+* **gui:** integrate structured preflight in wizard with e2e tests ([b93117c](https://github.com/chrystiamjr/git-forge-release-migrator/commit/b93117cf31c02929fbd4640c115db2901768dae8))
+* **migrations:** add runtime validation for skip-tags safety invariant ([4d1ee37](https://github.com/chrystiamjr/git-forge-release-migrator/commit/4d1ee37d761a837301735e20cb9f815fa5603130))
+
+### Bug Fixes
+
+* **ci:** allow scoped theme test patterns ([0b5719c](https://github.com/chrystiamjr/git-forge-release-migrator/commit/0b5719cc77efe9b8f909cefca93dd15993a1626e))
+* **ci:** prevent duplicate review comments ([a68c048](https://github.com/chrystiamjr/git-forge-release-migrator/commit/a68c0486c7279c3203aabbbca26d426215c63c25))
+* **cli:** address wizard runtime review feedback ([312ba0e](https://github.com/chrystiamjr/git-forge-release-migrator/commit/312ba0e322735ae7823462bca280d2f69847ea76))
+* **dart:** address smoke follow-up review ([1904aad](https://github.com/chrystiamjr/git-forge-release-migrator/commit/1904aad5c2914f9fb413f9bdbfe9f9b45de22d22))
+* **dart:** address smoke review feedback ([515e9ab](https://github.com/chrystiamjr/git-forge-release-migrator/commit/515e9ab152763addf6c867ef714803999cd3d830))
+* **gui:** address preflight review feedback ([ea3804b](https://github.com/chrystiamjr/git-forge-release-migrator/commit/ea3804b6fa7296fab4f84ddce3b4cb10683c215c))
+* **gui:** address wizard resume review feedback ([b3672ff](https://github.com/chrystiamjr/git-forge-release-migrator/commit/b3672ffa2ea0f7e8c2401d747097443f51cf5399))
+* **gui:** align tag selection fields with semver-only contract ([35ea65e](https://github.com/chrystiamjr/git-forge-release-migrator/commit/35ea65edb0e2214ba0dc2b1652fe688b4dddb636))
+* **gui:** resolve code review issues on preflight integration ([d1eae2f](https://github.com/chrystiamjr/git-forge-release-migrator/commit/d1eae2f3b695f1b8afc8646876734d6584d0aaa1))
+* **gui:** use theme tokens instead of hardcoded colors in widget tests ([dcaaf57](https://github.com/chrystiamjr/git-forge-release-migrator/commit/dcaaf57291e8577561e048c3664220e2f6bad63f))
+* **review:** address 6 Copilot reviewer comments on PR [#58](https://github.com/chrystiamjr/git-forge-release-migrator/issues/58) ([d58b7e7](https://github.com/chrystiamjr/git-forge-release-migrator/commit/d58b7e7e3f0a59fa365fb92e245fe56e87f2aeb3))
+* **review:** address copilot feedback ([08ea8d4](https://github.com/chrystiamjr/git-forge-release-migrator/commit/08ea8d40d4e648cf09be7c9f1a846dfbd86432b3))
+* **runtime:** emit skip_releases flags in run_started event ([6572161](https://github.com/chrystiamjr/git-forge-release-migrator/commit/657216197dfa91fe9431e75c9a97bb455ce8613d))
+
 ## [0.14.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.13.0...v0.14.0) (2026-04-16)
 
 ### Features
