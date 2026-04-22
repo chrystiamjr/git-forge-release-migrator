@@ -1,3 +1,13 @@
+## [0.16.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.15.0...v0.16.0) (2026-04-22)
+
+### Features
+
+* **gui:** complete DesktopRunController contract for SP3Tk08 ([2ece646](https://github.com/chrystiamjr/git-forge-release-migrator/commit/2ece6465a661e66b21ea0df2da139062ef61506e))
+
+### Bug Fixes
+
+* **dart:** expose selected tag totals early ([f937c9f](https://github.com/chrystiamjr/git-forge-release-migrator/commit/f937c9f7a0a1d3264f7ee1bb39db37dbeef4546e))
+
 ## [0.15.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.14.0...v0.15.0) (2026-04-22)
 
 ### Features
