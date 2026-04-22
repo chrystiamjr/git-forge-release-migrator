@@ -148,7 +148,7 @@ class RunService {
           runtimeEventEmitter: runtimeEventEmitter,
         );
       }
-      _emitPreflightCompleted(runtimeEventEmitter, preflightChecks);
+      _emitPreflightCompleted(runtimeEventEmitter, preflightChecks, totalTags: context.selectedTags.length);
       final _ExecutionOutcome outcome = await _executeMigration(
         prepared: prepared,
         engine: engine,
@@ -524,20 +524,25 @@ class RunService {
 
   void _emitPreflightCompleted(
     RuntimeEventEmitter runtimeEventEmitter,
-    List<PreflightCheck> checks,
-  ) {
+    List<PreflightCheck> checks, {
+    int? totalTags,
+  }) {
     final int blockingCount = checks.where((PreflightCheck check) => check.status == PreflightCheckStatus.error).length;
     final int warningCount =
         checks.where((PreflightCheck check) => check.status == PreflightCheckStatus.warning).length;
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'status': blockingCount > 0 ? 'failed' : 'ok',
+      'check_count': checks.length,
+      'blocking_count': blockingCount,
+      'warning_count': warningCount,
+    };
+    if (totalTags != null) {
+      payload['total_tags'] = totalTags;
+    }
 
     runtimeEventEmitter.emit(
       eventType: RuntimeEventType.preflightCompleted,
-      payload: <String, dynamic>{
-        'status': blockingCount > 0 ? 'failed' : 'ok',
-        'check_count': checks.length,
-        'blocking_count': blockingCount,
-        'warning_count': warningCount,
-      },
+      payload: payload,
     );
   }
 

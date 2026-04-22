@@ -301,6 +301,7 @@ void main() {
     test('reduces successful runtime stream into typed run state snapshot', () async {
       final Directory temp = createTempDir('gfrm-run-service-run-state-');
       final RunStateRuntimeEventSink sink = RunStateRuntimeEventSink();
+      final InMemoryRuntimeEventSink events = InMemoryRuntimeEventSink();
       final RunService service = RunService(
         logger: createSilentLogger(),
         registryFactory: (_) => _buildRegistry(releases: <Map<String, dynamic>>[buildMinimalReleasePayload('v1.0.0')]),
@@ -312,7 +313,7 @@ void main() {
             workdir: '${temp.path}/results',
             settingsProfile: 'desktop',
           ),
-          runtimeEventSinks: <RunStateRuntimeEventSink>[sink],
+          runtimeEventSinks: <RuntimeEventSink>[sink, events],
         ),
       );
 
@@ -333,6 +334,10 @@ void main() {
       expect(sink.state.totalTags, 1);
       expect(sink.state.failedTags, 0);
       expect(sink.state.latestFailure, isNull);
+      final RuntimeEventEnvelope preflightEvent = events.events.firstWhere(
+        (RuntimeEventEnvelope event) => event.eventType == 'preflight_completed',
+      );
+      expect(preflightEvent.payload['total_tags'], 1);
     });
 
     test('returns validation failure when no releases are selected', () async {

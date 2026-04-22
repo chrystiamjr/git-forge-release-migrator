@@ -68,6 +68,7 @@ RunState _reducePreflightCompleted(RunState currentState, RuntimeEventEnvelope e
       blockingCount: _readInt(payload, 'blocking_count'),
       warningCount: _readInt(payload, 'warning_count'),
     ),
+    totalTags: _readInt(payload, 'total_tags', fallback: currentState.totalTags),
   );
 }
 
@@ -174,7 +175,7 @@ String _readString(Map<String, dynamic> payload, String key) {
   return (payload[key] ?? '').toString();
 }
 
-int _readInt(Map<String, dynamic> payload, String key) {
+int _readInt(Map<String, dynamic> payload, String key, {int fallback = 0}) {
   final dynamic value = payload[key];
   if (value is int) {
     return value;
@@ -183,7 +184,7 @@ int _readInt(Map<String, dynamic> payload, String key) {
     return value.toInt();
   }
 
-  return int.tryParse((value ?? '').toString()) ?? 0;
+  return int.tryParse((value ?? '').toString()) ?? fallback;
 }
 
 bool _readBool(Map<String, dynamic> payload, String key) {

@@ -26,6 +26,7 @@ const List<RuntimeEventPayloadContract> runtimeEventPayloadContracts = <RuntimeE
       'check_count',
       'blocking_count',
       'warning_count',
+      'total_tags',
     ],
   ),
   RuntimeEventPayloadContract(

@@ -157,6 +157,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(progressValues, isNotEmpty);
+      expect(progressValues.any((double progress) => progress > 0.0 && progress < 1.0), isTrue);
       expect(progressValues.last, 1.0);
     });
 
