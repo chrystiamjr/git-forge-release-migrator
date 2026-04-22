@@ -39,9 +39,6 @@ node_modules/
 .claude/
 .idea/
 
-# Local test scripts
-scripts/e2e-migration-test.sh
-
 # Python tooling relics
 .ruff_cache/
 

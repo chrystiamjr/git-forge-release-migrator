@@ -6,6 +6,7 @@ import 'application/run_result.dart';
 import 'application/run_service.dart';
 import 'cli/runtime_support.dart';
 import 'cli/settings_setup_command_handler.dart';
+import 'cli/smoke_command_handler.dart';
 import 'config.dart';
 import 'core/console_output.dart';
 import 'core/input_reader.dart';
@@ -64,6 +65,18 @@ Future<int> _runCli(
         output: resolvedOutput,
         input: resolvedInput,
       ).runSetupCommand(request.setup!);
+    }
+
+    if (request.command == commandSmoke) {
+      logger = ConsoleLogger(
+        quiet: request.smoke!.quiet,
+        jsonOutput: request.smoke!.jsonOutput,
+        output: resolvedOutput,
+      );
+      return SmokeCommandHandler(
+        logger: logger,
+        output: resolvedOutput,
+      ).run(request.smoke!);
     }
 
     final RuntimeOptions initialOptions = request.options!;

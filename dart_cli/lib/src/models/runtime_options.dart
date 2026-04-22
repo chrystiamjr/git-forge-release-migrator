@@ -10,6 +10,7 @@ const String commandResume = 'resume';
 const String commandDemo = 'demo';
 const String commandSetup = 'setup';
 const String commandSettings = 'settings';
+const String commandSmoke = 'smoke';
 const String publicCommandName = 'gfrm';
 
 class RuntimeOptions {
