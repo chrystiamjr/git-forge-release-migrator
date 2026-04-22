@@ -2,6 +2,8 @@
 
 High-signal context for coding agents working in this repository.
 
+**Global context:** Inherits caveman ultra from `~/.claude/CLAUDE.md`. See that for communication patterns, intensity levels, and core principles.
+
 ## Quick Start
 
 1. Read this file and `dart_cli/README.md` before touching code.
@@ -48,7 +50,6 @@ Public CLI commands:
 - `gfrm demo`
 - `gfrm setup`
 - `gfrm settings`
-- `gfrm smoke`
 
 `gfrm settings` actions:
 
