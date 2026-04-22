@@ -20,6 +20,11 @@ final class GfrmColors {
     this.textMuted = const Color(0xFF94A3B8),
     this.textOnDark = const Color(0xFFF8FAFC),
     this.success = const Color(0xFF43A047),
+    this.successLight = const Color(0xFFE8F5E9),
+    this.error = const Color(0xFFC62828),
+    this.errorLight = const Color(0xFFFFEBEE),
+    this.warning = const Color(0xFFE65100),
+    this.warningLight = const Color(0xFFFFF3E0),
   });
 
   final Color sidebarBackground;
@@ -40,4 +45,9 @@ final class GfrmColors {
   final Color textMuted;
   final Color textOnDark;
   final Color success;
+  final Color successLight;
+  final Color error;
+  final Color errorLight;
+  final Color warning;
+  final Color warningLight;
 }

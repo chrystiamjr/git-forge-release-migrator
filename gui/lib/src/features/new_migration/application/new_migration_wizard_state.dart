@@ -1,3 +1,5 @@
+import 'package:gfrm_gui/src/application/run/models/desktop_preflight_request.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_preflight_summary.dart';
 import 'package:gfrm_gui/src/application/run/models/desktop_run_start_request.dart';
 import 'package:gfrm_gui/src/features/new_migration/domain/migration_provider_option.dart';
 
@@ -19,6 +21,7 @@ final class NewMigrationWizardState {
     this.settingsProfile = 'default',
     this.fromTag = '',
     this.toTag = '',
+    this.preflightSummary = const DesktopPreflightSummary.initial(),
   });
 
   static const List<String> sampleTags = <String>[
@@ -48,10 +51,15 @@ final class NewMigrationWizardState {
   final String settingsProfile;
   final String fromTag;
   final String toTag;
+  final DesktopPreflightSummary preflightSummary;
 
   bool get canValidateConnections => sourceUrl.trim().isNotEmpty && targetUrl.trim().isNotEmpty;
 
   bool get canContinueFromStepOne => sourceValidated && targetValidated;
+
+  bool get canStartMigration => !preflightSummary.hasBlockingErrors;
+
+  int get selectedTagCount => migrateTags ? matchingTags.length : 0;
 
   List<String> get matchingTags {
     if (!_isEmptyOrStrictSemver(fromTag) || !_isEmptyOrStrictSemver(toTag)) {
@@ -88,6 +96,18 @@ final class NewMigrationWizardState {
     );
   }
 
+  DesktopPreflightRequest toPreflightRequest() {
+    return DesktopPreflightRequest(
+      sourceProvider: sourceProvider.id,
+      sourceUrl: sourceUrl.trim(),
+      sourceToken: sourceToken.trim(),
+      targetProvider: targetProvider.id,
+      targetUrl: targetUrl.trim(),
+      targetToken: targetToken.trim(),
+      settingsProfile: settingsProfile.trim(),
+    );
+  }
+
   NewMigrationWizardState copyWith({
     int? step,
     MigrationProviderOption? sourceProvider,
@@ -105,6 +125,7 @@ final class NewMigrationWizardState {
     String? settingsProfile,
     String? fromTag,
     String? toTag,
+    DesktopPreflightSummary? preflightSummary,
   }) {
     return NewMigrationWizardState(
       step: step ?? this.step,
@@ -123,6 +144,7 @@ final class NewMigrationWizardState {
       settingsProfile: settingsProfile ?? this.settingsProfile,
       fromTag: fromTag ?? this.fromTag,
       toTag: toTag ?? this.toTag,
+      preflightSummary: preflightSummary ?? this.preflightSummary,
     );
   }
 

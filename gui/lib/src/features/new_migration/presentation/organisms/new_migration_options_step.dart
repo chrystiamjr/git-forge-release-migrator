@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:gfrm_gui/src/application/run/contracts/desktop_run_controller.dart';
 import 'package:gfrm_gui/src/core/widgets/atoms/gfrm_button.dart';
 import 'package:gfrm_gui/src/features/new_migration/application/new_migration_wizard_controller.dart';
 import 'package:gfrm_gui/src/features/new_migration/application/new_migration_wizard_state.dart';
@@ -9,10 +10,16 @@ import 'package:gfrm_gui/src/features/new_migration/presentation/molecules/new_m
 import 'package:gfrm_gui/src/theme/gfrm_app_theme.dart';
 
 final class NewMigrationOptionsStep extends StatelessWidget {
-  const NewMigrationOptionsStep({required this.state, required this.controller, super.key});
+  const NewMigrationOptionsStep({
+    required this.state,
+    required this.controller,
+    required this.runController,
+    super.key,
+  });
 
   final NewMigrationWizardState state;
   final NewMigrationWizardController controller;
+  final DesktopRunController runController;
 
   @override
   Widget build(BuildContext context) {
@@ -100,7 +107,11 @@ final class NewMigrationOptionsStep extends StatelessWidget {
               onPressed: () => controller.goToStep(1),
             ),
             SizedBox(width: unit.s3),
-            GfrmButton(label: 'Review request', icon: Icons.fact_check_outlined, onPressed: () {}),
+            GfrmButton(
+              label: 'Review request',
+              icon: Icons.fact_check_outlined,
+              onPressed: () => controller.reviewPreflight(runController),
+            ),
           ],
         ),
       ],
