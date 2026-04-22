@@ -156,7 +156,7 @@ When rules conflict:
 ## Repository Contract
 
 - Public CLI command is `gfrm`.
-- Supported commands stay: `migrate`, `resume`, `demo`, `setup`, `settings`.
+- Supported commands stay: `migrate`, `resume`, `demo`, `setup`, `settings`, `smoke`.
 - Supported provider pairs are GitHub, GitLab, and Bitbucket cross-provider migrations only.
 - Same-provider migrations and Bitbucket Data Center / Server are out of scope.
 - Tags migrate before releases.

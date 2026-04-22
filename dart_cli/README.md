@@ -71,6 +71,7 @@ Supported public subcommands:
 - `demo`
 - `setup`
 - `settings`
+- `smoke`
 
 CLI help behavior:
 

@@ -11,6 +11,14 @@ title: Tokens e Autenticação
 
 O `gfrm` nunca registra tokens brutos em logs.
 
+:::caution Tipo de token do Bitbucket
+O fluxo Bearer acima funciona com **Repository Access Tokens** ou **Workspace Access Tokens** (gerados em *Repository settings → Access tokens* ou *Workspace settings → Access tokens*).
+
+**API tokens** da conta Atlassian (criados em `id.atlassian.com`) retornam `401 Token is invalid, expired, or not supported for this endpoint` na REST do Bitbucket com Bearer — eles usam um esquema Basic-auth atrelado ao seu email Atlassian e não são suportados pelo `gfrm`. Use um repository ou workspace access token.
+
+A mesma restrição vale para **App Passwords** legados: o `gfrm` não configura Basic auth, então também retornarão 401.
+:::
+
 ## Opções de armazenamento
 
 ### `token_env`

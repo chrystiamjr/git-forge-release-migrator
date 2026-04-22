@@ -48,6 +48,7 @@ Public CLI commands:
 - `gfrm demo`
 - `gfrm setup`
 - `gfrm settings`
+- `gfrm smoke`
 
 `gfrm settings` actions:
 

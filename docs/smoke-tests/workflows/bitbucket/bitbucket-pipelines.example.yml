@@ -1,0 +1,179 @@
+# Example Bitbucket Pipelines config for gfrm smoke testing.
+#
+# Copy this file to bitbucket-pipelines.yml at the root of your throwaway
+# test repository. Do NOT install this in production repos — it deletes
+# EVERY tag and download in the repository.
+#
+# Repository variables required (Repository settings → Pipelines →
+# Repository variables), marked Secured:
+#   BITBUCKET_TOKEN       — Repository Access Token with scopes:
+#                           repository:admin, pipeline:write,
+#                           pipeline:variable
+#
+# Built-in variables used (provided by Bitbucket Pipelines automatically):
+#   BITBUCKET_WORKSPACE, BITBUCKET_REPO_SLUG, BITBUCKET_COMMIT,
+#   BITBUCKET_BRANCH
+#
+# Trigger manually from the Bitbucket UI (Pipelines → Run pipeline →
+# Custom) or via the gfrm smoke command, which POSTs to
+# /2.0/repositories/{workspace}/{repo}/pipelines/ with the custom
+# pipeline name.
+#
+# Note: Bitbucket Cloud does not have a native "release" object like
+# GitHub/GitLab. "Releases" here are implemented as tags plus files
+# uploaded to the repository Downloads section, which is how the gfrm
+# migrator maps them at the Bitbucket target.
+
+image: alpine:3.20
+
+definitions:
+  steps:
+    - step: &create-fake-releases
+        name: Create fake tags and downloads
+        script:
+          - apk add --no-cache curl git jq coreutils
+          - |
+            set -eu
+
+            : "${BITBUCKET_TOKEN:?BITBUCKET_TOKEN repository variable is required}"
+            : "${BITBUCKET_WORKSPACE:?BITBUCKET_WORKSPACE is required}"
+            : "${BITBUCKET_REPO_SLUG:?BITBUCKET_REPO_SLUG is required}"
+
+            API="https://api.bitbucket.org/2.0/repositories/${BITBUCKET_WORKSPACE}/${BITBUCKET_REPO_SLUG}"
+            AUTH_HEADER="Authorization: Bearer ${BITBUCKET_TOKEN}"
+
+            PREFIX="${FAKE_RELEASE_PREFIX:-v4.3.}"
+            START="${FAKE_RELEASE_START:-0}"
+            COUNT="${FAKE_RELEASE_COUNT:-10}"
+            FIRST_COMPARE_TAG="${FAKE_RELEASE_FIRST_COMPARE_TAG:-v4.2.0}"
+            SEED_BRANCH="${FAKE_RELEASE_SEED_BRANCH:-gfrm-shared-seed}"
+
+            # Ensure the seed branch exists; create it as an orphan branch if not.
+            ensure_seed_branch() {
+              if git ls-remote --exit-code --heads origin "${SEED_BRANCH}" >/dev/null 2>&1; then
+                git fetch --depth=1 origin "${SEED_BRANCH}"
+                git rev-parse "origin/${SEED_BRANCH}"
+                return
+              fi
+
+              git config user.name "gfrm-test-bot"
+              git config user.email "gfrm-test@example.invalid"
+
+              git switch --orphan "${SEED_BRANCH}"
+              git rm -rf . >/dev/null 2>&1 || true
+              printf '%s\n' "gfrm shared migration test seed" > .gfrm-shared-seed
+              git add .gfrm-shared-seed
+              GIT_AUTHOR_DATE="2026-01-01T00:00:00Z" \
+                GIT_COMMITTER_DATE="2026-01-01T00:00:00Z" \
+                git commit -m "chore: add shared gfrm test seed" >/dev/null
+
+              seed_sha="$(git rev-parse HEAD)"
+              git -c http.extraheader="Authorization: Bearer ${BITBUCKET_TOKEN}" \
+                push origin "${SEED_BRANCH}"
+              git switch "${BITBUCKET_BRANCH}"
+              printf '%s\n' "${seed_sha}"
+            }
+
+            seed_sha="$(ensure_seed_branch)"
+            echo "Using shared seed commit ${seed_sha} from ${SEED_BRANCH}"
+
+            # Per-run suffix keeps each smoke run's tag identifiers unique.
+            run_suffix="$(date -u +%Y%m%d%H%M%S)"
+            echo "Run suffix: ${run_suffix}"
+
+            end=$((START + COUNT - 1))
+
+            for number in $(seq "${START}" "${end}"); do
+              tag="${PREFIX}${number}-${run_suffix}"
+              version="${tag#v}"
+              previous_patch=$((number - 1))
+              previous_tag="${PREFIX}${previous_patch}-${run_suffix}"
+
+              if [ "${number}" -eq "${START}" ]; then
+                previous_tag="${FIRST_COMPARE_TAG}"
+              fi
+
+              # Create the annotated tag via REST.
+              curl -fsSL --silent --show-error \
+                -H "${AUTH_HEADER}" \
+                -H "Content-Type: application/json" \
+                -X POST \
+                "${API}/refs/tags" \
+                -d "$(jq -n --arg name "${tag}" --arg target "${seed_sha}" \
+                      --arg message "gfrm smoke test tag ${tag} (previous ${previous_tag})" \
+                      '{name: $name, target: {hash: $target}, message: $message}')"
+
+              # Upload fake APK-style files as Bitbucket Downloads (the
+              # closest equivalent to GitHub/GitLab release assets).
+              for channel in bypass local staging prod; do
+                if [ "${channel}" = "prod" ]; then
+                  asset="${version}.apk"
+                else
+                  asset="${version}-${channel}.apk"
+                fi
+
+                cat > "${asset}" <<EOF
+            Fake APK placeholder
+
+            Repository: ${BITBUCKET_WORKSPACE}/${BITBUCKET_REPO_SLUG}
+            Release: ${tag}
+            Asset: ${asset}
+            Channel: ${channel}
+            Purpose: GFRM migration test data only.
+            EOF
+
+                curl -fsSL --silent --show-error \
+                  -H "${AUTH_HEADER}" \
+                  -X POST \
+                  "${API}/downloads" \
+                  -F "files=@${asset}"
+
+                rm -f "${asset}"
+              done
+            done
+
+    - step: &cleanup-tags-and-downloads
+        name: Delete all tags and downloads
+        script:
+          - apk add --no-cache curl jq
+          - |
+            set -eu
+
+            : "${BITBUCKET_TOKEN:?BITBUCKET_TOKEN repository variable is required}"
+
+            API="https://api.bitbucket.org/2.0/repositories/${BITBUCKET_WORKSPACE}/${BITBUCKET_REPO_SLUG}"
+            AUTH_HEADER="Authorization: Bearer ${BITBUCKET_TOKEN}"
+
+            echo "Deleting tags..."
+            while : ; do
+              page="$(curl -fsSL -H "${AUTH_HEADER}" "${API}/refs/tags?pagelen=100")"
+              count="$(printf '%s' "${page}" | jq '.values | length')"
+              if [ "${count}" -eq 0 ]; then break; fi
+              for tag in $(printf '%s' "${page}" | jq -r '.values[].name'); do
+                if [ -n "${tag}" ]; then
+                  curl -fsSL --silent --show-error -H "${AUTH_HEADER}" \
+                    -X DELETE "${API}/refs/tags/${tag}" || true
+                fi
+              done
+            done
+
+            echo "Deleting downloads..."
+            while : ; do
+              page="$(curl -fsSL -H "${AUTH_HEADER}" "${API}/downloads?pagelen=100")"
+              count="$(printf '%s' "${page}" | jq '.values | length')"
+              if [ "${count}" -eq 0 ]; then break; fi
+              for name in $(printf '%s' "${page}" | jq -r '.values[].name'); do
+                if [ -n "${name}" ]; then
+                  curl -fsSL --silent --show-error -H "${AUTH_HEADER}" \
+                    -X DELETE "${API}/downloads/${name}" || true
+                fi
+              done
+            done
+
+pipelines:
+  custom:
+    create_fake_releases:
+      - step: *create-fake-releases
+
+    cleanup_tags_and_releases:
+      - step: *cleanup-tags-and-downloads
