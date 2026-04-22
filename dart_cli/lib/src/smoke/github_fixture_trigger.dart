@@ -1,12 +1,7 @@
 import '../core/exceptions/http_request_error.dart';
 import '../core/time.dart';
 import 'fixture_trigger.dart';
-
-typedef SmokeDelay = Future<void> Function(Duration duration);
-
-Future<void> _defaultDelay(Duration duration) {
-  return Future<void>.delayed(duration);
-}
+import 'smoke_delay.dart';
 
 /// GitHub Actions `workflow_dispatch` trigger for smoke fixtures.
 ///
@@ -22,7 +17,7 @@ final class GitHubFixtureTrigger extends FixtureTrigger {
     required super.pollInterval,
     required super.pollTimeout,
     SmokeDelay? delay,
-  }) : _delay = delay ?? _defaultDelay;
+  }) : _delay = delay ?? defaultSmokeDelay;
 
   static const String _createWorkflowFile = 'create-fake-releases.yml';
   static const String _cleanupWorkflowFile = 'cleanup-tags-and-releases.yml';

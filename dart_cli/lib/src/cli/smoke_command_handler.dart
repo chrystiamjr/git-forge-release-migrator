@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
+
 import '../application/run_request.dart';
 import '../application/run_result.dart';
 import '../application/run_service.dart';
@@ -100,8 +102,9 @@ final class SmokeCommandHandler {
       pollTimeout: Duration(seconds: smoke.pollTimeoutSeconds),
     );
 
+    final String baseDir = cwd ?? Directory.current.path;
     final Directory resultsRoot = Directory(
-      smoke.workdir.isNotEmpty ? smoke.workdir : '${Directory.current.path}/.tmp/smoke',
+      smoke.workdir.isNotEmpty ? p.normalize(smoke.workdir) : p.normalize(p.join(baseDir, '.tmp', 'smoke')),
     );
     resultsRoot.createSync(recursive: true);
 

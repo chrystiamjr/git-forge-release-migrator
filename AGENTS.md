@@ -2,7 +2,7 @@
 
 High-signal context for coding agents working in this repository.
 
-**Global context:** Inherits caveman ultra from `~/.claude/CLAUDE.md`. See that for communication patterns, intensity levels, and core principles.
+**Global context:** See `.github/instructions/caveman.instructions.md` for caveman ultra patterns.
 
 ## Quick Start
 
@@ -48,6 +48,7 @@ Public CLI commands:
 - `gfrm migrate`
 - `gfrm resume`
 - `gfrm demo`
+- `gfrm smoke`
 - `gfrm setup`
 - `gfrm settings`
 

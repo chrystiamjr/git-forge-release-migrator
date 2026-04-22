@@ -2,7 +2,7 @@
 
 Use these rules for Copilot Chat, inline suggestions, and code review in this repository.
 
-**Global context:** See `~/.claude/CLAUDE.md` for caveman ultra patterns (inherited here). Fallback: `.github/instructions/caveman.instructions.md`.
+**Global context:** See `.github/instructions/caveman.instructions.md` for caveman ultra patterns.
 
 Repo-specific product context lives in `AGENTS.md` at root. Read for domain, critical invariants, architecture map.
 

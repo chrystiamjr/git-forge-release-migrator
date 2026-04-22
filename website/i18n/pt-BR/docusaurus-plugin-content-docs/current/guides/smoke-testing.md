@@ -1,6 +1,6 @@
 ---
 sidebar_position: 5
-title: Smoke Testing
+title: Testes Smoke
 ---
 
 Este guia mostra passo a passo como configurar e rodar um smoke test real end-to-end do `gfrm` contra seus próprios repositórios de teste descartáveis em GitHub, GitLab e Bitbucket. O smoke test verifica que o binário executa de verdade um round-trip de migração: releases falsos criados na origem, migrados para o destino, artefatos validados, origem limpa.

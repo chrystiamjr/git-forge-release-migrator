@@ -105,7 +105,7 @@ Personal skills are available locally in `.github/prompts/` (symlinked to `~/.co
 - `/ask-user-question` — structured question
 - `/openai-docs` — OpenAI docs
 
-One skill per task. No chaining unless asked. If not envoked properly, read the prompt to gain context and try again.
+One skill per task. No chaining unless asked. If not invoked properly, read the prompt to gain context and try again.
 
 ## LANGUAGE
 

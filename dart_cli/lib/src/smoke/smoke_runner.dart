@@ -4,17 +4,13 @@ import '../config/types/smoke_command_options.dart';
 import '../core/logging.dart';
 import 'artifact_validator.dart';
 import 'fixture_trigger.dart';
+import 'smoke_delay.dart';
 import 'smoke_phase_outcome.dart';
 import 'smoke_result.dart';
 
 export 'smoke_phase_outcome.dart';
 export 'smoke_result.dart';
-
-typedef SmokeDelay = Future<void> Function(Duration duration);
-
-Future<void> _defaultDelay(Duration duration) {
-  return Future<void>.delayed(duration);
-}
+export 'smoke_delay.dart';
 
 /// Callback invoked by the runner to execute the underlying migration.
 ///
@@ -36,7 +32,7 @@ final class SmokeRunner {
     required this.migrate,
     required this.validator,
     SmokeDelay? delay,
-  }) : _delay = delay ?? _defaultDelay;
+  }) : _delay = delay ?? defaultSmokeDelay;
 
   final SmokeCommandOptions options;
   final ConsoleLogger logger;

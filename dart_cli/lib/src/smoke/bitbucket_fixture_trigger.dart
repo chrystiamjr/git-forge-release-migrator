@@ -1,10 +1,6 @@
 import '../core/exceptions/http_request_error.dart';
 import 'fixture_trigger.dart';
-import 'github_fixture_trigger.dart' show SmokeDelay;
-
-Future<void> _defaultDelay(Duration duration) {
-  return Future<void>.delayed(duration);
-}
+import 'smoke_delay.dart';
 
 /// Bitbucket Cloud Pipelines trigger for smoke fixtures.
 ///
@@ -23,7 +19,7 @@ final class BitbucketFixtureTrigger extends FixtureTrigger {
     required super.pollInterval,
     required super.pollTimeout,
     SmokeDelay? delay,
-  }) : _delay = delay ?? _defaultDelay;
+  }) : _delay = delay ?? defaultSmokeDelay;
 
   static const String _createPipelineName = 'create_fake_releases';
   static const String _cleanupPipelineName = 'cleanup_tags_and_releases';
