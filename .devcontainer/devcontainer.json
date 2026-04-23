@@ -11,6 +11,7 @@
     "ghcr.io/devcontainers/features/git:1": {}
   },
 
+  "initializeCommand": "mkdir -p ${localWorkspaceFolder}/migration-results ${localWorkspaceFolder}/sessions",
   "postCreateCommand": "bash .devcontainer/setup.sh",
 
   "customizations": {

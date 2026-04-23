@@ -8,7 +8,7 @@ FROM dart:3.11.0 AS builder
 WORKDIR /app
 
 # Cache pub dependencies separately from source
-COPY dart_cli/pubspec.yaml dart_cli/pubspec.lock ./dart_cli/
+COPY dart_cli/pubspec.yaml ./dart_cli/
 RUN cd dart_cli && dart pub get --no-example
 
 # Copy source and compile
