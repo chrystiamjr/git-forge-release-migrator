@@ -202,8 +202,8 @@ docker run --rm \
   -e GITHUB_TOKEN="$GITHUB_TOKEN" \
   -e GITLAB_TOKEN="$GITLAB_TOKEN" \
   gfrm migrate \
-    --source-provider gitlab --source-repo owner/repo \
-    --target-provider github --target-repo owner/repo
+    --source-provider gitlab --source-url https://gitlab.com/owner/repo \
+    --target-provider github --target-url https://github.com/owner/repo
 ```
 
 - `-v` mounts the output directory so artifacts persist after the container exits.
@@ -217,13 +217,13 @@ docker run --rm \
   -v "$(pwd)/sessions:/app/sessions" \
   -e GITHUB_TOKEN="$GITHUB_TOKEN" \
   -e GITLAB_TOKEN="$GITLAB_TOKEN" \
-  gfrm resume --session sessions/<timestamp>
+  gfrm resume --session-file sessions/last-session.json
 ```
 
 **Multi-architecture build** (linux/amd64 + linux/arm64, requires Docker Buildx):
 
 ```bash
-docker buildx build --platform linux/amd64,linux/arm64 -t gfrm .
+docker buildx build --platform linux/amd64,linux/arm64 -t gfrm . --push
 ```
 
 ---
@@ -247,7 +247,7 @@ Click **Code → Codespaces → Create codespace** — environment builds automa
 
 ```bash
 # Run the CLI
-dart run dart_cli/bin/gfrm_dart.dart --help
+cd dart_cli && dart run bin/gfrm_dart.dart --help
 
 # Run tests
 yarn test:dart

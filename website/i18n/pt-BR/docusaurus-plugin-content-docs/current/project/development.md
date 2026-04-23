@@ -54,7 +54,7 @@ Clique em **Code → Codespaces → Create codespace** — o ambiente é montado
 
 ```bash
 # Executar a CLI
-dart run dart_cli/bin/gfrm_dart.dart --help
+cd dart_cli && dart run bin/gfrm_dart.dart --help
 
 # Executar os testes
 yarn test:dart

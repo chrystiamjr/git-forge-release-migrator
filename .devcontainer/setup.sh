@@ -15,7 +15,7 @@ fvm install "$FLUTTER_VERSION"
 fvm global "$FLUTTER_VERSION"
 
 # Persist PATH additions for future shells
-echo 'export PATH="/usr/lib/dart/bin:$HOME/.pub-cache/bin:$HOME/fvm/default/bin:$PATH"' >> "$HOME/.bashrc"
+echo 'export PATH="$HOME/fvm/default/bin:/usr/lib/dart/bin:$HOME/.pub-cache/bin:$PATH"' >> "$HOME/.bashrc"
 export PATH="$HOME/fvm/default/bin:$PATH"
 
 # Node dependencies (semantic-release, husky, lint tooling)
@@ -34,5 +34,5 @@ echo "  • Flutter $(flutter --version 2>/dev/null | head -1)"
 echo "  • Dart $(dart --version 2>/dev/null)"
 echo "  • Node $(node --version)"
 echo ""
-echo "CLI:  dart run dart_cli/bin/gfrm_dart.dart --help"
+echo "CLI:  cd dart_cli && dart run bin/gfrm_dart.dart --help"
 echo "GUI:  cd gui && flutter run -d linux"

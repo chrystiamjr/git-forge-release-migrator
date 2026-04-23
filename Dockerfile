@@ -30,6 +30,12 @@ WORKDIR /app
 
 COPY --from=builder /app/dart_cli/build/gfrm /usr/local/bin/gfrm
 
+RUN useradd --no-create-home --system --uid 1001 gfrm && \
+    mkdir -p /app/migration-results /app/sessions && \
+    chown -R gfrm:gfrm /app
+
+USER gfrm
+
 # migration-results/ and sessions/ are written at runtime — mount these as volumes
 VOLUME ["/app/migration-results", "/app/sessions"]
 

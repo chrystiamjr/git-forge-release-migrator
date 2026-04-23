@@ -54,7 +54,7 @@ Click **Code → Codespaces → Create codespace** — the environment builds au
 
 ```bash
 # Run the CLI
-dart run dart_cli/bin/gfrm_dart.dart --help
+cd dart_cli && dart run bin/gfrm_dart.dart --help
 
 # Run the test suite
 yarn test:dart

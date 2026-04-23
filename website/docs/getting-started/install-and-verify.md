@@ -78,8 +78,8 @@ docker run --rm \
   -e GITHUB_TOKEN="$GITHUB_TOKEN" \
   -e GITLAB_TOKEN="$GITLAB_TOKEN" \
   gfrm migrate \
-    --source-provider gitlab --source-repo owner/repo \
-    --target-provider github --target-repo owner/repo
+    --source-provider gitlab --source-url https://gitlab.com/owner/repo \
+    --target-provider github --target-url https://github.com/owner/repo
 ```
 
 Mount `migration-results/` so artifacts persist after the container exits.
@@ -93,7 +93,7 @@ docker run --rm \
   -v "$(pwd)/sessions:/app/sessions" \
   -e GITHUB_TOKEN="$GITHUB_TOKEN" \
   -e GITLAB_TOKEN="$GITLAB_TOKEN" \
-  gfrm resume --session sessions/<timestamp>
+  gfrm resume --session-file sessions/last-session.json
 ```
 
 Mount `sessions/` as well so the saved session file is available for resume.
