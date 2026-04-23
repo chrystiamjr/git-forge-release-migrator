@@ -3,7 +3,7 @@
     "PreToolUse": [
       {
         "type": "command",
-        "command": "rtk hook copilot",
+        "command": "sh -c 'if [ \"${ENABLE_RTK_HOOKS:-0}\" = \"1\" ] && command -v rtk >/dev/null 2>&1; then rtk hook copilot; else exit 0; fi'",
         "cwd": ".",
         "timeout": 5
       }
