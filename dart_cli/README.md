@@ -184,6 +184,80 @@ After compilation, run the binary directly:
 
 The compiled binary requires no Dart/FVM runtime on the target machine.
 
+## Running with Docker
+
+No local Dart or fvm install required — only Docker.
+
+**Build the image** (from repository root):
+
+```bash
+docker build -t gfrm .
+```
+
+**Run a migration:**
+
+```bash
+docker run --rm \
+  -v "$(pwd)/migration-results:/app/migration-results" \
+  -e GITHUB_TOKEN="$GITHUB_TOKEN" \
+  -e GITLAB_TOKEN="$GITLAB_TOKEN" \
+  gfrm migrate \
+    --source-provider gitlab --source-url https://gitlab.com/owner/repo \
+    --target-provider github --target-url https://github.com/owner/repo
+```
+
+- `-v` mounts the output directory so artifacts persist after the container exits.
+- Pass forge tokens via `-e` environment variables. Never embed tokens in the image.
+
+**Resume a failed run:**
+
+```bash
+docker run --rm \
+  -v "$(pwd)/migration-results:/app/migration-results" \
+  -v "$(pwd)/sessions:/app/sessions" \
+  -e GITHUB_TOKEN="$GITHUB_TOKEN" \
+  -e GITLAB_TOKEN="$GITLAB_TOKEN" \
+  gfrm resume --session-file sessions/last-session.json
+```
+
+**Multi-architecture build** (linux/amd64 + linux/arm64, requires Docker Buildx):
+
+```bash
+docker buildx build --platform linux/amd64,linux/arm64 -t gfrm . --push
+```
+
+---
+
+## Dev Container / GitHub Codespaces
+
+Installs Flutter 3.41.0, fvm, Node 22.14.0, and all project dependencies automatically.
+No manual environment setup required. Works in VS Code and GitHub Codespaces.
+
+**VS Code:**
+
+1. Install the [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension.
+2. Clone the repository and open it in VS Code.
+3. Click **"Reopen in Container"** when prompted (or run **Dev Containers: Reopen in Container** from the command palette).
+
+**GitHub Codespaces:**
+
+Click **Code → Codespaces → Create codespace** — environment builds automatically.
+
+**After the container starts:**
+
+```bash
+# Run the CLI
+cd dart_cli && dart run bin/gfrm_dart.dart --help
+
+# Run tests
+yarn test:dart
+
+# Run the Flutter GUI (Linux display required)
+cd gui && flutter run -d linux
+```
+
+---
+
 ## Troubleshooting
 
 **`dart` command not found after `fvm use`**

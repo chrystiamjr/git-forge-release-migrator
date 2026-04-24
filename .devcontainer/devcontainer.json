@@ -1,0 +1,37 @@
+{
+  "name": "gfrm Dev Environment",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22.14.0"
+    },
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+
+  "initializeCommand": "mkdir -p ${localWorkspaceFolder}/migration-results ${localWorkspaceFolder}/sessions",
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "Dart-Code.dart-code",
+        "Dart-Code.flutter",
+        "dbaeumer.vscode-eslint"
+      ],
+      "settings": {
+        "dart.flutterSdkPath": "/home/vscode/fvm/default",
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  },
+
+  "remoteUser": "vscode",
+
+  "mounts": [
+    "source=${localWorkspaceFolder}/migration-results,target=${containerWorkspaceFolder}/migration-results,type=bind,consistency=cached",
+    "source=${localWorkspaceFolder}/sessions,target=${containerWorkspaceFolder}/sessions,type=bind,consistency=cached"
+  ]
+}
