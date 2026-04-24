@@ -1,3 +1,15 @@
+## [0.17.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.16.0...v0.17.0) (2026-04-24)
+
+### Features
+
+* **infra:** add Dockerfile and devcontainer for local setup ([f8ce699](https://github.com/chrystiamjr/git-forge-release-migrator/commit/f8ce6993825edf3ca992ecba304598a715189bc5))
+
+### Bug Fixes
+
+* **infra:** address Docker and devcontainer review comments ([b59916c](https://github.com/chrystiamjr/git-forge-release-migrator/commit/b59916c6d6552933ab020e21571f764768f55abb))
+* **infra:** address PR review comments ([204fb1f](https://github.com/chrystiamjr/git-forge-release-migrator/commit/204fb1f40dbab7b8b095fc0d93abd273ce1fab91))
+* **infra:** make rtk hook opt-in via ENABLE_RTK_HOOKS env var ([7a4ce6f](https://github.com/chrystiamjr/git-forge-release-migrator/commit/7a4ce6fa31e9167bcfa3a872dd9288d2c72ed22d))
+
 ## [0.16.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.15.0...v0.16.0) (2026-04-22)
 
 ### Features
