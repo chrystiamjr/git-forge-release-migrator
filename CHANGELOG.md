@@ -1,3 +1,10 @@
+## [0.18.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.17.0...v0.18.0) (2026-10-08)
+
+### Features
+
+* **ci:** verify ticket and pull request associations independently ([2dbe46d](https://github.com/chrystiamjr/git-forge-release-migrator/commit/2dbe46d14a712a9f3d941a1c184985fe14daebb4))
+* **dart:** bind desktop run progress to runtime state ([003df11](https://github.com/chrystiamjr/git-forge-release-migrator/commit/003df11e922bedce4bbfd2294cf3353bd0a33764))
+
 ## [0.17.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.16.0...v0.17.0) (2026-04-24)
 
 ### Features
