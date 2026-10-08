@@ -80,3 +80,11 @@ For required native/live acceptance, supply `--evidence-dir <directory>` with `n
 This verifies identity and artifact presence/hashes, not the truth of a human scenario: reviewers inspect the scenario description and results. Do not upload tokens or sensitive session files. Secret patterns supplement behavioral tests, not a security audit. Retain sanitized reports, LCOV and applicable screenshots/diffs with the CI run; temporary local capture scripts are not permanent regression tests.
 
 Finish with focused code review and an acceptance-to-evidence checklist. Any missing required scenario stays pending. Deliver to Review with both links; [ticket delivery](ticket-delivery.md) owns completion semantics.
+
+## Canonical visual CI and baseline approval
+
+`yarn test:flutter` and `yarn coverage:flutter` exclude the `visual` tag. `yarn test:flutter:visual` compares maintained progress-content goldens with bundled fonts at 1280x800 and 1024x768. Core widget-flow tests still verify shell navigation and stream binding. These goldens render page content, not native window chrome or a live forge migration.
+
+The canonical visual job uses `macos-14` and the pinned Flutter SDK; fixture theme is fixed to remove host platform differences. Initial PNGs in a PR are **proposed baselines** requiring human inspection. Validation never updates them automatically. Core Linux CI records visual work as delegated; `passed_core` is not a final delivery result. The required `ticket-validation` job only succeeds after both core and canonical visual jobs succeed. A failed, cancelled or skipped required job does not become a successful ticket gate.
+
+`prepare-validation-baseline.mjs` creates an isolated fixed-base worktree in CI, resolves dependencies and measures matching production coverage. Local source must be committed; test SDK environment sanitization applies only to subprocesses. CI reports preserve tested revision/base, sanitized logs and LCOV. Native/live artifacts remain distinct acceptance evidence; missing required scenarios remain pending.

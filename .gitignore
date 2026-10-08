@@ -44,3 +44,6 @@ node_modules/
 
 # Docusaurus website
 website/.docusaurus/
+
+# Golden comparison diagnostics; baselines remain tracked
+gui/test/goldens/failures/

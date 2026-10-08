@@ -3,6 +3,9 @@ name: Quality Checks
 on:
   pull_request:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -15,7 +18,43 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - uses: ./.github/actions/flutter-setup
 
       - uses: ./.github/actions/quality-check
+        with:
+          base_sha: ${{ github.event.pull_request.base.sha }}
+
+  gui-visual:
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/flutter-setup
+      - name: Compare maintained page goldens
+        run: node ../scripts/run-dart.js --flutter test --tags visual test/visual
+        working-directory: gui
+      - name: Upload golden diagnostics and proposed baselines
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-visual-results
+          path: gui/test/goldens/
+          retention-days: 14
+
+  ticket-validation:
+    needs: [test, gui-visual]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require core and canonical visual evidence
+        env:
+          CORE_RESULT: ${{ needs.test.result }}
+          VISUAL_RESULT: ${{ needs.gui-visual.result }}
+        run: |
+          [[ "$CORE_RESULT" == success && "$VISUAL_RESULT" == success ]]

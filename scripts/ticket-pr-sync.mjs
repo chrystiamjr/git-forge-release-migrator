@@ -9,6 +9,8 @@ export async function upsertAssociation(api, pull, issue, text) {
   const user = await api.yt('/api/users/me?fields=id');
   const marker = `gfrm-pr-link:${pull.base.repo.full_name}:${pull.number}`;
   const matches = (await trackerComments(api, issue)).filter((row) => row.text?.startsWith(`${marker}\n`));
+  const otherPR = (await trackerComments(api, issue)).some((row) => row.text?.startsWith(`gfrm-pr-link:${pull.base.repo.full_name}:`) && !row.text.startsWith(`${marker}\n`));
+  if (otherPR) throw new Error('Ticket already associated with another PR; explicit reconciliation required');
   if (matches.length > 1 || (matches.length && matches[0].author?.id !== user.id)) {
     throw new Error('Association marker collision; reconcile without overwriting other authors');
   }
@@ -41,16 +43,29 @@ export async function syncTicket(api, config, { action, number, apply = false, e
   if (pull.base?.repo?.full_name !== config.repository || !/^[a-f0-9]{40}$/.test(pull.head?.sha || '') || pull.base.ref !== 'main') throw new Error('Untrusted repository/head/base');
   const issue = issueFromBody(pull.body, config);
   if (!issue) return { status: 'not_applicable', reason: 'Explicit standalone process plan' };
+  if (!config.ticketAuthors.includes(pull.user?.login) || pull.head.repo?.full_name !== config.repository) {
+    throw new Error('Cloud ticket synchronization requires authorized same-repository PR author');
+  }
   const comments = await githubList(api, `/repos/${config.repository}/issues/${number}/comments`);
   const decision = activeHumanDecision(comments, pull.head.sha, config.humanReviewers);
-  const checks = action === 'merge' ? await checkStates(api, config.repository, number) : [];
+  const checks = action === 'merge' ? await checkStates(api, config.repository, number, pull.head.sha) : [];
   const complete = action === 'merge' && canComplete(pull, decision, checks, config);
   const status = complete ? 'Done' : pull.state === 'closed' ? 'Closed without completion evidence' : 'Review pending human decision and merge';
   if (!apply || !enabled) return { status: 'dry_run', issue, complete, reason: !enabled ? 'Tracker synchronization opt-in disabled' : undefined };
   // Association is written and verified independently, including already/skipped state transitions.
-  const association = await upsertAssociation(api, pull, issue, associationText(pull, issue, status, decision));
+  const association = await upsertAssociation(api, pull, issue, associationText(pull, issue, complete ? 'PR merged; canonical completion verification pending' : status, decision));
   if (action === 'link') return { status: 'linked', issue, association };
+  if (complete) {
+    const fresh = await api.gh(`/repos/${config.repository}/pulls/${number}`);
+    const freshComments = await githubList(api, `/repos/${config.repository}/issues/${number}/comments`);
+    const freshDecision = activeHumanDecision(freshComments, fresh.head.sha, config.humanReviewers);
+    const freshChecks = await checkStates(api, config.repository, number, fresh.head.sha);
+    if (fresh.head.sha !== pull.head.sha || fresh.merge_commit_sha !== pull.merge_commit_sha || !canComplete(fresh, freshDecision, freshChecks, config)) throw new Error('Completion evidence changed; reconcile');
+  }
   const state = await transition(api, issue, complete ? config.doneState : config.reviewState, config);
+  if (complete && ['move', 'already'].includes(state.status)) {
+    await upsertAssociation(api, pull, issue, associationText(pull, issue, 'Done (canonical state verified)', decision));
+  }
   return { status: 'synced', issue, association, state, complete };
 }
 
@@ -64,6 +79,6 @@ export async function main(args = process.argv.slice(2)) {
   return result;
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === realpathSync(process.argv[1])) {
+if (process.argv[1] && process.argv[1] !== '-' && fileURLToPath(import.meta.url) === realpathSync(process.argv[1])) {
   main().catch(() => { console.error('Ticket sync failed; credentials, trusted metadata or API verification missing. No completion claimed.'); process.exitCode = 1; });
 }

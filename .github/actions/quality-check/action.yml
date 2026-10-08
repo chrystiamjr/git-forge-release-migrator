@@ -1,48 +1,43 @@
 name: Quality Check
-description: Run quality checks
+description: Run project validation with comparable base coverage and retained evidence
+inputs:
+  base_sha:
+    description: Immutable revision for coverage comparison
+    required: false
 
 runs:
   using: composite
   steps:
     - name: Setup Node
       uses: ./.github/actions/node-setup
-
     - name: Check translations parity
       shell: bash
       run: node scripts/check-translations.mjs
-
-    - name: Test automated review helpers
+    - name: Test process and review helpers
       shell: bash
-      run: yarn test:reviewer
-
-    - name: Lint Dart sources
+      run: yarn test:process
+    - name: Prepare comparable baseline and validate current source
       shell: bash
-      run: yarn lint:dart
-
-    - name: Lint GUI sources
-      shell: bash
+      env:
+        PR_BASE_SHA: ${{ inputs.base_sha }}
+        CI: 'true'
       run: |
-        cd gui
-        dart format -l 120 --set-exit-if-changed lib test
-        flutter analyze
-
-    - name: Run GUI tests
-      shell: bash
-      run: |
-        cd gui
-        flutter test
-
-    - name: Run tests with coverage
-      shell: bash
-      run: yarn coverage:dart
-
-    - name: Upload coverage report
+        if [[ -z "$PR_BASE_SHA" ]]; then
+          PR_BASE_SHA="$(git rev-parse HEAD^)"
+        fi
+        BASE_REPORT="$(node scripts/prepare-validation-baseline.mjs "$PR_BASE_SHA" "$RUNNER_TEMP/gfrm-baseline")"
+        yarn verify:ticket --ci-core --ticket LOCAL-ci-validation --base "$PR_BASE_SHA" --baseline-report "$BASE_REPORT" --out "$RUNNER_TEMP/gfrm-validation"
+    - name: Upload sanitized validation evidence
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: coverage-report
+        name: ticket-validation-report
         path: |
+          ${{ runner.temp }}/gfrm-validation/
+          ${{ runner.temp }}/gfrm-baseline/setup.log
+          ${{ runner.temp }}/gfrm-baseline/reports/
           dart_cli/coverage/lcov.info
           dart_cli/coverage/coverage_html.zip
+          gui/coverage/lcov.info
         if-no-files-found: warn
-        retention-days: 7
+        retention-days: 14

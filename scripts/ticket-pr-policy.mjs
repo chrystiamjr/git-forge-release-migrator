@@ -20,14 +20,19 @@ export function activeHumanDecision(comments, head, humans) {
   ).sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at) || b.id - a.id);
   const latest = decisions[0];
   if (!latest || latest.body.trim().startsWith('/revoke-review') || latest.updated_at !== latest.created_at) return null;
-  return { login: latest.user.login, comment_id: latest.id, url: latest.html_url, head_sha: head };
+  return { login: latest.user.login, comment_id: latest.id, url: latest.html_url, head_sha: head, reviewed_at: latest.created_at };
 }
 
 export function canComplete(pull, decision, checks, config) {
   if (!pull.merged || !pull.merged_at || !pull.merge_commit_sha || pull.base?.ref !== 'main') return false;
   if (!decision || decision.head_sha !== pull.head.sha || !config.humanReviewers.includes(decision.login)) return false;
+  if (!(Date.parse(decision.reviewed_at) <= Date.parse(pull.merged_at))) return false;
   if (pull.merged_by?.type !== 'User' || !config.humanMergers.includes(pull.merged_by.login)) return false;
-  return config.requiredChecks.every((name) => checks.some((check) => check.name === name && check.passed === true));
+  if (!checks.some((check) => check.name === 'resolved-conversations' && check.passed === true)) return false;
+  return config.requiredChecks.every((name) => {
+    const matches = checks.filter((check) => check.name === name);
+    return matches.length > 0 && matches.every((check) => check.passed === true);
+  });
 }
 
 export function nextState(current, target, config) {

@@ -36,13 +36,14 @@
     "build:flutter:linux": "cd gui && fvm flutter build linux",
     "build:flutter:macos": "cd gui && fvm flutter build macos",
     "build:flutter:windows": "cd gui && fvm flutter build windows",
-    "test:flutter": "cd gui && node ../scripts/run-dart.js --flutter test",
+    "test:flutter": "cd gui && node ../scripts/run-dart.js --flutter test --exclude-tags visual",
     "watch:flutter": "cd gui && fvm dart run build_runner watch --delete-conflicting-outputs",
     "test:website": "yarn workspace gfrm-website test",
     "test:reviewer": "node --test scripts/*.test.mjs",
     "verify:ticket": "node scripts/run-ticket-checks.mjs",
     "test:process": "node --test scripts/*.test.mjs",
-    "coverage:flutter": "cd gui && node ../scripts/run-dart.js --flutter test --coverage"
+    "coverage:flutter": "cd gui && node ../scripts/run-dart.js --flutter test --coverage --exclude-tags visual",
+    "test:flutter:visual": "cd gui && node ../scripts/run-dart.js --flutter test --tags visual test/visual"
   },
   "devDependencies": {
     "@docusaurus/core": "^3.7.0",

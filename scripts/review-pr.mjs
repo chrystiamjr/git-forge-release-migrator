@@ -1645,6 +1645,11 @@ export function summarizeCheckState(contexts, requiredContexts, runId) {
   };
 }
 
+export function auxiliaryReviewContexts(contexts) {
+  // Human/link gates remain mandatory for merge, not for the bot auxiliary opinion.
+  return contexts.filter((name) => !['human-review', 'ticket-link'].includes(name));
+}
+
 async function fetchCheckState(owner, repo) {
   const { pullRequest, requiredContexts, requiredContextSource } = await fetchRequiredCheckContexts(
     owner,
@@ -1653,13 +1658,13 @@ async function fetchCheckState(owner, repo) {
   );
   const contexts =
     pullRequest.commits.nodes[0]?.commit?.statusCheckRollup?.contexts?.nodes?.filter(Boolean) ?? [];
-  const summarized = summarizeCheckState(contexts, requiredContexts, RUN_ID);
+  const summarized = summarizeCheckState(contexts, auxiliaryReviewContexts(requiredContexts), RUN_ID);
 
   return {
     checks_green: summarized.checks_green,
     summary: summarized.summary,
     head_sha: pullRequest.headRefOid,
-    required_contexts: requiredContexts,
+    required_contexts: auxiliaryReviewContexts(requiredContexts),
     required_context_source: requiredContextSource,
   };
 }
