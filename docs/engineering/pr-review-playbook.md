@@ -82,3 +82,7 @@ GH_TOKEN=${GH_PERSONAL_TOKEN:-$GH_TOKEN} gh api graphql -f query="
   }"
 ```
 
+
+## Ticket delivery
+
+Apply [ticket delivery](ticket-delivery.md) and [testing playbook](testing-playbook.md) after fixes. New commits invalidate the previous human review decision. Bot approval is auxiliary; leave the linked ticket in Review until the human-reviewed current head is manually merged. Never impersonate the maintainer or merge through ticket-worker.

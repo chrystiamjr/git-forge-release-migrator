@@ -3,7 +3,7 @@
 # ── Dart/Flutter format + analyze ───────────────────────────────────────────
 run_dart() {
   if command -v fvm >/dev/null 2>&1; then
-    fvm dart "$@"
+    env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR fvm dart "$@"
   else
     dart "$@"
   fi
@@ -11,7 +11,7 @@ run_dart() {
 
 run_flutter() {
   if command -v fvm >/dev/null 2>&1; then
-    fvm flutter "$@"
+    env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR fvm flutter "$@"
   else
     flutter "$@"
   fi
@@ -30,7 +30,7 @@ if [ -n "$FORMATTED" ]; then
 fi
 
 if command -v fvm >/dev/null 2>&1; then
-  (cd dart_cli && fvm dart analyze --fatal-infos) || exit 1
+  (cd dart_cli && run_dart analyze --fatal-infos) || exit 1
 else
   (cd dart_cli && dart analyze --fatal-infos) || exit 1
 fi

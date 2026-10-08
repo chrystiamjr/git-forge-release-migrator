@@ -13,7 +13,7 @@
     "get:flutter": "cd gui && fvm flutter pub get",
     "format:dart": "cd dart_cli && node ../scripts/run-dart.js format -l 120 bin lib test",
     "format:flutter": "cd gui && fvm dart format -l 120 lib test",
-    "lint:flutter": "cd gui && fvm dart format -l 120 --output=none --set-exit-if-changed lib test && fvm flutter analyze",
+    "lint:flutter": "cd gui && node ../scripts/run-dart.js format -l 120 --output=none --set-exit-if-changed lib test && node ../scripts/run-dart.js --flutter analyze",
     "prepare": "husky",
     "lint:dart": "cd dart_cli && node ../scripts/run-dart.js format -l 120 --output=none --set-exit-if-changed bin lib test && node ../scripts/run-dart.js analyze --fatal-infos",
     "test:dart": "cd dart_cli && node ../scripts/run-dart.js test",
@@ -36,10 +36,13 @@
     "build:flutter:linux": "cd gui && fvm flutter build linux",
     "build:flutter:macos": "cd gui && fvm flutter build macos",
     "build:flutter:windows": "cd gui && fvm flutter build windows",
-    "test:flutter": "cd gui && fvm flutter test",
+    "test:flutter": "cd gui && node ../scripts/run-dart.js --flutter test",
     "watch:flutter": "cd gui && fvm dart run build_runner watch --delete-conflicting-outputs",
     "test:website": "yarn workspace gfrm-website test",
-    "test:reviewer": "node --test scripts/*.test.mjs"
+    "test:reviewer": "node --test scripts/*.test.mjs",
+    "verify:ticket": "node scripts/run-ticket-checks.mjs",
+    "test:process": "node --test scripts/*.test.mjs",
+    "coverage:flutter": "cd gui && node ../scripts/run-dart.js --flutter test --coverage"
   },
   "devDependencies": {
     "@docusaurus/core": "^3.7.0",

@@ -12,6 +12,10 @@ High-signal context for coding agents working in this repository.
 4. If behavior visible to users changes, update docs under `website/docs/**` and `website/i18n/pt-BR/**`.
 5. Check `Critical Invariants`, `Architecture Map`, and `Change Rules` before making structural decisions.
 
+## Ticket Delivery
+
+Before ticket implementation, read `docs/engineering/ticket-delivery.md` and `docs/engineering/testing-playbook.md`. Run `yarn verify:ticket` with a fixed base SHA before PR handoff. Local tests or bot approval never close a ticket: stop in Review, link the PR, and await human review plus manual merge. Canonical tracker state controls dependency readiness.
+
 ## Decision Index
 
 - Changing CLI behavior or outputs: read `Product Contract` and `Critical Invariants`.

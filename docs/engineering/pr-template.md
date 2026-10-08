@@ -9,6 +9,8 @@ Use this structure for every PR opened against `main`.
 
 ## Context
 
+YouTrack: <unique trusted issue URL>
+
 <!-- What was the state before this PR?
      Why is this change needed now?
      Link related issues, tickets, or prior PRs if relevant. -->
@@ -27,6 +29,8 @@ Use this structure for every PR opened against `main`.
      What capability does it add? -->
 
 ## Expected Results
+
+Include tested head/base SHAs, validation report, coverage comparison, acceptance scenarios and links to visual/native/live evidence where applicable. State pending checks explicitly.
 
 <!-- What should reviewers verify? -->
 

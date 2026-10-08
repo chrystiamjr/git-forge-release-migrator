@@ -40,12 +40,12 @@ The GUI has two test suites:
 
 **Unit tests** — controllers, mappers, and business logic:
 ```bash
-yarn test:flutter -- --path=test/unit
+yarn test:flutter test/unit
 ```
 
-**E2E integration tests** — visual flows and user interactions across shell, dashboard, settings, and wizard:
+**Widget flow tests** — simulated flows and user interactions across shell, dashboard, settings, and wizard:
 ```bash
-yarn test:flutter -- --path=test/e2e
+yarn test:flutter test/e2e
 ```
 
 Run all tests:
@@ -55,4 +55,6 @@ yarn test:flutter
 
 Test structure:
 - `test/unit/` — isolated logic without widget rendering
-- `test/e2e/` — orchestrated workflows (shell navigation, wizard steps, preflight review)
+- `test/e2e/` — simulated widget workflows (shell navigation, wizard steps, preflight review)
+
+Ticket validation: see [testing playbook](../docs/engineering/testing-playbook.md). Widget tests do not replace native desktop or live-forge tests.

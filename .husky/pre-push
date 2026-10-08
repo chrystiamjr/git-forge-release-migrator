@@ -4,7 +4,7 @@
 cd dart_cli || exit 1
 
 if command -v fvm >/dev/null 2>&1; then
-  fvm dart test
+  env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR fvm dart test
 else
   dart test
 fi
