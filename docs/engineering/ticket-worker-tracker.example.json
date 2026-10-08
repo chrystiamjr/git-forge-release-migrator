@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "enabled": true,
+  "providers": {
+    "youtrack": {
+      "hosts": ["envolvosystems.youtrack.cloud"],
+      "token_env": "YOUTRACK_TOKEN",
+      "state_field": "Stage",
+      "order": ["Backlog", "Develop", "Review", "Test", "Staging", "Done"],
+      "events": {"start": "Develop", "pr_opened": "Review", "done": "Review"},
+      "comment": true
+    }
+  }
+}
