@@ -2,8 +2,14 @@
 
 const { spawnSync } = require('node:child_process');
 
+function sdkEnvironment() {
+  const env = { ...process.env };
+  for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR']) delete env[name];
+  return env;
+}
+
 function canUseFvm() {
-  const probe = spawnSync('fvm', ['dart', '--version'], { stdio: 'ignore' });
+  const probe = spawnSync('fvm', ['dart', '--version'], { stdio: 'ignore', env: sdkEnvironment() });
   return probe.status === 0;
 }
 
@@ -14,10 +20,11 @@ function main() {
     process.exit(1);
   }
 
+  const sdk = args[0] === '--flutter' ? (args.shift(), 'flutter') : 'dart';
   const useFvm = canUseFvm();
-  const command = useFvm ? 'fvm' : 'dart';
-  const commandArgs = useFvm ? ['dart', ...args] : args;
-  const result = spawnSync(command, commandArgs, { stdio: 'inherit' });
+  const command = useFvm ? 'fvm' : sdk;
+  const commandArgs = useFvm ? [sdk, ...args] : args;
+  const result = spawnSync(command, commandArgs, { stdio: 'inherit', env: sdkEnvironment() });
 
   if (typeof result.status === 'number') {
     process.exit(result.status);
@@ -26,4 +33,5 @@ function main() {
   process.exit(1);
 }
 
-main();
+if (require.main === module) main();
+module.exports = { sdkEnvironment };
