@@ -26,6 +26,8 @@ Full documentation is available at **[gfrm.envolvosystems.com.br](https://gfrm.e
 - `dart_cli/` holds shared Dart runtime used by CLI and desktop GUI flows.
 - `gui/` holds the Flutter desktop app foundation for macOS, Windows, and Linux.
 
+Run Progress observes typed runtime state. See [runtime events](https://gfrm.envolvosystems.com.br/docs/configuration/runtime-events).
+
 GUI quick start:
 
 ```bash

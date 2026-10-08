@@ -13,6 +13,10 @@ This package currently provides the desktop scaffold for:
 The GUI reuses shared Dart runtime contracts from `../dart_cli` instead of
 shelling out to the CLI binary.
 
+Run Progress renders current controller state and live snapshots, including phase, lifecycle,
+tag/release counters, and item outcomes. Wizard start is still disabled; runtime actions go
+through `DesktopRunController`. See [runtime events](https://gfrm.envolvosystems.com.br/docs/configuration/runtime-events).
+
 ## Quick Start
 
 From the repository root:

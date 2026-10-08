@@ -134,7 +134,8 @@ void main() {
         // New Migration → Progress
         tester.element(find.byKey(GfrmShellPage.contentKey)).go('/progress');
         await tester.pumpAndSettle();
-        expect(find.text('Live migration phase, item table, action bar, and logs will mount here.'), findsOneWidget);
+        expect(find.text('No active run'), findsOneWidget);
+        expect(find.text('Status: idle'), findsOneWidget);
 
         // Progress → Results
         tester.element(find.byKey(GfrmShellPage.contentKey)).go('/results');

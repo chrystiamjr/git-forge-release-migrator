@@ -11,7 +11,7 @@ Runtime events servem para:
 
 - observabilidade de runtime
 - asserções de teste
-- futuras atualizações de estado da GUI
+- atualizações de progresso da GUI em tempo real
 
 Eles complementam os artefatos voltados a operadores, mas não substituem `summary.json`, `failed-tags.txt`,
 `migration-log.jsonl` nem `gfrm resume`.
@@ -50,6 +50,19 @@ O modelo atual do snapshot inclui:
 
 Esse estado serve para GUI, testes e diagnósticos in-process. Ele permanece provider-agnostic e seguro para replay
 porque é derivado apenas dos runtime events canônicos acima.
+
+## Run Progress no desktop
+
+A tela desktop **Run Progress** exibe lifecycle, fase ativa e contadores separados de tags/releases para itens criados,
+que seriam criados (dry-run), existentes ignorados e falhos. A tabela exibe as entradas de progresso tipadas.
+O status de conclusão e a falha mais recente permanecem visíveis ao final da execução.
+
+A tela lê o snapshot atual de `DesktopRunController` ao entrar e acompanha seu stream de snapshots,
+mapeado a partir do `RunState` compartilhado. Não interpreta saída de terminal nem avança contadores por timer.
+Sem execução, exibe estado vazio; uma falha do stream exibe aviso de atualização e mantém o snapshot atual.
+
+Iniciar migração pelo wizard ainda está indisponível. Esta tela observa execuções iniciadas pelo controller desktop
+tipado; ações de retry/cancelamento e a tela Results são trabalhos separados.
 
 ## Famílias de eventos
 

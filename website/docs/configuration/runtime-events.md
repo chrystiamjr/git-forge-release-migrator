@@ -11,7 +11,7 @@ Runtime events are meant for:
 
 - runtime observability
 - test assertions
-- future GUI state updates
+- live GUI progress updates
 
 They complement the operator-facing artifacts, but do not replace `summary.json`, `failed-tags.txt`,
 `migration-log.jsonl`, or `gfrm resume`.
@@ -50,6 +50,19 @@ The current snapshot model includes:
 
 This state is meant for GUI, tests, and in-process diagnostics. It stays provider-agnostic and replay-safe because it
 is derived only from the canonical runtime events above.
+
+## Desktop Run Progress
+
+The desktop **Run Progress** screen displays lifecycle, active phase, and separate tag/release counters for created,
+would-create (dry-run), skipped-existing, and failed items. Its item table displays the typed progress entries.
+Completion status and the latest failure remain visible when a run finishes.
+
+The screen reads the current `DesktopRunController` snapshot on entry and updates through its snapshot stream,
+mapped from shared `RunState`. It does not parse terminal output or advance counters on a timer. With no run,
+it displays an empty state; a stream failure displays an update warning while retaining the current snapshot.
+
+Starting a migration from the wizard is still unavailable. This screen observes runs started through the typed
+desktop controller; retry/cancel actions and the Results screen are separate work.
 
 ## Event families
 
