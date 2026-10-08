@@ -7,6 +7,7 @@ import 'package:gfrm_gui/src/features/dashboard/presentation/dashboard_empty_pag
 import 'package:gfrm_gui/src/features/history/presentation/history_empty_page.dart';
 import 'package:gfrm_gui/src/features/new_migration/presentation/new_migration_page.dart';
 import 'package:gfrm_gui/src/features/results/presentation/results_empty_page.dart';
+import 'package:gfrm_gui/src/features/progress/presentation/run_progress_page.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import 'app_routes.dart';
@@ -45,12 +46,7 @@ GoRouter appRouter(Ref ref) {
           GoRoute(
             path: AppRoute.progress.path,
             pageBuilder: (BuildContext context, GoRouterState state) {
-              return _page(
-                const GfrmRoutePlaceholder(
-                  title: 'Run Progress',
-                  description: 'Live migration phase, item table, action bar, and logs will mount here.',
-                ),
-              );
+              return _page(const RunProgressPage());
             },
           ),
           GoRoute(
