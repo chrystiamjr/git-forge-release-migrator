@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "repository": "chrystiamjr/git-forge-release-migrator",
+  "youtrackHost": "envolvosystems.youtrack.cloud",
+  "issueProject": "GFRM",
+  "stateField": "Stage",
+  "stateOrder": ["Backlog", "Develop", "Review", "Test", "Staging", "Done"],
+  "reviewState": "Review",
+  "doneState": "Done",
+  "humanReviewers": ["chrystiamjr"],
+  "humanMergers": ["chrystiamjr"],
+  "requiredChecks": ["test", "ticket-validation", "human-review", "ticket-link"]
+}

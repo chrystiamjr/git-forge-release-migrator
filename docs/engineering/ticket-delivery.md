@@ -28,3 +28,21 @@ Required checks must exist before branch protection requires them. Bootstrap und
 Include ticket/PR links, branch, tested head/base SHAs, validation report, coverage comparison, review findings, actual Git actions, pending native/live checks and next human action. Never label widget simulations as native or real forge tests. Preserve previous evidence; do not overwrite another run or stage `.local`.
 
 No backwards tracker transition is automatic. Unknown/manual states and outages require reconciliation, not invented completion. Link publication must remain independent even when a transition is already applied or skipped.
+
+## Project tracker configuration and direct links
+
+Copy `ticket-worker-tracker.example.json` from this directory to the authorized workspace's ignored `.local/ticket-worker/tracker.json`. Its `validated` event is unmapped and its `done` event maps to Review: a generic local completion event can never move the canonical issue to Done. Do not commit the local config or credentials.
+
+`scripts/ticket-pr-sync.mjs` implements project-specific `link`, `review` and `merge` operations. All are read-only/dry-run by default. Mutation needs both `--apply` and `ENABLE_YOUTRACK_SYNC=true`; the maintainer must authorize the workspace or workflow. Configure `GH_TOKEN` according to the repository account rule and `YOUTRACK_TOKEN` in the environment, never in files.
+
+```bash
+node scripts/ticket-pr-sync.mjs link 68
+node scripts/ticket-pr-sync.mjs review 68
+node scripts/ticket-pr-sync.mjs merge 68
+```
+
+The example PR number is illustrative. `link` creates/updates and reads back a compact PR association in YouTrack even when a state transition is already/skipped. `review` separately attempts forward-only Review. `merge` verifies current human review, successful configured checks and a real authorized human merge before Done; it does not merge PRs. Missing evidence keeps work open.
+
+The trusted `.github/ticket-delivery.json` defines repository, host/project, human identities and required check names. Standalone maintenance PRs may explicitly include `Process plan: LOCAL-<slug>` instead of a tracker URL; never use this to omit the selected cloud ticket. Duplicate or other-author comment markers require reconciliation rather than overwriting another person's evidence.
+
+Sync failures are visible and leave delivery pending; retry an event at most once, preserve the existing PR, then use the documented dry-run/reconciliation command. Historical completed checkpoints must be reconciled against the canonical issue; a stale local Done never overrides remote Review.
