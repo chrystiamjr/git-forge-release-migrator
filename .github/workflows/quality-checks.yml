@@ -44,7 +44,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: gui-visual-results
-          path: gui/test/goldens/
+          path: |
+            gui/test/goldens/
+            gui/test/visual/failures/
           retention-days: 14
 
   ticket-validation:
