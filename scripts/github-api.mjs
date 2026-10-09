@@ -22,6 +22,9 @@ function parseRepository(fullName) {
   return { owner, repo };
 }
 
+// Added by publish-pr-review.mjs to reviews where the LLM ran; review-pr.mjs counts them to cap AI rounds per PR.
+const AI_REVIEW_ROUND_MARKER = '<!-- auto-pr-review:llm -->';
+
 async function githubRequest(path, init = {}) {
   const response = await fetch(`https://api.github.com${path}`, {
     ...init,
@@ -86,6 +89,7 @@ async function paginate(path) {
 }
 
 export {
+  AI_REVIEW_ROUND_MARKER,
   GH_TOKEN,
   REPOSITORY,
   PR_NUMBER,

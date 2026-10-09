@@ -3,6 +3,7 @@
 import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {
+    AI_REVIEW_ROUND_MARKER,
     assertRequiredEnv,
     githubRequest,
     paginate,
@@ -138,9 +139,6 @@ function formatFindingSummary(finding) {
 export function isInlineFinding(finding) {
     return finding.inline !== false;
 }
-
-// review-pr.mjs counts reviews carrying this marker to cap AI rounds per PR.
-const AI_REVIEW_ROUND_MARKER = '<!-- auto-pr-review:llm -->';
 
 function buildDetails(title, items) {
     if (items.length === 0) {

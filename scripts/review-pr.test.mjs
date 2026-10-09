@@ -16,7 +16,7 @@ import {
   buildMultiClassFindings,
   buildPriorReviewComments,
   buildReviewFindings,
-  countAiReviewRounds,
+  buildRoundLimitFinding,
   createChangedFileReader,
   buildPrintInProductionFindings,
   buildRawExceptionFindings,
@@ -26,6 +26,8 @@ import {
   buildTargetedCoverageFindings,
   isAiReviewEnabled,
   resolveAiReviewGate,
+  selectAiReviews,
+  shouldConsumeExtraRoundLabel,
   shouldRunAiReview,
   isBranchProtectionAccessDeniedError,
   selectApplicableRule,
@@ -1281,15 +1283,36 @@ test('buildPriorReviewComments keeps bot comments with trusted replies and drops
   assert.ok(prior[1].body.length <= 601);
 });
 
-test('countAiReviewRounds counts only reviews where the LLM ran', () => {
+test('selectAiReviews counts only marked reviews from the bot login', () => {
+  const marked = 'Issues found.\n\n<!-- auto-pr-review:llm -->\n\n<!-- auto-pr-review -->';
   const reviews = [
-    { body: 'Issues found.\n\n<!-- auto-pr-review:llm -->\n\n<!-- auto-pr-review -->' },
-    { body: '**LLM review:** skipped.\n\n<!-- auto-pr-review -->' },
-    { body: 'Human review.' },
-    { body: null },
+    { body: marked, user: { login: 'review-bot[bot]' } },
+    { body: marked, user: { login: 'outsider' } },
+    { body: '**LLM review:** skipped.\n\n<!-- auto-pr-review -->', user: { login: 'review-bot[bot]' } },
+    { body: null, user: { login: 'owner' } },
   ];
 
-  assert.equal(countAiReviewRounds(reviews), 1);
+  assert.equal(selectAiReviews(reviews, 'review-bot[bot]').length, 1);
+  assert.equal(selectAiReviews(reviews, undefined).length, 2);
+});
+
+test('buildRoundLimitFinding keeps blocking past the limit only when the last AI round blocked', () => {
+  const finding = buildRoundLimitFinding({ enabled: false, limitReached: true }, true);
+  assert.equal(finding.rule, 'llm_review_round_limit');
+  assert.equal(finding.severity, 'blocking');
+  assert.match(finding.message, /Add the `ai-review` label/);
+
+  assert.equal(buildRoundLimitFinding({ enabled: false, limitReached: true }, false), null);
+  assert.equal(buildRoundLimitFinding({ enabled: false, reason: 'Draft PR' }, true), null);
+  assert.equal(buildRoundLimitFinding({ enabled: true }, true), null);
+});
+
+test('shouldConsumeExtraRoundLabel only consumes the label after a completed AI round', () => {
+  const gate = { enabled: true, usesExtraRoundLabel: true };
+  assert.equal(shouldConsumeExtraRoundLabel(gate, { model: 'opus', model_version: 'claude-opus-5-5' }), true);
+  assert.equal(shouldConsumeExtraRoundLabel(gate, { error: 'engine down' }), false);
+  assert.equal(shouldConsumeExtraRoundLabel(gate, { skipped: 'No reviewable files.' }), false);
+  assert.equal(shouldConsumeExtraRoundLabel({ enabled: true, usesExtraRoundLabel: false }, { model: 'opus' }), false);
 });
 
 test('resolveAiReviewGate caps AI rounds per PR, skips drafts, and honors the extra-round label', () => {
@@ -1299,6 +1322,7 @@ test('resolveAiReviewGate caps AI rounds per PR, skips drafts, and honors the ex
     resolveAiReviewGate({ env: gateEnv, pullRequest: { ...pullRequest, ...overrides }, owner: 'owner', aiRoundsUsed });
 
   assert.deepEqual(gate({}, 2), { enabled: true, usesExtraRoundLabel: false });
+  assert.equal(gate({}, 3).limitReached, true);
   assert.match(gate({}, 3).reason, /AI review limit reached \(3 of 3 rounds\)\. Add the `ai-review` label/);
   assert.deepEqual(gate({ labels: [{ name: 'ai-review' }] }, 3), { enabled: true, usesExtraRoundLabel: true });
   assert.equal(gate({}, 1, { ...env, AI_REVIEW_MAX_ROUNDS: '1' }).enabled, false);

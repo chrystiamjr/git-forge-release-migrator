@@ -3,6 +3,7 @@
 import { writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import {
+  AI_REVIEW_ROUND_MARKER,
   REVIEW_RESULT_PATH,
   REPOSITORY,
   PR_NUMBER,
@@ -15,8 +16,6 @@ import {
 import { DISK_IO, runAiReview } from './ai-review.mjs';
 
 const AUTO_REVIEW_MARKER = '<!-- auto-pr-review -->';
-// publish-pr-review.mjs adds this to reviews where the LLM actually ran; it counts AI rounds per PR.
-const AI_REVIEW_ROUND_MARKER = '<!-- auto-pr-review:llm -->';
 const DEFAULT_AI_REVIEW_MAX_ROUNDS = 3;
 // Lets the owner buy one more AI round after the limit; only users with write access can add labels.
 const AI_REVIEW_EXTRA_ROUND_LABEL = 'ai-review';
@@ -1489,14 +1488,26 @@ export function buildGuiBoundaryFindings(files) {
 async function fetchReviewRounds(owner, repo) {
   const reviews = await paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/reviews`);
 
+  const aiReviews = selectAiReviews(reviews, process.env.REVIEW_BOT_LOGIN);
   return {
     reviewRound: reviews.filter((review) => String(review.body || '').includes(AUTO_REVIEW_MARKER)).length + 1,
-    aiRoundsUsed: countAiReviewRounds(reviews),
+    aiRoundsUsed: aiReviews.length,
+    lastAiRoundBlocked: isBlockingReview(aiReviews.at(-1)),
   };
 }
 
-export function countAiReviewRounds(reviews) {
-  return reviews.filter((review) => String(review.body || '').includes(AI_REVIEW_ROUND_MARKER)).length;
+// Anyone can submit a review on a public repo, so only the bot's own reviews count; without a known bot login
+// (local runs) every marked review counts.
+export function selectAiReviews(reviews, botLogin) {
+  return reviews.filter(
+    (review) =>
+      String(review.body || '').includes(AI_REVIEW_ROUND_MARKER) && (!botLogin || review.user?.login === botLogin),
+  );
+}
+
+// Matches every request-changes body built by publish-pr-review.mjs, including its COMMENT fallbacks.
+function isBlockingReview(review) {
+  return String(review?.body ?? '').startsWith('Issues found');
 }
 
 export function selectRequiredContexts(baseRefName, branchProtectionRules, { branchProtectionAvailable = true } = {}) {
@@ -1828,8 +1839,31 @@ export function resolveAiReviewGate({ env, pullRequest, owner, aiRoundsUsed }) {
 
   return {
     enabled: false,
+    limitReached: true,
     reason: `AI review limit reached (${aiRoundsUsed} of ${maxRounds} rounds). Add the \`${AI_REVIEW_EXTRA_ROUND_LABEL}\` label and re-run the Automated PR Review workflow for one more round.`,
   };
+}
+
+// Deterministic rules cannot clear AI findings: past the limit, a last AI round that blocked keeps blocking until
+// another AI round (the extra-round label) verifies the fixes.
+export function buildRoundLimitFinding(gate, lastAiRoundBlocked) {
+  if (!gate.limitReached || !lastAiRoundBlocked) {
+    return null;
+  }
+
+  return {
+    rule: 'llm_review_round_limit',
+    severity: 'blocking',
+    path: null,
+    line: null,
+    inline: false,
+    message: `The last AI review round found blocking issues and the AI round limit is reached. Add the \`${AI_REVIEW_EXTRA_ROUND_LABEL}\` label and re-run the Automated PR Review workflow so an AI round can verify the fixes.`,
+  };
+}
+
+// The label buys exactly one AI round: keep it when the round was skipped or the engine failed.
+export function shouldConsumeExtraRoundLabel(gate, llm) {
+  return Boolean(gate.usesExtraRoundLabel && llm && !llm.error && !llm.skipped);
 }
 
 async function removeExtraRoundLabel(owner, repo) {
@@ -1892,14 +1926,14 @@ export async function runReview() {
 
   const files = await paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/files`);
 
-  const [{ reviewRound, aiRoundsUsed }, checkState, priorComments] = await Promise.all([
+  const [{ reviewRound, aiRoundsUsed, lastAiRoundBlocked }, checkState, priorComments] = await Promise.all([
     fetchReviewRounds(owner, repo),
     fetchCheckState(owner, repo),
     fetchPriorReviewComments(owner, repo, [pullRequest.user?.login, owner].filter(Boolean)),
   ]);
 
   const aiGate = resolveAiReviewGate({ env: process.env, pullRequest, owner, aiRoundsUsed });
-  const { findings, llm } = await buildReviewFindings(
+  const { findings: reviewFindings, llm } = await buildReviewFindings(
     files,
     (hints) =>
       runAiReview({
@@ -1912,9 +1946,12 @@ export async function runReview() {
     { enabled: aiGate.enabled, disabledReason: aiGate.reason },
   );
 
-  if (aiGate.usesExtraRoundLabel && llm && !llm.error && !llm.skipped) {
+  if (shouldConsumeExtraRoundLabel(aiGate, llm)) {
     await removeExtraRoundLabel(owner, repo);
   }
+
+  const roundLimitFinding = buildRoundLimitFinding(aiGate, lastAiRoundBlocked);
+  const findings = roundLimitFinding ? [...reviewFindings, roundLimitFinding] : reviewFindings;
 
   const blockingFindings = findings.filter((finding) => finding.severity === 'blocking').length;
   const nonBlockingFindings = findings.length - blockingFindings;
