@@ -112,6 +112,31 @@ test('buildReviewContext drops full content for files that exceed the budget', a
   assert.notEqual(context.files[1].content, null);
 });
 
+test('buildReviewContext reads changed files concurrently, at most 8 at a time', async () => {
+  let inFlight = 0;
+  let maxInFlight = 0;
+  const io = {
+    ...buildIo(),
+    readChangedFile: async (file) => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((resolve) => setImmediate(resolve));
+      inFlight -= 1;
+      return file.filename;
+    },
+  };
+
+  const paths = Array.from({ length: 20 }, (_, index) => `f${index}.dart`);
+  const context = await buildReviewContext(
+    paths.map((filename) => ({ filename, status: 'modified', patch: '@@ -1 +1 @@\n+x' })),
+    io,
+  );
+
+  assert.equal(maxInFlight, 8);
+  assert.deepEqual(context.files.map((file) => file.path), paths);
+  assert.match(context.files[19].content, /f19\.dart/);
+});
+
 test('buildUserPrompt marks truncated files and lists hints', () => {
   const prompt = buildUserPrompt(
     {
@@ -178,6 +203,27 @@ test('normalizeFindings caps inline findings at 20', () => {
   assert.equal(findings.filter((finding) => !finding.inline).length, 5);
 });
 
+test('normalizeFindings gives blocking findings inline slots before lower tiers', () => {
+  const patch = `@@ -0,0 +1,30 @@\n${Array.from({ length: 30 }, (_, index) => `+line${index}`).join('\n')}`;
+  const suggestions = Array.from({ length: 25 }, (_, index) => ({
+    tier: 'suggestion',
+    path: 'a.dart',
+    line: index + 1,
+    symbol: '',
+    message: `m${index}`,
+    why: 'w',
+  }));
+  const findings = normalizeFindings(
+    {
+      findings: [...suggestions, { tier: 'critical', path: 'a.dart', line: 30, symbol: '', message: 'bug', why: 'w' }],
+    },
+    [{ filename: 'a.dart', patch }],
+  );
+
+  assert.equal(findings.find((finding) => finding.tier === 'critical').inline, true);
+  assert.equal(findings.filter((finding) => finding.inline).length, 20);
+});
+
 test('callGemini sends thinking level and schema, skips thought parts, and reports modelVersion', async () => {
   let request;
   const result = await callGemini({
@@ -242,6 +288,51 @@ test('callGemini succeeds when a retry recovers from a transient 503', async () 
 
   assert.equal(calls, 2);
   assert.deepEqual(result.review, EMPTY_REVIEW);
+});
+
+test('callGemini retries network failures and timeouts', async () => {
+  let calls = 0;
+  const result = await callGemini({
+    apiKey: 'k',
+    model: 'm',
+    thinkingLevel: 'high',
+    systemInstruction: 's',
+    userText: 'u',
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls === 1) {
+        throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+      }
+      if (calls === 2) {
+        throw new TypeError('fetch failed');
+      }
+      return buildGeminiResponse(EMPTY_REVIEW);
+    },
+    sleep: noSleep,
+  });
+
+  assert.equal(calls, 3);
+  assert.deepEqual(result.review, EMPTY_REVIEW);
+});
+
+test('callGemini rethrows the network failure after the last attempt', async () => {
+  let calls = 0;
+  await assert.rejects(
+    callGemini({
+      apiKey: 'k',
+      model: 'm',
+      thinkingLevel: 'high',
+      systemInstruction: 's',
+      userText: 'u',
+      fetchImpl: async () => {
+        calls += 1;
+        throw new TypeError('fetch failed');
+      },
+      sleep: noSleep,
+    }),
+    /fetch failed/,
+  );
+  assert.equal(calls, 4);
 });
 
 test('callGemini does not retry non-retryable statuses', async () => {

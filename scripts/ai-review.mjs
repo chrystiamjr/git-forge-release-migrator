@@ -25,6 +25,8 @@ const CLAUDE_OUTPUT_EXCERPT_LENGTH = 500;
 // ~150K tokens: keeps prompts under the >200K-token price tier.
 const CONTEXT_CHAR_BUDGET = 600_000;
 const MAX_INLINE_FINDINGS = 20;
+// One GitHub Contents API call per file; stay well under GitHub's secondary rate limit on concurrent requests.
+const MAX_CONCURRENT_FILE_READS = 8;
 
 const TIERS = ['critical', 'important', 'suggestion', 'question'];
 const BLOCKING_TIERS = new Set(['critical', 'important']);
@@ -191,17 +193,23 @@ export async function buildReviewContext(files, io = DISK_IO) {
     }
   }
 
-  const candidates = [];
-  for (const file of reviewableFiles) {
-    const content = await io.readChangedFile(file);
-    candidates.push({
-      path: file.filename,
-      status: file.status,
-      patch: file.patch ?? '',
-      content: content === null ? null : withLineNumbers(content),
-      truncated: content === null,
-    });
-  }
+  const contents = new Array(reviewableFiles.length);
+  let nextIndex = 0;
+  const readNext = async () => {
+    while (nextIndex < reviewableFiles.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      contents[index] = await io.readChangedFile(reviewableFiles[index]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(MAX_CONCURRENT_FILE_READS, reviewableFiles.length) }, readNext));
+  const candidates = reviewableFiles.map((file, index) => ({
+    path: file.filename,
+    status: file.status,
+    patch: file.patch ?? '',
+    content: contents[index] === null ? null : withLineNumbers(contents[index]),
+    truncated: contents[index] === null,
+  }));
 
   let remainingBudget = CONTEXT_CHAR_BUDGET - guidance.reduce((total, entry) => total + entry.content.length, 0);
   const includedFiles = [];
@@ -297,14 +305,22 @@ export async function callGemini({
 
   let response;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-    response = await fetchImpl(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body,
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_IN_MILLISECONDS),
-    });
+    try {
+      response = await fetchImpl(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_IN_MILLISECONDS),
+      });
+    } catch (error) {
+      // Timeouts and connection resets are as likely as a 503 under high demand: retry them too.
+      if (attempt === MAX_ATTEMPTS) {
+        throw error;
+      }
+      response = null;
+    }
 
-    if (response.ok || !RETRYABLE_STATUS_CODES.has(response.status) || attempt === MAX_ATTEMPTS) {
+    if (response && (response.ok || !RETRYABLE_STATUS_CODES.has(response.status) || attempt === MAX_ATTEMPTS)) {
       break;
     }
 
@@ -367,7 +383,12 @@ export function normalizeFindings(review, files) {
   const findings = [];
   let inlineCount = 0;
 
-  for (const finding of review.findings ?? []) {
+  // Blocking findings first, so lower tiers never take their inline slots.
+  const orderedFindings = [...(review.findings ?? [])].sort(
+    (left, right) => Number(BLOCKING_TIERS.has(right.tier)) - Number(BLOCKING_TIERS.has(left.tier)),
+  );
+
+  for (const finding of orderedFindings) {
     const file = filesByPath.get(finding.path);
     const isBlocking = BLOCKING_TIERS.has(finding.tier);
     // Never drop a blocking finding because of a path mismatch: keep it in the summary so the verdict still blocks.
