@@ -116,6 +116,14 @@ export function isInlineFinding(finding) {
     return finding.inline !== false;
 }
 
+function buildDetails(title, items) {
+    if (items.length === 0) {
+        return [];
+    }
+
+    return ['', '<details>', `<summary>${title} (${items.length})</summary>`, '', ...items, '', '</details>'];
+}
+
 function buildLlmSection(llm) {
     if (!llm) {
         return [];
@@ -129,25 +137,10 @@ function buildLlmSection(llm) {
         return ['', `**LLM review:** skipped. ${llm.skipped}`];
     }
 
-    const lines = ['', '### Change Summary', llm.change_summary || '(none)'];
-
-    if (Array.isArray(llm.tests_needed) && llm.tests_needed.length > 0) {
-        lines.push('', '### Tests Needed', ...llm.tests_needed.map((test) => `- ${test}`));
-    }
-
-    if (Array.isArray(llm.design_notes) && llm.design_notes.length > 0) {
-        lines.push(
-            '',
-            '### Design Notes',
-            ...llm.design_notes.map(
-                (note) =>
-                    `- **${note.kind}** (${note.worth_doing_now ? 'now' : 'later'}) \`${note.location}\`: ${note.problem} → ${note.direction}`,
-            ),
-        );
-    }
+    const lines = [];
 
     if (llm.verdict_reasoning) {
-        lines.push('', '### Verdict Reasoning', llm.verdict_reasoning);
+        lines.push('', `**Verdict:** ${llm.verdict_reasoning}`);
     }
 
     const partialContext = [...(llm.truncated_files ?? []), ...(llm.omitted_files ?? [])];
@@ -155,23 +148,34 @@ function buildLlmSection(llm) {
         lines.push('', `Reviewed with partial context (size budget): ${partialContext.map((path) => `\`${path}\``).join(', ')}.`);
     }
 
+    // Secondary detail stays collapsed so the inline comments remain the main read.
+    const testsNeeded = Array.isArray(llm.tests_needed) ? llm.tests_needed : [];
+    lines.push(...buildDetails('Tests needed', testsNeeded.map((test) => `- ${test}`)));
+
+    const designNotes = Array.isArray(llm.design_notes) ? llm.design_notes : [];
+    lines.push(
+        ...buildDetails(
+            'Design notes',
+            designNotes.map(
+                (note) =>
+                    `- **${note.kind}** (${note.worth_doing_now ? 'now' : 'later'}) \`${note.location}\`: ${note.problem} → ${note.direction}`,
+            ),
+        ),
+    );
+
     const dismissedHints = Array.isArray(llm.dismissed_hints) ? llm.dismissed_hints : [];
-    if (dismissedHints.length > 0) {
-        lines.push(
-            '',
-            '<details>',
-            `<summary>Dismissed heuristic hints (${dismissedHints.length})</summary>`,
-            '',
-            ...dismissedHints.map((hint) => `- \`${hint.rule}\` in \`${hint.path}\`: ${hint.reason}`),
-            '',
-            '</details>',
-        );
-    }
+    lines.push(
+        ...buildDetails(
+            'Dismissed heuristic hints',
+            dismissedHints.map((hint) => `- \`${hint.rule}\` in \`${hint.path}\`: ${hint.reason}`),
+        ),
+    );
 
     const level = llm.effort ? `effort: ${llm.effort}` : `thinking: ${llm.thinking_level}`;
     const duration = typeof llm.duration_seconds === 'number' ? ` in ${Math.round(llm.duration_seconds)}s` : '';
     const cost = typeof llm.cost_usd === 'number' ? `, est. cost $${llm.cost_usd.toFixed(2)}` : '';
-    lines.push('', `_Reviewed by ${llm.engine} / ${llm.model} (${llm.model_version}, ${level})${duration}${cost}._`);
+    const route = llm.tier ? ` Routed to ${llm.tier}: ${llm.route_reason}` : '';
+    lines.push('', `_Reviewed by ${llm.engine} / ${llm.model} (${llm.model_version}, ${level})${duration}${cost}.${route}_`);
     return lines;
 }
 

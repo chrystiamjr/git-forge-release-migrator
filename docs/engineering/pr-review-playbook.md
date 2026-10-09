@@ -19,12 +19,17 @@ tooling. The workflow runs the review scripts from the default branch, so review
 
 | Engine (`AI_REVIEW_ENGINE`) | Credential | Optional variables |
 |---|---|---|
-| `claude` (default) | secret `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token` | `CLAUDE_MODEL` (default `opus`), `CLAUDE_EFFORT` (default `medium`) |
+| `claude` (default) | secret `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token` | `CLAUDE_MODEL` (unset = routed, see below; set = pinned), `CLAUDE_EFFORT` (default `medium`, only with `CLAUDE_MODEL`) |
 | `gemini` | secret `GEMINI_API_KEY` (paid quota) | `GEMINI_MODEL` (default `gemini-flash-latest`), `GEMINI_THINKING_LEVEL` (default `high`) |
 
 Claude runs headless with all tools disabled, from an empty directory, without GitHub or Gemini credentials in its
 environment. The review body records the engine, model, and resolved model version. If the engine fails, the review
 fails closed with `llm_review_unavailable`; re-run the workflow.
+
+Unless `CLAUDE_MODEL` is set, the claude engine routes each PR by tier (`scripts/ai-review-triage-prompt.md`):
+docs-only PRs (`website/**`, `README.md`) go straight to `light`; otherwise a Haiku call at effort `low` reads the
+patches and picks `light` (haiku, `low`), `standard` (sonnet, `medium`), or `deep` (opus, `medium`). If triage fails,
+the review uses `standard`. The review footer shows the chosen tier, its reason, and the combined cost.
 
 ## 1. Fetch inline comments
 

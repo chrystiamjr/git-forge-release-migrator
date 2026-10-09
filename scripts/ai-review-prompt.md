@@ -89,12 +89,14 @@ harmless formatting, or changelog/version bumps from semantic-release.
 
 ## Other output fields
 
-- `change_summary`: 1-3 sentences on what the PR does.
-- `tests_needed`: missing test scenarios, each specific enough to write. Empty when coverage is adequate.
+Keep every field below short. The inline findings carry the detail; these fields only summarize.
+
+- `tests_needed`: missing test scenarios, one sentence each, specific enough to write. Empty when coverage is
+  adequate.
 - `design_notes`: non-blocking structural observations, kept separate from `findings`. Use `kind: duplication` for
   repeated logic, `design` for DRY/SOLID/layering issues (including where an abstraction is *not* worth it), and
-  `refactor` for a concrete restructuring direction. `location` is `path` or `path:symbol`. Set `worth_doing_now` to
-  false when the cost or scope outweighs the benefit in this PR, and say why in `direction`. Empty when nothing is
-  worth noting; never pad it.
-- `verdict_reasoning`: 1-3 sentences on why the PR is or is not safe to merge. If there are no meaningful issues, say
+  `refactor` for a concrete restructuring direction. `location` is `path` or `path:symbol`. `problem` and `direction`
+  are one sentence each. Set `worth_doing_now` to false when the cost or scope outweighs the benefit in this PR.
+  Empty when nothing is worth noting; never pad it.
+- `verdict_reasoning`: one sentence on why the PR is or is not safe to merge. If there are no meaningful issues, say
   so and name any residual risk.

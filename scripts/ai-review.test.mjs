@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   buildClaudeChildEnv,
   buildReviewContext,
+  buildTriagePrompt,
   buildUserPrompt,
   callClaudeCode,
   callGemini,
@@ -12,6 +13,7 @@ import {
   parseApplyTo,
   parseRightSideLines,
   REVIEW_SCHEMA,
+  TRIAGE_SCHEMA,
   runAiReview,
   toGeminiSchema,
 } from './ai-review.mjs';
@@ -42,7 +44,6 @@ function buildGeminiResponse(review, { modelVersion = 'gemini-3.8-flash', status
 }
 
 const EMPTY_REVIEW = {
-  change_summary: 'Adds a helper.',
   findings: [],
   design_notes: [],
   dismissed_hints: [],
@@ -563,25 +564,104 @@ test('runAiReview sends the same review payload through the claude engine', asyn
   assert.equal(typeof result.llm.duration_seconds, 'number');
 });
 
-test('runAiReview runs claude with opus at medium effort by default and honors overrides', async () => {
-  const flagsFor = async (env) => {
-    let args;
-    await runAiReview({
-      files: [{ filename: 'a.dart', status: 'added', patch: '@@ -0,0 +1 @@\n+x' }],
-      hints: [],
-      pr: {},
-      env: { CLAUDE_CODE_OAUTH_TOKEN: 'token', ...env },
-      io: buildIo({ 'a.dart': 'x' }),
-      runCommand: async (receivedArgs) => {
-        args = receivedArgs;
-        return { exitCode: 0, stdout: buildClaudeOutput(), stderr: '' };
-      },
-    });
-    return { model: args[args.indexOf('--model') + 1], effort: args[args.indexOf('--effort') + 1] };
+// Answers the triage call (TRIAGE_SCHEMA) and the review call separately, recording each call's flags.
+function buildRoutedRunCommand({ triage, triageStdout } = {}) {
+  const calls = [];
+  const runCommand = async (args) => {
+    const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
+    const isTriage = flag('--json-schema') === JSON.stringify(TRIAGE_SCHEMA);
+    calls.push({ kind: isTriage ? 'triage' : 'review', model: flag('--model'), effort: flag('--effort') });
+    if (!isTriage) {
+      return { exitCode: 0, stdout: buildClaudeOutput(), stderr: '' };
+    }
+    return {
+      exitCode: 0,
+      stdout: triageStdout ?? buildClaudeOutput({ structured_output: triage, total_cost_usd: 0.01 }),
+      stderr: '',
+    };
   };
+  return { calls, runCommand };
+}
 
-  assert.deepEqual(await flagsFor({}), { model: 'opus', effort: 'medium' });
-  assert.deepEqual(await flagsFor({ CLAUDE_MODEL: 'sonnet', CLAUDE_EFFORT: 'high' }), { model: 'sonnet', effort: 'high' });
+function runRoutedReview({ files, env = {}, runCommand }) {
+  return runAiReview({
+    files,
+    hints: [],
+    pr: { title: 't', body: '' },
+    env: { CLAUDE_CODE_OAUTH_TOKEN: 'token', ...env },
+    io: buildIo({}),
+    runCommand,
+  });
+}
+
+const DART_FILE = { filename: 'dart_cli/lib/src/core/http.dart', status: 'modified', patch: '@@ -1 +1 @@\n+x' };
+
+test('runAiReview pins the claude model without triage when CLAUDE_MODEL is set', async () => {
+  const { calls, runCommand } = buildRoutedRunCommand();
+
+  const result = await runRoutedReview({ files: [DART_FILE], env: { CLAUDE_MODEL: 'sonnet', CLAUDE_EFFORT: 'high' }, runCommand });
+
+  assert.deepEqual(calls, [{ kind: 'review', model: 'sonnet', effort: 'high' }]);
+  assert.equal(result.llm.tier, undefined);
+});
+
+test('runAiReview routes docs-only PRs to haiku at low effort without a triage call', async () => {
+  const { calls, runCommand } = buildRoutedRunCommand();
+
+  const result = await runRoutedReview({
+    files: [
+      { filename: 'website/docs/guides/bitbucket-behavior.md', status: 'modified', patch: '@@ -1 +1 @@\n+x' },
+      { filename: 'dart_cli/README.md', status: 'modified', patch: '@@ -1 +1 @@\n+x' },
+    ],
+    runCommand,
+  });
+
+  assert.deepEqual(calls, [{ kind: 'review', model: 'haiku', effort: 'low' }]);
+  assert.equal(result.llm.tier, 'light');
+  assert.equal(result.llm.model, 'haiku');
+});
+
+test('runAiReview runs the review on the model the Haiku triage picks and adds the triage cost', async () => {
+  const { calls, runCommand } = buildRoutedRunCommand({ triage: { tier: 'deep', reason: 'Touches HTTP retries.' } });
+
+  const result = await runRoutedReview({ files: [DART_FILE], runCommand });
+
+  assert.deepEqual(calls, [
+    { kind: 'triage', model: 'haiku', effort: 'low' },
+    { kind: 'review', model: 'opus', effort: 'medium' },
+  ]);
+  assert.equal(result.llm.tier, 'deep');
+  assert.equal(result.llm.route_reason, 'Touches HTTP retries.');
+  assert.equal(result.llm.model, 'opus');
+  assert.equal(result.llm.cost_usd.toFixed(2), '0.13');
+});
+
+test('runAiReview falls back to the standard tier when triage fails or returns an unknown tier', async () => {
+  for (const options of [{ triageStdout: 'not json' }, { triage: { tier: 'extreme', reason: 'r' } }]) {
+    const { calls, runCommand } = buildRoutedRunCommand(options);
+
+    const result = await runRoutedReview({ files: [DART_FILE], runCommand });
+
+    assert.deepEqual(calls.at(-1), { kind: 'review', model: 'sonnet', effort: 'medium' });
+    assert.equal(result.llm.tier, 'standard');
+    assert.equal(result.llm.route_reason, 'Triage unavailable.');
+    assert.equal(result.llm.cost_usd, 0.12);
+  }
+});
+
+test('buildTriagePrompt sends patches but not full file contents, and lists omitted files', () => {
+  const prompt = buildTriagePrompt(
+    {
+      files: [{ path: 'a.dart', status: 'modified', patch: '+changed', content: 'FULL CONTENT' }],
+      omittedFiles: ['huge.dart'],
+    },
+    { title: 'fix: a', body: 'body' },
+  );
+
+  assert.match(prompt, /title: fix: a/);
+  assert.match(prompt, /<changed_file path="a.dart" status="modified">\n\+changed/);
+  assert.doesNotMatch(prompt, /FULL CONTENT/);
+  assert.match(prompt, /<omitted_files>\nhuge.dart/);
 });
 
 test('buildReviewContext reads changed files through readChangedFile and guidance through readRepoFile', async () => {
@@ -640,7 +720,7 @@ test('runAiReview passes design notes through to llm metadata', async () => {
     files: [{ filename: 'a.dart', status: 'added', patch: '@@ -0,0 +1 @@\n+x' }],
     hints: [],
     pr: {},
-    env: { CLAUDE_CODE_OAUTH_TOKEN: 'token' },
+    env: { CLAUDE_CODE_OAUTH_TOKEN: 'token', CLAUDE_MODEL: 'opus' },
     io: buildIo({ 'a.dart': 'x' }),
     runCommand: async () => ({
       exitCode: 0,
