@@ -3,7 +3,8 @@ import { readFile } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createApi, githubList, trackerComments, checkStates } from './ticket-pr-api.mjs';
-import { activeHumanDecision, associationText, canComplete, issueFromBody, nextState } from './ticket-pr-policy.mjs';
+import { associationText, canComplete, issueFromBody, nextState } from './ticket-pr-policy.mjs';
+import { readHumanDecision } from './ticket-human-review.mjs';
 
 export async function upsertAssociation(api, pull, issue, text) {
   const user = await api.yt('/api/users/me?fields=id');
@@ -47,7 +48,7 @@ export async function syncTicket(api, config, { action, number, apply = false, e
     throw new Error('Cloud ticket synchronization requires authorized same-repository PR author');
   }
   const comments = await githubList(api, `/repos/${config.repository}/issues/${number}/comments`);
-  const decision = activeHumanDecision(comments, pull.head.sha, config.humanReviewers);
+  const decision = await readHumanDecision(api, config, pull, comments);
   const checks = action === 'merge' ? await checkStates(api, config.repository, number, pull.head.sha) : [];
   const complete = action === 'merge' && canComplete(pull, decision, checks, config);
   const status = complete ? 'Done' : pull.state === 'closed' ? 'Closed without completion evidence' : 'Review pending human decision and merge';
@@ -58,7 +59,7 @@ export async function syncTicket(api, config, { action, number, apply = false, e
   if (complete) {
     const fresh = await api.gh(`/repos/${config.repository}/pulls/${number}`);
     const freshComments = await githubList(api, `/repos/${config.repository}/issues/${number}/comments`);
-    const freshDecision = activeHumanDecision(freshComments, fresh.head.sha, config.humanReviewers);
+    const freshDecision = await readHumanDecision(api, config, fresh, freshComments);
     const freshChecks = await checkStates(api, config.repository, number, fresh.head.sha);
     if (fresh.head.sha !== pull.head.sha || fresh.merge_commit_sha !== pull.merge_commit_sha || !canComplete(fresh, freshDecision, freshChecks, config)) throw new Error('Completion evidence changed; reconcile');
   }

@@ -11,22 +11,30 @@ export function issueFromBody(body, config) {
   return id;
 }
 
-export function activeHumanDecision(comments, head, humans) {
+export function activeHumanDecision(comments, head, humans, bindings = []) {
   if (!/^[a-f0-9]{40}$/.test(head)) return null;
   const decisions = comments.filter((comment) =>
     comment.user?.type === 'User' && humans.includes(comment.user.login) &&
     ['OWNER', 'MEMBER', 'COLLABORATOR'].includes(comment.author_association) &&
-    new RegExp(`^/(reviewed|revoke-review) ${head}$`).test((comment.body || '').trim()),
+    new RegExp(`^/(reviewed|revoke-review)(?: ${head})?$`).test((comment.body || '').trim()),
   ).sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at) || b.id - a.id);
   const latest = decisions[0];
   if (!latest || latest.body.trim().startsWith('/revoke-review') || latest.updated_at !== latest.created_at) return null;
-  return { login: latest.user.login, comment_id: latest.id, url: latest.html_url, head_sha: head, reviewed_at: latest.created_at };
+  const automatic = latest.body.trim() === '/reviewed';
+  const matches = bindings.filter((binding) => binding.comment_id === latest.id && binding.head_sha === head && binding.comment_created_at === latest.created_at);
+  if (automatic && matches.length !== 1) return null;
+  if (automatic && !Number.isFinite(Date.parse(matches[0].recorded_at))) return null;
+  return {
+    login: latest.user.login, comment_id: latest.id, url: latest.html_url, head_sha: head, reviewed_at: latest.created_at,
+    ...(automatic ? { recorded_at: matches[0].recorded_at } : {}),
+  };
 }
 
 export function canComplete(pull, decision, checks, config) {
   if (!pull.merged || !pull.merged_at || !pull.merge_commit_sha || pull.base?.ref !== 'main') return false;
   if (!decision || decision.head_sha !== pull.head.sha || !config.humanReviewers.includes(decision.login)) return false;
   if (!(Date.parse(decision.reviewed_at) <= Date.parse(pull.merged_at))) return false;
+  if (decision.recorded_at && !(Date.parse(decision.recorded_at) <= Date.parse(pull.merged_at))) return false;
   if (pull.merged_by?.type !== 'User' || !config.humanMergers.includes(pull.merged_by.login)) return false;
   if (!checks.some((check) => check.name === 'resolved-conversations' && check.passed === true)) return false;
   return config.requiredChecks.every((name) => {

@@ -11,7 +11,7 @@ title: CI and Release
 
 ## Ticket delivery gates
 
-Local validation does not conclude a ticket. Delivery stops in Review with verified PR/YouTrack links until the maintainer reviews the current head and merges manually. In solo mode, a human `/reviewed <sha>` comment records the decision; bot approval is auxiliary.
+Local validation does not conclude a ticket. Delivery stops in Review with verified PR/YouTrack links until the maintainer reviews the current head and merges manually. In solo mode, a human `/reviewed` comment lets automation record the current head SHA in a persistent check; `/reviewed <sha>` explicitly selects the revision; bot approval is auxiliary. A new head invalidates either review mode; delayed automatic capture stays pending until a new comment or an explicit SHA is supplied.
 
 Quality Checks compares production coverage with an isolated fixed-base measurement, builds changed EN/PT-BR docs before merge, and runs separate canonical GUI golden comparisons. The aggregate `ticket-validation` check requires core and visual success. Reports and image diagnostics are retained as CI artifacts; proposed baseline updates need human review.
 

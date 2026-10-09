@@ -3,7 +3,8 @@ import { readFile } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createApi, githubList } from './ticket-pr-api.mjs';
-import { activeHumanDecision, issueFromBody } from './ticket-pr-policy.mjs';
+import { issueFromBody } from './ticket-pr-policy.mjs';
+import { captureReviewBinding, readHumanDecision } from './ticket-human-review.mjs';
 import { syncTicket } from './ticket-pr-sync.mjs';
 
 export function eventNumber(event, repository) {
@@ -31,12 +32,14 @@ export async function publishCheck(api, config, pull, name, passed, summary) {
 export async function handleEvent(api, config, event, enabled) {
   const number = eventNumber(event, config.repository);
   if (!number) return { status: 'not_applicable' };
+  const observedPull = await api.gh(`/repos/${config.repository}/pulls/${number}`);
+  await captureReviewBinding(api, config, observedPull, event);
   const pull = await api.gh(`/repos/${config.repository}/pulls/${number}`);
   const comments = await githubList(api, `/repos/${config.repository}/issues/${number}/comments`);
-  const decision = activeHumanDecision(comments, pull.head.sha, config.humanReviewers);
+  const decision = await readHumanDecision(api, config, pull, comments);
   await publishCheck(api, config, pull, 'human-review', !!decision,
     decision ? `Human decision: ${decision.url}\nReviewed head: ${decision.head_sha}`
-      : `Maintainer must review current head ${pull.head.sha} and personally post /reviewed ${pull.head.sha}. Bot approval is auxiliary; merge remains manual.`);
+      : `Maintainer must review current head ${pull.head.sha} and personally post /reviewed (automatic SHA capture) or /reviewed ${pull.head.sha}. Delayed or changed PRs need a new comment or explicit SHA. Bot approval is auxiliary; merge remains manual.`);
   let linked = false;
   let result;
   try {

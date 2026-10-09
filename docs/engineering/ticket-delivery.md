@@ -17,7 +17,7 @@ Read this document and [testing playbook](testing-playbook.md) before implementi
 
 ## Solo maintainer review
 
-GitHub does not allow authors to approve their own PRs. The selected solo process uses the maintainer's explicit comment `/reviewed <full-current-head-sha>` after inspecting diff, acceptance evidence, coverage and applicable visual results. The maintainer then merges manually. This is human control, **not independent peer review**.
+GitHub does not allow authors to approve their own PRs. The selected solo process uses the maintainer's explicit comment `/reviewed` or `/reviewed <full-current-head-sha>` after inspecting diff, acceptance evidence, coverage and applicable visual results. The maintainer then merges manually. This is human control, **not independent peer review**.
 
 The agent must never write that decision, approve on behalf of the maintainer, enable auto-merge or perform merge. The bot provides diagnostic review; its APPROVED verdict alone cannot conclude work. New pushes, deleted/edited decisions and `/revoke-review <sha>` invalidate review readiness. Human identity checks establish the GitHub account, not who physically operated shared credentials: submit the decision yourself in GitHub.
 
@@ -53,6 +53,14 @@ After the workflow PR is human-reviewed and merged to main, the owner must confi
 
 Observe the new checks, then require `test`, `ticket-validation`, `human-review` and `ticket-link` on main; retain resolved conversations and stale-review dismissal. Tighten admin bypass only after bootstrap works. The auxiliary bot intentionally ignores human/link gate contexts in its own opinion so it cannot deadlock solo review; those gates remain separately mandatory for merge and Done.
 
-For each PR, personally review report, diff and applicable visual artifacts, then post `/reviewed <full-current-head-sha>` in GitHub. Post a new comment rather than editing an old decision. `/revoke-review <sha>`, deletion, edits or a new commit invalidates readiness. Merge manually once required checks are green. A decision posted after merge cannot retroactively satisfy automated pre-merge approval evidence.
+For each PR, personally review report, diff and applicable visual artifacts, then post `/reviewed` or `/reviewed <full-current-head-sha>` in GitHub. Post a new comment rather than editing an old decision. `/revoke-review <sha>`, deletion, edits or a new commit invalidates readiness. Merge manually once required checks are green. A decision posted after merge cannot retroactively satisfy automated pre-merge approval evidence.
 
 The closed/merged event verifies immutable head, authorized human merger, effective pre-merge decision, successful latest GitHub Actions checks and resolved conversations before Done. Re-run the event workflow or the read-only `merge` reconciliation command after API outages; opt-in plus `--apply` is needed for mutations. Unknown/manual or backwards states stay untouched. Historical bootstrap work may require a separately documented owner decision; do not add a generic force/bypass completion flag.
+
+## Optional SHA and automatic review binding
+
+`/reviewed` records the human decision without requiring a copied SHA. On the original `issue_comment: created` event, trusted automation verifies the live unedited authorized comment and captures the open PR head in a persistent `human-review-record-<comment-id>` check. Its title and JSON output show the SHA, original comment ID and recording time. The human comment stays unchanged; automation records metadata, not a human approval command.
+
+The binding is immutable: event retries reuse it; edits/deletions invalidate the source; a new head cannot reuse it. A bare comment without exactly one trusted matching record stays pending. Delayed events after another PR update or a head change are refused; post a new comment or use `/reviewed <full-current-head-sha>` to select the revision explicitly. Capture happens when the event is processed; no claim is made that the webhook contains a historical head snapshot. Both the human decision and its automatic recording must precede merge. Never create an automatic binding for a closed/merged PR.
+
+`/reviewed <full-current-head-sha>` retains existing explicit revision behavior and needs no automatic record. `/revoke-review` invalidates the latest human decision; `/revoke-review <sha>` retains revision-specific revocation. In either mode, publish a new comment after a new commit. The agent must not submit these human commands.
