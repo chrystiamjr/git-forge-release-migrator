@@ -332,7 +332,9 @@ void main() {
         tagExistsResult: true,
         onPublish: (PublishReleaseInput input) async {
           if (input.tag == 'v1.0.0') {
-            throw HttpRequestError('HTTP 422 for https://gitlab.example/uploads?token=dst-token: asset already exists');
+            throw HttpRequestError(
+              'HTTP 422 for https://gitlab.example/uploads?token=dst-token&src=src%2Ftoken: asset already exists',
+            );
           }
           return 'ok';
         },
@@ -347,6 +349,7 @@ void main() {
           buildMinimalReleasePayload('v1.0.0'),
           buildMinimalReleasePayload('v1.1.0'),
         ],
+        sourceToken: 'src/token',
       );
 
       final ReleaseMigrationCounts counts = await ReleasePhaseRunner(logger: logger).run(ctx);
@@ -356,8 +359,9 @@ void main() {
       expect(ctx.failedTags, <String>{'v1.0.0'});
       final String log = File(ctx.logPath).readAsStringSync();
       expect(log, contains('Release publish operation failed on GitLab: HTTP 422 for'));
-      expect(log, contains('token=***: asset already exists'));
+      expect(log, contains('token=***&src=***: asset already exists'));
       expect(log, isNot(contains('dst-token')));
+      expect(log, isNot(contains('src%2Ftoken')));
     });
 
     test('propagates programming Errors from publishRelease instead of counting a failed release', () async {

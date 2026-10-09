@@ -489,6 +489,26 @@ void main() {
       expect(dio.requestCalls, 1);
     });
 
+    test('requestJson truncates large error bodies in the failure message', () async {
+      final String page = 'x' * 5000;
+      final _QueueDio dio = _QueueDio(
+        requestResults: <dynamic>[
+          _response('https://example.com/api', 404, data: page),
+        ],
+      );
+      final HttpClientHelper helper = HttpClientHelper(dio: dio, delay: (Duration _) async {});
+
+      await expectLater(
+        () => helper.requestJson('https://example.com/api', retries: 3),
+        throwsA(
+          isA<HttpRequestError>()
+              .having((HttpRequestError error) => error.message, 'message',
+                  startsWith('HTTP 404 for https://example.com/api: '))
+              .having((HttpRequestError error) => error.message.length, 'length', lessThan(400)),
+        ),
+      );
+    });
+
     test('requestJson retries 429 responses', () async {
       final _QueueDio dio = _QueueDio(
         requestResults: <dynamic>[

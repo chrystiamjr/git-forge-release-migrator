@@ -154,7 +154,8 @@ class HttpClientHelper {
         }
 
         final String detail = body.isEmpty ? 'HTTP $statusCode for $url' : body;
-        lastError = body.isEmpty ? detail : 'HTTP $statusCode for $url: $body';
+        // Callers copy this message into logs and runtime events: keep large error pages out of them.
+        lastError = body.isEmpty ? detail : 'HTTP $statusCode for $url: ${body.substring(0, _safePreviewLength(body))}';
 
         if (statusCode == HttpStatus.unauthorized) {
           throw AuthenticationError('Authentication failed (401) for $url: $detail');

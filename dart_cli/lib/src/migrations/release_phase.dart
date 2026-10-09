@@ -123,12 +123,20 @@ class ReleasePhaseRunner {
       rethrow;
     } on Exception catch (exc) {
       // Only runtime failures fail this one release; programming Errors propagate.
-      return (status: 'failed', cause: _redactToken(exc.toString(), ctx.options.targetToken));
+      return (
+        status: 'failed',
+        cause: _redactTokens(exc.toString(), <String>[ctx.options.targetToken, ctx.options.sourceToken]),
+      );
     }
   }
 
-  String _redactToken(String message, String token) {
-    return token.isEmpty ? message : message.replaceAll(token, '***');
+  String _redactTokens(String message, List<String> tokens) {
+    String redacted = message;
+    for (final String token in tokens.where((String token) => token.isNotEmpty)) {
+      // URLs may carry the token query-encoded (e.g. GitLab private_token links).
+      redacted = redacted.replaceAll(token, '***').replaceAll(Uri.encodeQueryComponent(token), '***');
+    }
+    return redacted;
   }
 
   bool _handleAlreadyProcessed(
