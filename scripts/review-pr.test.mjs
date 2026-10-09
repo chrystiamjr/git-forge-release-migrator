@@ -14,12 +14,16 @@ import {
   buildLongMethodFindings,
   buildMissingPatchFindings,
   buildMultiClassFindings,
+  buildReviewFindings,
+  createChangedFileReader,
   buildPrintInProductionFindings,
   buildRawExceptionFindings,
   buildSecretFindings,
   buildSetStateFindings,
   buildSilentCatchFindings,
   buildTargetedCoverageFindings,
+  isAiReviewEnabled,
+  shouldRunAiReview,
   isBranchProtectionAccessDeniedError,
   selectApplicableRule,
   selectRequiredContexts,
@@ -1125,4 +1129,126 @@ test('buildGuiBoundaryFindings ignores comments', () => {
   ]);
 
   assert.deepEqual(findings, []);
+});
+
+test('buildReviewFindings sends heuristics to the LLM as hints instead of posting them', async () => {
+  const files = [
+    buildPatchedFile({
+      filename: 'gui/lib/src/widgets/counter.dart',
+      patch: '@@ -0,0 +1,1 @@\n+    setState(() => count++);',
+    }),
+  ];
+  let receivedHints;
+
+  const { findings, llm } = await buildReviewFindings(files, async (hints) => {
+    receivedHints = hints;
+    return { findings: [], llm: { model: 'gemini-flash-latest' } };
+  }, { enabled: true });
+
+  assert.deepEqual(
+    receivedHints.map((hint) => hint.rule),
+    ['set_state_in_riverpod_project'],
+  );
+  assert.deepEqual(findings, []);
+  assert.equal(llm.model, 'gemini-flash-latest');
+});
+
+test('buildReviewFindings keeps hard findings and merges LLM findings sorted by path', async () => {
+  const files = [
+    buildPatchedFile({
+      filename: 'website/docs/intro.md',
+      patch: '@@ -1,1 +1,1 @@\n+Updated intro',
+    }),
+  ];
+
+  const { findings } = await buildReviewFindings(files, async () => ({
+    findings: [
+      { rule: 'llm_important', severity: 'blocking', tier: 'important', path: 'a.dart', line: 1, message: 'm', inline: true },
+    ],
+    llm: {},
+  }), { enabled: true });
+
+  assert.deepEqual(
+    findings.map((finding) => finding.rule),
+    ['llm_important', 'missing_pt_br_doc_sync'],
+  );
+});
+
+test('buildReviewFindings fails closed with hints and a blocking finding when the LLM errors', async () => {
+  const files = [
+    buildPatchedFile({
+      filename: 'gui/lib/src/widgets/counter.dart',
+      patch: '@@ -0,0 +1,1 @@\n+    setState(() => count++);',
+    }),
+  ];
+
+  const { findings, llm } = await buildReviewFindings(files, async () => {
+    throw new Error('GEMINI_API_KEY is not configured.');
+  }, { enabled: true });
+
+  const unavailable = findings.find((finding) => finding.rule === 'llm_review_unavailable');
+  assert.equal(unavailable.severity, 'blocking');
+  assert.equal(unavailable.inline, false);
+  assert.ok(findings.some((finding) => finding.rule === 'set_state_in_riverpod_project'));
+  assert.deepEqual(llm, { error: 'GEMINI_API_KEY is not configured.' });
+});
+
+test('buildReviewFindings skips the LLM and posts hints when AI review is disabled', async () => {
+  const files = [
+    buildPatchedFile({
+      filename: 'gui/lib/src/widgets/counter.dart',
+      patch: '@@ -0,0 +1,1 @@\n+    setState(() => count++);',
+    }),
+  ];
+
+  const { findings, llm } = await buildReviewFindings(
+    files,
+    async () => {
+      throw new Error('LLM must not be called when disabled');
+    },
+    { enabled: false },
+  );
+
+  assert.deepEqual(
+    findings.map((finding) => finding.rule),
+    ['set_state_in_riverpod_project'],
+  );
+  assert.match(llm.skipped, /AI_REVIEW_ENABLED=true/);
+});
+
+test('isAiReviewEnabled is opt-in', () => {
+  assert.equal(isAiReviewEnabled({ AI_REVIEW_ENABLED: 'true' }), true);
+  assert.equal(isAiReviewEnabled({ AI_REVIEW_ENABLED: ' TRUE ' }), true);
+  assert.equal(isAiReviewEnabled({ AI_REVIEW_ENABLED: 'false' }), false);
+  assert.equal(isAiReviewEnabled({ AI_REVIEW_ENABLED: '' }), false);
+  assert.equal(isAiReviewEnabled({}), false);
+});
+
+test('createChangedFileReader fetches content at the head SHA and decodes base64', async () => {
+  const requests = [];
+  const readChangedFile = createChangedFileReader('owner', 'repo', 'abc123', async (path) => {
+    requests.push(path);
+    return { encoding: 'base64', content: Buffer.from('head content').toString('base64') };
+  });
+
+  assert.equal(await readChangedFile({ filename: 'website/docs/a b.md' }), 'head content');
+  assert.deepEqual(requests, ['/repos/owner/repo/contents/website/docs/a%20b.md?ref=abc123']);
+});
+
+test('createChangedFileReader returns null for files the contents API cannot inline', async () => {
+  const tooLarge = createChangedFileReader('o', 'r', 's', async () => ({ encoding: 'none', content: '' }));
+  const missing = createChangedFileReader('o', 'r', 's', async () => {
+    throw new Error('GitHub API 404 for /repos/o/r/contents/x');
+  });
+
+  assert.equal(await tooLarge({ filename: 'big.bin' }), null);
+  assert.equal(await missing({ filename: 'x' }), null);
+});
+
+test('shouldRunAiReview requires the opt-in and a PR authored by the repository owner', () => {
+  const enabled = { AI_REVIEW_ENABLED: 'true' };
+  assert.equal(shouldRunAiReview(enabled, 'chrystiamjr', 'chrystiamjr'), true);
+  assert.equal(shouldRunAiReview(enabled, 'contributor', 'chrystiamjr'), false);
+  assert.equal(shouldRunAiReview(enabled, undefined, 'chrystiamjr'), false);
+  assert.equal(shouldRunAiReview({ AI_REVIEW_ENABLED: 'false' }, 'chrystiamjr', 'chrystiamjr'), false);
 });

@@ -1,5 +1,5 @@
 ---
-applyTo: ".github/workflows/**/*.yml,.github/actions/**/*.yml,scripts/review-pr*.mjs,scripts/publish-pr-review.mjs,scripts/*.test.mjs"
+applyTo: ".github/workflows/**/*.yml,.github/actions/**/*.yml,scripts/review-pr*.mjs,scripts/publish-pr-review.mjs,scripts/ai-review*.mjs,scripts/ai-review-prompt.md,scripts/*.test.mjs"
 ---
 
 # Workflow And Review Automation Rules
@@ -59,6 +59,14 @@ Flag when you see:
 - Marker string (`<!-- auto-pr-review -->`) changed without updating both scripts.
 - New `TARGETED_TEST_GROUPS` or `CONTRACT_DOC_GROUPS` entry without signal patterns — will always trigger.
 - Regex patterns without escaping special characters in user-controlled content.
+- LLM review paths (`ai-review.mjs`) that can return without findings on error — engine failures must surface as
+  the blocking `llm_review_unavailable` finding.
+- LLM engine credentials passed to the review step without the owner-only `ai-gate` condition, or a headless engine
+  invoked with tools enabled — PR content is untrusted prompt input.
+- Changed-file content read from the workflow checkout instead of the PR head SHA — the checkout is the default
+  branch.
+- Heuristic rules moved into `buildHardFindings` without being exact invariants — fuzzy rules belong in
+  `buildHintFindings`.
 
 ## Quality Gate Alignment
 

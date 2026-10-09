@@ -101,6 +101,38 @@ jobs:
           echo "Automated PR review skipped because no review bot credentials were configured."
           echo "Configure REVIEW_BOT_APP_ID + REVIEW_BOT_APP_PRIVATE_KEY, GH_REVIEW_BOT_TOKEN, or GH_TOKEN."
 
+      # LLM review layer (scripts/ai-review.mjs). Opt-in and owner-only: PR content is untrusted prompt
+      # input, so only PRs triggered here, and authored (checked in review-pr.mjs), by the repository owner
+      # reach the LLM (limits prompt injection and subscription quota use). Changed files are fetched at the PR head SHA; scripts run from the trusted
+      # default-branch checkout.
+      # When enabled it fails closed: a missing or failing engine adds a blocking llm_review_unavailable finding.
+      #   vars.AI_REVIEW_ENABLED          'true' to enable; anything else = deterministic rules only
+      #   vars.AI_REVIEW_ENGINE           optional, claude (default) | gemini
+      #   secrets.CLAUDE_CODE_OAUTH_TOKEN claude engine; from `claude setup-token` (Claude subscription)
+      #   vars.CLAUDE_MODEL               optional, default opus
+      #   vars.CLAUDE_EFFORT              optional, default medium
+      #   secrets.GEMINI_API_KEY          gemini engine
+      #   vars.GEMINI_MODEL               optional, default gemini-flash-latest (e.g. gemini-pro-latest)
+      #   vars.GEMINI_THINKING_LEVEL      optional, default high
+      - name: Resolve AI review gate
+        id: ai-gate
+        if: steps.pr.outputs.number != '' && steps.review-token.outputs.configured == 'true'
+        env:
+          AI_REVIEW_ENABLED: ${{ vars.AI_REVIEW_ENABLED }}
+          ACTOR: ${{ github.event.workflow_run.actor.login }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          if [[ "${AI_REVIEW_ENABLED}" == "true" && "${ACTOR}" == "${OWNER}" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "AI review skipped (AI_REVIEW_ENABLED='${AI_REVIEW_ENABLED}', actor='${ACTOR}')."
+          fi
+
+      - name: Install Claude Code CLI
+        if: steps.ai-gate.outputs.enabled == 'true' && (vars.AI_REVIEW_ENGINE == '' || vars.AI_REVIEW_ENGINE == 'claude')
+        run: npm install --global @anthropic-ai/claude-code@2.1.282
+
       - name: Run automated review analysis
         if: steps.pr.outputs.number != '' && steps.review-token.outputs.configured == 'true'
         env:
@@ -108,6 +140,14 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUN_ID: ${{ github.run_id }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
+          AI_REVIEW_ENABLED: ${{ steps.ai-gate.outputs.enabled }}
+          AI_REVIEW_ENGINE: ${{ vars.AI_REVIEW_ENGINE }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.ai-gate.outputs.enabled == 'true' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
+          CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL }}
+          CLAUDE_EFFORT: ${{ vars.CLAUDE_EFFORT }}
+          GEMINI_API_KEY: ${{ steps.ai-gate.outputs.enabled == 'true' && secrets.GEMINI_API_KEY || '' }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          GEMINI_THINKING_LEVEL: ${{ vars.GEMINI_THINKING_LEVEL }}
         run: node scripts/review-pr.mjs
 
       - name: Ensure fallback review result exists

@@ -12,6 +12,7 @@ import {
   githubGraphql,
   paginate,
 } from './github-api.mjs';
+import { DISK_IO, runAiReview } from './ai-review.mjs';
 
 const AUTO_REVIEW_MARKER = '<!-- auto-pr-review -->';
 const RUN_ID = process.env.GITHUB_RUN_ID || '';
@@ -1693,6 +1694,104 @@ async function handleFatalError(error) {
   console.error(error);
 }
 
+// Exact invariants: cheap, never hallucinate, always post and block on their own.
+export function buildHardFindings(files) {
+  return [
+    ...buildMissingPatchFindings(files),
+    ...buildSecretFindings(files),
+    ...buildInvariantContractFindings(files),
+    ...buildDirectDependencyFindings(files),
+    ...buildGuiBoundaryFindings(files),
+    ...buildDocsSyncFindings(files),
+    ...buildContractDocsFindings(files),
+  ];
+}
+
+// Fuzzy heuristics: passed to the LLM reviewer as hints to confirm or dismiss.
+export function buildHintFindings(files) {
+  return [
+    ...buildRawExceptionFindings(files),
+    ...buildSilentCatchFindings(files),
+    ...buildPrintInProductionFindings(files),
+    ...buildMultiClassFindings(files),
+    ...buildLogicInBuildFindings(files),
+    ...buildGodClassFindings(files),
+    ...buildLongMethodFindings(files),
+    ...buildSetStateFindings(files),
+    ...buildDartTestFindings(files),
+    ...buildTargetedCoverageFindings(files),
+    ...buildFlutterTestFindings(files),
+    ...buildFlutterTargetedCoverageFindings(files),
+  ];
+}
+
+function compareFindings(left, right) {
+  return (left.path ?? '').localeCompare(right.path ?? '') || (left.line ?? 0) - (right.line ?? 0);
+}
+
+// The workflow checks out the trusted default branch, so changed files must be read at the PR head SHA.
+export function createChangedFileReader(owner, repo, headSha, request = githubRequest) {
+  return async (file) => {
+    const encodedPath = file.filename.split('/').map(encodeURIComponent).join('/');
+
+    try {
+      const data = await request(`/repos/${owner}/${repo}/contents/${encodedPath}?ref=${headSha}`);
+      // Files over 1 MB come back with encoding "none"; the reviewer falls back to the patch.
+      return data?.encoding === 'base64' ? Buffer.from(data.content, 'base64').toString('utf8') : null;
+    } catch (error) {
+      console.error(`[review-pr] Could not load ${file.filename} at ${headSha}: ${error.message}`);
+      return null;
+    }
+  };
+}
+
+// Opt-in so the workflow on the default branch keeps working until the secret and variable are configured.
+export function isAiReviewEnabled(env = process.env) {
+  return String(env.AI_REVIEW_ENABLED ?? '').trim().toLowerCase() === 'true';
+}
+
+// The workflow gate checks who triggered the run; this also checks who wrote the PR content the model reads.
+export function shouldRunAiReview(env, prAuthor, repositoryOwner) {
+  return isAiReviewEnabled(env) && Boolean(prAuthor) && prAuthor === repositoryOwner;
+}
+
+export async function buildReviewFindings(
+  files,
+  llmReviewer,
+  { enabled, disabledReason = 'AI review disabled. Set repo variable AI_REVIEW_ENABLED=true to enable.' },
+) {
+  const hardFindings = buildHardFindings(files);
+  const hintFindings = buildHintFindings(files);
+
+  if (!enabled) {
+    return {
+      findings: [...hardFindings, ...hintFindings].sort(compareFindings),
+      llm: { skipped: disabledReason },
+    };
+  }
+
+  try {
+    const { findings: llmFindings, llm } = await llmReviewer(hintFindings);
+    return { findings: [...hardFindings, ...llmFindings].sort(compareFindings), llm };
+  } catch (error) {
+    // Fail closed: without the LLM review, fall back to posting the hints and block until a rerun succeeds.
+    console.error(`[review-pr] LLM review unavailable: ${error.message}`);
+    const unavailableFinding = {
+      rule: 'llm_review_unavailable',
+      severity: 'blocking',
+      path: null,
+      line: null,
+      inline: false,
+      message: `LLM review could not run (${error.message}). Re-run the Automated PR Review workflow once the cause is fixed.`,
+    };
+
+    return {
+      findings: [...hardFindings, ...hintFindings, unavailableFinding].sort(compareFindings),
+      llm: { error: error.message },
+    };
+  }
+}
+
 export async function runReview() {
   assertRequiredEnv();
 
@@ -1707,27 +1806,22 @@ export async function runReview() {
     fetchCheckState(owner, repo),
   ]);
 
-  const findings = [
-    ...buildMissingPatchFindings(files),
-    ...buildSecretFindings(files),
-    ...buildInvariantContractFindings(files),
-    ...buildRawExceptionFindings(files),
-    ...buildSilentCatchFindings(files),
-    ...buildPrintInProductionFindings(files),
-    ...buildMultiClassFindings(files),
-    ...buildLogicInBuildFindings(files),
-    ...buildGodClassFindings(files),
-    ...buildLongMethodFindings(files),
-    ...buildSetStateFindings(files),
-    ...buildDirectDependencyFindings(files),
-    ...buildGuiBoundaryFindings(files),
-    ...buildDartTestFindings(files),
-    ...buildTargetedCoverageFindings(files),
-    ...buildFlutterTestFindings(files),
-    ...buildFlutterTargetedCoverageFindings(files),
-    ...buildDocsSyncFindings(files),
-    ...buildContractDocsFindings(files),
-  ].sort((left, right) => left.path.localeCompare(right.path) || left.line - right.line);
+  const { findings, llm } = await buildReviewFindings(
+    files,
+    (hints) =>
+      runAiReview({
+        files,
+        hints,
+        pr: { title: pullRequest.title, body: pullRequest.body },
+        io: { ...DISK_IO, readChangedFile: createChangedFileReader(owner, repo, pullRequest.head.sha) },
+      }),
+    {
+      enabled: shouldRunAiReview(process.env, pullRequest.user?.login, owner),
+      disabledReason: isAiReviewEnabled()
+        ? 'AI review runs only on PRs authored by the repository owner.'
+        : undefined,
+    },
+  );
 
   const blockingFindings = findings.filter((finding) => finding.severity === 'blocking').length;
   const nonBlockingFindings = findings.length - blockingFindings;
@@ -1746,6 +1840,7 @@ export async function runReview() {
     required_context_source: checkState.required_context_source,
     verdict,
     findings,
+    llm,
     marker: AUTO_REVIEW_MARKER,
   };
 }
