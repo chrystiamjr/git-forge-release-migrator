@@ -49,6 +49,12 @@ class HttpClientHelper {
     return lower.contains('rate limit') || lower.contains('ratelimit') || lower.contains('too many requests');
   }
 
+  bool _isRetryableStatus(int statusCode) {
+    return statusCode == HttpStatus.requestTimeout ||
+        statusCode == HttpStatus.tooManyRequests ||
+        statusCode >= HttpStatus.internalServerError;
+  }
+
   int _safePreviewLength(String body) {
     return min(body.length, 300);
   }
@@ -147,15 +153,20 @@ class HttpClientHelper {
           }
         }
 
-        lastError = body.isEmpty ? 'HTTP $statusCode for $url' : body;
+        final String detail = body.isEmpty ? 'HTTP $statusCode for $url' : body;
+        lastError = body.isEmpty ? detail : 'HTTP $statusCode for $url: $body';
 
         if (statusCode == HttpStatus.unauthorized) {
-          throw AuthenticationError('Authentication failed (401) for $url: $lastError');
+          throw AuthenticationError('Authentication failed (401) for $url: $detail');
         }
 
-        if (statusCode == HttpStatus.forbidden &&
-            !_isRateLimitedForbidden(headers: response.headers, body: lastError)) {
-          throw AuthenticationError('Authorization denied (403) for $url: $lastError');
+        if (statusCode == HttpStatus.forbidden && !_isRateLimitedForbidden(headers: response.headers, body: detail)) {
+          throw AuthenticationError('Authorization denied (403) for $url: $detail');
+        }
+
+        // Other 4xx responses (404, 409, 422, ...) fail the same way on every attempt.
+        if (statusCode != HttpStatus.forbidden && !_isRetryableStatus(statusCode)) {
+          throw HttpRequestError(lastError);
         }
 
         if (attempt < retries) {
@@ -163,6 +174,8 @@ class HttpClientHelper {
           wait = Duration(milliseconds: _nextBackoffMillis(wait));
         }
       } on AuthenticationError {
+        rethrow;
+      } on HttpRequestError {
         rethrow;
       } on DioException catch (exc) {
         final int status = exc.response?.statusCode ?? 0;

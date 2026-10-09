@@ -324,6 +324,37 @@ void main() {
       expect(ctx.failedTags, contains('v1.0.0'));
     });
 
+    test('marks release failed and keeps going when publishRelease throws', () async {
+      final Directory temp = createTempDir('gfrm-rel-phase-');
+
+      final _StubTargetAdapter target = _StubTargetAdapter(
+        tagExistsResult: true,
+        onPublish: (PublishReleaseInput input) async {
+          if (input.tag == 'v1.0.0') {
+            throw StateError('HTTP 422 asset already exists');
+          }
+          return 'ok';
+        },
+      );
+      final MigrationContext ctx = buildMigrationContext(
+        temp,
+        _StubSourceAdapter(),
+        target,
+        selectedTags: <String>['v1.0.0', 'v1.1.0'],
+        targetTags: <String>{'v1.0.0', 'v1.1.0'},
+        releases: <Map<String, dynamic>>[
+          buildMinimalReleasePayload('v1.0.0'),
+          buildMinimalReleasePayload('v1.1.0'),
+        ],
+      );
+
+      final ReleaseMigrationCounts counts = await ReleasePhaseRunner(logger: logger).run(ctx);
+
+      expect(counts.failed, 1);
+      expect(counts.created, 1);
+      expect(ctx.failedTags, <String>{'v1.0.0'});
+    });
+
     test('rethrows AuthenticationError from publishRelease', () async {
       final Directory temp = createTempDir('gfrm-rel-phase-');
 

@@ -470,6 +470,40 @@ void main() {
       );
     });
 
+    test('requestJson fails fast on non-retryable 4xx and reports the status', () async {
+      final _QueueDio dio = _QueueDio(
+        requestResults: <dynamic>[
+          _response('https://example.com/api', 422, data: '{"message":"already_exists"}'),
+        ],
+      );
+      final HttpClientHelper helper = HttpClientHelper(dio: dio, delay: (Duration _) async {});
+
+      await expectLater(
+        () => helper.requestJson('https://example.com/api', method: 'POST', retries: 3),
+        throwsA(
+          isA<HttpRequestError>()
+              .having((HttpRequestError error) => error.message, 'message', contains('HTTP 422'))
+              .having((HttpRequestError error) => error.message, 'message', contains('already_exists')),
+        ),
+      );
+      expect(dio.requestCalls, 1);
+    });
+
+    test('requestJson retries 429 responses', () async {
+      final _QueueDio dio = _QueueDio(
+        requestResults: <dynamic>[
+          _response('https://example.com/api', 429, data: 'slow down'),
+          _response('https://example.com/api', 200, data: '{"ok":true}'),
+        ],
+      );
+      final HttpClientHelper helper = HttpClientHelper(dio: dio, delay: (Duration _) async {});
+
+      final dynamic result = await helper.requestJson('https://example.com/api', retries: 2);
+
+      expect((result as Map<String, dynamic>)['ok'], isTrue);
+      expect(dio.requestCalls, 2);
+    });
+
     test('requestJson throws HttpRequestError after retryable responses are exhausted', () async {
       final _QueueDio dio = _QueueDio(
         requestResults: <dynamic>[

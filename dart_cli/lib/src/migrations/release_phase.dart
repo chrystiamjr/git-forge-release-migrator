@@ -105,7 +105,8 @@ class ReleasePhaseRunner {
     ExistingReleaseInfo existingInfo,
   ) async {
     try {
-      return ctx.target.publishRelease(
+      // `await` is required: a returned future's error would escape this try/catch.
+      return await ctx.target.publishRelease(
         PublishReleaseInput(
           providerRef: ctx.targetRef,
           token: ctx.options.targetToken,

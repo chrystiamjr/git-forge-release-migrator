@@ -30,6 +30,7 @@ class GitHubAdapter extends ProviderAdapter {
 
   static const String _apiBase = 'https://api.github.com';
   static const int _assetUploadWorkers = 4;
+  static final RegExp _fullCommitShaPattern = RegExp(r'^[0-9a-f]{40}$');
 
   Map<String, String> _headers(String token) => <String, String>{
         'Authorization': 'Bearer $token',
@@ -458,11 +459,16 @@ class GitHubAdapter extends ProviderAdapter {
     String tag,
     CanonicalRelease canonical,
   ) async {
-    if (canonical.commitSha.isNotEmpty) {
-      return canonical.commitSha;
+    // `target_commitish` is usually a branch name (e.g. "main") and is ignored by GitHub when the tag already
+    // exists, so the tag ref is the source of truth. Fall back to it only when it is a full commit SHA.
+    try {
+      return await commitShaForRef(ref, token, tag);
+    } on HttpRequestError {
+      if (_fullCommitShaPattern.hasMatch(canonical.commitSha)) {
+        return canonical.commitSha;
+      }
+      rethrow;
     }
-
-    return commitShaForRef(ref, token, tag);
   }
 
   @override
