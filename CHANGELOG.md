@@ -1,3 +1,9 @@
+## [0.18.1](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.18.0...v0.18.1) (2026-10-09)
+
+### Bug Fixes
+
+* **ci:** retain actual golden failure diagnostics ([0d8990a](https://github.com/chrystiamjr/git-forge-release-migrator/commit/0d8990afe8b8349e6b053876aca11448eabf9430))
+
 ## [0.18.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.17.0...v0.18.0) (2026-10-08)
 
 ### Features
