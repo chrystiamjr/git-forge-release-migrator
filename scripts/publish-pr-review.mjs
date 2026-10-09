@@ -35,9 +35,26 @@ export function isInlineCommentPermissionError(error) {
     );
 }
 
+function findingLabel(finding) {
+    if (finding.tier) {
+        return finding.tier;
+    }
+
+    return finding.severity === 'blocking' ? 'blocking' : 'note';
+}
+
 function formatInlineComment(finding, marker) {
-    const prefix = finding.severity === 'blocking' ? '[blocking]' : '[note]';
-    return `${marker}\n${prefix} ${finding.message}`;
+    const lines = [marker, `[${findingLabel(finding)}] ${finding.message}`];
+
+    if (finding.symbol) {
+        lines.push('', `Symbol: \`${finding.symbol}\``);
+    }
+
+    if (finding.why) {
+        lines.push('', `Why: ${finding.why}`);
+    }
+
+    return lines.join('\n');
 }
 
 function inlineCommentSignature(path, line, body) {
@@ -48,20 +65,37 @@ export function filterAlreadyPublishedFindings(findings, comments, marker) {
     return partitionPublishedFindings(findings, comments, marker).unpublishedFindings;
 }
 
+function commentLabel(body) {
+    return String(body).split('\n')[1]?.match(/^\[([a-z_]+)\]/)?.[1] ?? null;
+}
+
+// LLM wording changes between runs, so tiered findings match an existing comment by path + line + tier;
+// deterministic findings keep exact-text matching.
+function findingSignature(finding, marker) {
+    const body = finding.tier ? `tier:${finding.tier}` : formatInlineComment(finding, marker);
+    return inlineCommentSignature(finding.path, finding.line, body);
+}
+
 export function partitionPublishedFindings(findings, comments, marker) {
-    const existingCommentSignatures = new Set(
-        comments
-            .filter((comment) => String(comment.body || '').includes(marker))
-            .map((comment) => inlineCommentSignature(comment.path, comment.line, comment.body)),
-    );
+    const existingCommentSignatures = new Set();
+
+    for (const comment of comments) {
+        if (!String(comment.body || '').includes(marker)) {
+            continue;
+        }
+
+        existingCommentSignatures.add(inlineCommentSignature(comment.path, comment.line, comment.body));
+        const label = commentLabel(comment.body);
+        if (label) {
+            existingCommentSignatures.add(inlineCommentSignature(comment.path, comment.line, `tier:${label}`));
+        }
+    }
 
     const unpublishedFindings = [];
     const alreadyPublishedFindings = [];
 
     for (const finding of findings) {
-        const isAlreadyPublished = existingCommentSignatures.has(
-            inlineCommentSignature(finding.path, finding.line, formatInlineComment(finding, marker)),
-        );
+        const isAlreadyPublished = existingCommentSignatures.has(findingSignature(finding, marker));
 
         if (isAlreadyPublished) {
             alreadyPublishedFindings.push(finding);
@@ -74,9 +108,71 @@ export function partitionPublishedFindings(findings, comments, marker) {
 }
 
 function formatFindingSummary(finding) {
-    const severity = finding.severity === 'blocking' ? 'blocking' : 'note';
     const location = finding.path && finding.line ? ` (${finding.path}:${finding.line})` : '';
-    return `- [${severity}] ${finding.message}${location}`;
+    return `- [${findingLabel(finding)}] ${finding.message}${location}`;
+}
+
+export function isInlineFinding(finding) {
+    return finding.inline !== false;
+}
+
+function buildLlmSection(llm) {
+    if (!llm) {
+        return [];
+    }
+
+    if (llm.error) {
+        return ['', `**LLM review:** unavailable (${llm.error}).`];
+    }
+
+    if (llm.skipped) {
+        return ['', `**LLM review:** skipped. ${llm.skipped}`];
+    }
+
+    const lines = ['', '### Change Summary', llm.change_summary || '(none)'];
+
+    if (Array.isArray(llm.tests_needed) && llm.tests_needed.length > 0) {
+        lines.push('', '### Tests Needed', ...llm.tests_needed.map((test) => `- ${test}`));
+    }
+
+    if (Array.isArray(llm.design_notes) && llm.design_notes.length > 0) {
+        lines.push(
+            '',
+            '### Design Notes',
+            ...llm.design_notes.map(
+                (note) =>
+                    `- **${note.kind}** (${note.worth_doing_now ? 'now' : 'later'}) \`${note.location}\`: ${note.problem} → ${note.direction}`,
+            ),
+        );
+    }
+
+    if (llm.verdict_reasoning) {
+        lines.push('', '### Verdict Reasoning', llm.verdict_reasoning);
+    }
+
+    const partialContext = [...(llm.truncated_files ?? []), ...(llm.omitted_files ?? [])];
+    if (partialContext.length > 0) {
+        lines.push('', `Reviewed with partial context (size budget): ${partialContext.map((path) => `\`${path}\``).join(', ')}.`);
+    }
+
+    const dismissedHints = Array.isArray(llm.dismissed_hints) ? llm.dismissed_hints : [];
+    if (dismissedHints.length > 0) {
+        lines.push(
+            '',
+            '<details>',
+            `<summary>Dismissed heuristic hints (${dismissedHints.length})</summary>`,
+            '',
+            ...dismissedHints.map((hint) => `- \`${hint.rule}\` in \`${hint.path}\`: ${hint.reason}`),
+            '',
+            '</details>',
+        );
+    }
+
+    const level = llm.effort ? `effort: ${llm.effort}` : `thinking: ${llm.thinking_level}`;
+    const duration = typeof llm.duration_seconds === 'number' ? ` in ${Math.round(llm.duration_seconds)}s` : '';
+    const cost = typeof llm.cost_usd === 'number' ? `, est. cost $${llm.cost_usd.toFixed(2)}` : '';
+    lines.push('', `_Reviewed by ${llm.engine} / ${llm.model} (${llm.model_version}, ${level})${duration}${cost}._`);
+    return lines;
 }
 
 function buildReviewBody(result, options = {}) {
@@ -110,14 +206,23 @@ function buildReviewBody(result, options = {}) {
     if (findings.length > 0 && options.inlineCommentsPublished === false) {
         summaryLines.push('');
         summaryLines.push(...findings.map((finding) => formatFindingSummary(finding)));
-    } else if (summarizedFindings.length > 0) {
-        summaryLines.push('');
-        summaryLines.push(
-            'These findings matched existing automated inline comments and are repeated here so the review is self-contained:',
-        );
-        summaryLines.push(...summarizedFindings.map((finding) => formatFindingSummary(finding)));
+    } else {
+        if (summarizedFindings.length > 0) {
+            summaryLines.push('');
+            summaryLines.push(
+                'These findings matched existing automated inline comments and are repeated here so the review is self-contained:',
+            );
+            summaryLines.push(...summarizedFindings.map((finding) => formatFindingSummary(finding)));
+        }
+
+        const summaryOnlyFindings = findings.filter((finding) => !isInlineFinding(finding));
+        if (summaryOnlyFindings.length > 0) {
+            summaryLines.push('', 'Findings without an inline anchor in the diff:');
+            summaryLines.push(...summaryOnlyFindings.map((finding) => formatFindingSummary(finding)));
+        }
     }
 
+    summaryLines.push(...buildLlmSection(result.llm));
     summaryLines.push('', result.marker);
     return summaryLines.join('\n');
 }
@@ -230,7 +335,7 @@ async function main() {
 
     const findings = Array.isArray(result.findings) ? result.findings : [];
     const {unpublishedFindings, alreadyPublishedFindings} = partitionPublishedFindings(
-        findings,
+        findings.filter(isInlineFinding),
         existingComments,
         result.marker,
     );

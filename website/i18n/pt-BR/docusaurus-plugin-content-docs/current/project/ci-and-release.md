@@ -17,7 +17,7 @@ title: CI e Release
 
 ## Gates de entrega de tickets
 
-Validação local não conclui o ticket. A entrega para em Review com links PR/YouTrack verificados até o mantenedor revisar o head atual e realizar merge manual. No modo solo, um comentário humano `/reviewed <sha>` registra a decisão; aprovação do bot é auxiliar.
+Validação local não conclui o ticket. A entrega para em Review com links PR/YouTrack verificados até o mantenedor revisar o head atual e realizar merge manual. No modo solo, um comentário humano `/reviewed` permite à automação registrar o SHA do head atual em um check persistente; `/reviewed <sha>` seleciona a revisão explicitamente; aprovação do bot é auxiliar. Um novo head invalida ambos os modos de revisão; captura automática atrasada fica pendente até novo comentário ou SHA explícito.
 
 Quality Checks compara cobertura de produção com uma medição isolada do commit-base, compila docs EN/PT-BR alteradas antes do merge e executa comparação de goldens da GUI no ambiente canônico. O check agregado `ticket-validation` exige sucesso de core e visual. Relatórios e imagens ficam em artefatos do CI; alterações de baseline precisam de revisão humana.
 

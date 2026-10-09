@@ -2,6 +2,30 @@
 
 Use this flow when asked to address inline review comments on an open PR.
 
+## Automated reviewer
+
+`scripts/review-pr.mjs` runs two layers after Quality Checks:
+
+- **Hard rules** (secrets, contract invariants, EN/PT-BR docs sync, layer imports): deterministic `[blocking]`.
+- **AI review** (`scripts/ai-review.mjs`, prompt in `scripts/ai-review-prompt.md`): reads the patch plus the full
+  post-change file, `AGENTS.md`, and the matching `.github/instructions/*`. `[critical]` and `[important]` block;
+  `[suggestion]` and `[question]` do not. Fuzzy heuristics (long method, `setState`, test gaps, …) are sent as hints
+  that the model confirms or dismisses.
+
+The AI layer is opt-in and owner-only: set repo variable `AI_REVIEW_ENABLED=true`; it then runs only on PRs authored
+and triggered by the repository owner. PR content is untrusted prompt input, so the gate limits prompt-injection exposure and
+subscription quota use. Other contributors' PRs get the hard rules plus hints; review those locally with your own
+tooling. The workflow runs the review scripts from the default branch, so reviewer changes take effect after merge. Set `AI_REVIEW_ENABLED=false` (or delete it) to turn it off.
+
+| Engine (`AI_REVIEW_ENGINE`) | Credential | Optional variables |
+|---|---|---|
+| `claude` (default) | secret `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token` | `CLAUDE_MODEL` (default `opus`), `CLAUDE_EFFORT` (default `medium`) |
+| `gemini` | secret `GEMINI_API_KEY` (paid quota) | `GEMINI_MODEL` (default `gemini-flash-latest`), `GEMINI_THINKING_LEVEL` (default `high`) |
+
+Claude runs headless with all tools disabled, from an empty directory, without GitHub or Gemini credentials in its
+environment. The review body records the engine, model, and resolved model version. If the engine fails, the review
+fails closed with `llm_review_unavailable`; re-run the workflow.
+
 ## 1. Fetch inline comments
 
 ```bash
