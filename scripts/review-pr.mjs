@@ -1745,6 +1745,37 @@ export function createChangedFileReader(owner, repo, headSha, request = githubRe
   };
 }
 
+const PRIOR_COMMENT_MAX_LENGTH = 600;
+
+function truncateComment(body) {
+  const text = String(body ?? '').trim();
+  return text.length > PRIOR_COMMENT_MAX_LENGTH ? `${text.slice(0, PRIOR_COMMENT_MAX_LENGTH)}…` : text;
+}
+
+// Earlier bot comments and their replies, so the model does not raise the same concern again on another line.
+export function buildPriorReviewComments(comments, marker = AUTO_REVIEW_MARKER) {
+  const botComments = comments.filter((comment) => !comment.in_reply_to_id && String(comment.body ?? '').includes(marker));
+
+  return botComments.map((comment) => ({
+    path: comment.path,
+    line: comment.line ?? null,
+    body: truncateComment(String(comment.body).replace(marker, '')),
+    replies: comments
+      .filter((reply) => reply.in_reply_to_id === comment.id)
+      .map((reply) => ({ author: reply.user?.login ?? 'unknown', body: truncateComment(reply.body) })),
+  }));
+}
+
+async function fetchPriorReviewComments(owner, repo) {
+  try {
+    return buildPriorReviewComments(await paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/comments`));
+  } catch (error) {
+    // Best-effort context: without it the review still runs, it may just repeat an earlier comment.
+    console.error(`[review-pr] Could not load earlier review comments: ${error.message}`);
+    return [];
+  }
+}
+
 // Opt-in so the workflow on the default branch keeps working until the secret and variable are configured.
 export function isAiReviewEnabled(env = process.env) {
   return String(env.AI_REVIEW_ENABLED ?? '').trim().toLowerCase() === 'true';
@@ -1801,9 +1832,10 @@ export async function runReview() {
     paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/files`),
   ]);
 
-  const [reviewRound, checkState] = await Promise.all([
+  const [reviewRound, checkState, priorComments] = await Promise.all([
     fetchReviewRound(owner, repo),
     fetchCheckState(owner, repo),
+    fetchPriorReviewComments(owner, repo),
   ]);
 
   const { findings, llm } = await buildReviewFindings(
@@ -1813,6 +1845,7 @@ export async function runReview() {
         files,
         hints,
         pr: { title: pullRequest.title, body: pullRequest.body },
+        priorComments,
         io: { ...DISK_IO, readChangedFile: createChangedFileReader(owner, repo, pullRequest.head.sha) },
       }),
     {

@@ -33,7 +33,7 @@ const FALLBACK_TIER = 'standard';
 // ~50K tokens: keeps the triage prompt inside Haiku's lowest price tier (prompts up to 100K tokens).
 const TRIAGE_CHAR_BUDGET = 200_000;
 // Docs-only PRs skip the triage call and go straight to the light tier.
-const DOCS_ONLY_PATTERNS = [/^website\//, /(^|\/)README\.md$/];
+const DOCS_ONLY_PATTERNS = [/^website\/.*\.mdx?$/, /(^|\/)README\.md$/];
 
 // ~150K tokens: keeps prompts under the >200K-token price tier.
 const CONTEXT_CHAR_BUDGET = 600_000;
@@ -276,12 +276,21 @@ function formatHint(hint) {
   return `- [${hint.rule}] ${location} — ${hint.message}`;
 }
 
-export function buildUserPrompt(context, hints, pr) {
+function formatPriorComment(comment) {
+  const replies = comment.replies.map((reply) => `  reply from ${reply.author}: ${reply.body}`);
+  return [`- ${comment.path}:${comment.line ?? 'outdated'} ${comment.body}`, ...replies].join('\n');
+}
+
+export function buildUserPrompt(context, hints, pr, priorComments = []) {
   const sections = [
     `<pr>\ntitle: ${pr.title ?? ''}\n\n${pr.body ?? ''}\n</pr>`,
     ...context.guidance.map((entry) => `<repo_guidance path="${entry.path}">\n${entry.content}\n</repo_guidance>`),
     `<heuristic_hints>\n${hints.length > 0 ? hints.map(formatHint).join('\n') : '(none)'}\n</heuristic_hints>`,
   ];
+
+  if (priorComments.length > 0) {
+    sections.push(`<prior_review_comments>\n${priorComments.map(formatPriorComment).join('\n')}\n</prior_review_comments>`);
+  }
 
   if (context.omittedFiles.length > 0) {
     sections.push(`<omitted_files>\n${context.omittedFiles.join('\n')}\n</omitted_files>`);
@@ -640,6 +649,7 @@ export async function runAiReview({
   files,
   hints,
   pr,
+  priorComments = [],
   env = process.env,
   io = DISK_IO,
   fetchImpl = fetch,
@@ -672,7 +682,7 @@ export async function runAiReview({
     env,
     settings,
     systemInstruction,
-    userText: buildUserPrompt(context, hints, pr),
+    userText: buildUserPrompt(context, hints, pr, priorComments),
     fetchImpl,
     sleep,
     runCommand,

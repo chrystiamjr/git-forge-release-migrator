@@ -31,6 +31,10 @@ docs-only PRs (`website/**`, `README.md`) go straight to `light`; otherwise a Ha
 patches and picks `light` (haiku, `low`), `standard` (sonnet, `medium`), or `deep` (opus, `medium`). If triage fails,
 the review uses `standard`. The review footer shows the chosen tier, its reason, and the combined cost.
 
+Each run sends the bot's earlier inline comments and their replies to the model, which must not raise an answered or
+already-posted concern again. As a deterministic backstop, the publisher skips a finding with the same path, tier, and
+symbol within 30 lines of an existing bot comment.
+
 ## 1. Fetch inline comments
 
 ```bash

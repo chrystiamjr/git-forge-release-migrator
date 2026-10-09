@@ -392,3 +392,25 @@ test('publishReviewResult renders a skipped LLM review without a model footer', 
   assert.match(calls[0].body, /\*\*LLM review:\*\* skipped\. AI review disabled\./);
   assert.doesNotMatch(calls[0].body, /Reviewed by/);
 });
+
+test('partitionPublishedFindings treats the same tier and symbol re-anchored nearby as already published', () => {
+  const marker = '<!-- auto-pr-review -->';
+  const existing = {
+    path: 'http.dart',
+    line: 180,
+    body: `${marker}\n[question] Is validateStatus relaxed?\n\nSymbol: \`requestJson\`\n\nWhy: w`,
+  };
+  const reanchored = { tier: 'question', severity: 'note', path: 'http.dart', line: 157, symbol: 'requestJson', message: 'Reworded.' };
+  const otherSymbol = { ...reanchored, symbol: 'requestStatus' };
+  const farAway = { ...reanchored, line: 100 };
+  const otherTier = { ...reanchored, tier: 'important', severity: 'blocking' };
+
+  const { unpublishedFindings, alreadyPublishedFindings } = partitionPublishedFindings(
+    [reanchored, otherSymbol, farAway, otherTier],
+    [existing],
+    marker,
+  );
+
+  assert.deepEqual(alreadyPublishedFindings, [reanchored]);
+  assert.deepEqual(unpublishedFindings, [otherSymbol, farAway, otherTier]);
+});

@@ -743,3 +743,30 @@ test('buildClaudeChildEnv strips repository and other-engine credentials but kee
 
   assert.deepEqual(env, { PATH: '/usr/bin', CLAUDE_CODE_OAUTH_TOKEN: 'claude' });
 });
+
+test('runAiReview sends website code through triage instead of the docs-only route', async () => {
+  const { calls, runCommand } = buildRoutedRunCommand({ triage: { tier: 'standard', reason: 'Site component change.' } });
+
+  await runRoutedReview({
+    files: [
+      { filename: 'website/src/components/Hero.tsx', status: 'modified', patch: '@@ -1 +1 @@\n+x' },
+      { filename: 'website/docs/intro.md', status: 'modified', patch: '@@ -1 +1 @@\n+x' },
+    ],
+    runCommand,
+  });
+
+  assert.equal(calls[0].kind, 'triage');
+});
+
+test('buildUserPrompt lists prior review comments with their replies', () => {
+  const prompt = buildUserPrompt({ guidance: [], files: [], omittedFiles: [] }, [], {}, [
+    { path: 'a.dart', line: 180, body: '[question] Is validateStatus relaxed?', replies: [{ author: 'owner', body: 'Disagreed: yes.' }] },
+    { path: 'b.dart', line: null, body: '[suggestion] Old concern.', replies: [] },
+  ]);
+
+  assert.match(
+    prompt,
+    /<prior_review_comments>\n- a\.dart:180 \[question\] Is validateStatus relaxed\?\n  reply from owner: Disagreed: yes\.\n- b\.dart:outdated \[suggestion\] Old concern\.\n<\/prior_review_comments>/,
+  );
+  assert.doesNotMatch(buildUserPrompt({ guidance: [], files: [], omittedFiles: [] }, [], {}), /prior_review_comments/);
+});

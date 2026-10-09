@@ -69,6 +69,10 @@ function commentLabel(body) {
     return String(body).split('\n')[1]?.match(/^\[([a-z_]+)\]/)?.[1] ?? null;
 }
 
+function commentSymbol(body) {
+    return String(body).match(/^Symbol: `([^`]+)`$/m)?.[1] ?? null;
+}
+
 // LLM wording changes between runs, so tiered findings match an existing comment by path + line + tier;
 // deterministic findings keep exact-text matching.
 function findingSignature(finding, marker) {
@@ -76,8 +80,24 @@ function findingSignature(finding, marker) {
     return inlineCommentSignature(finding.path, finding.line, body);
 }
 
+// The model also re-anchors the same concern a few lines away between runs: same path, tier, and symbol nearby
+// counts as already published.
+const NEARBY_LINE_WINDOW = 30;
+
+function isNearbyTieredComment(finding, comment) {
+    return (
+        Boolean(finding.tier && finding.symbol) &&
+        typeof comment.line === 'number' &&
+        comment.path === finding.path &&
+        comment.tier === finding.tier &&
+        comment.symbol === finding.symbol &&
+        Math.abs(comment.line - finding.line) <= NEARBY_LINE_WINDOW
+    );
+}
+
 export function partitionPublishedFindings(findings, comments, marker) {
     const existingCommentSignatures = new Set();
+    const tieredComments = [];
 
     for (const comment of comments) {
         if (!String(comment.body || '').includes(marker)) {
@@ -88,6 +108,7 @@ export function partitionPublishedFindings(findings, comments, marker) {
         const label = commentLabel(comment.body);
         if (label) {
             existingCommentSignatures.add(inlineCommentSignature(comment.path, comment.line, `tier:${label}`));
+            tieredComments.push({path: comment.path, line: comment.line, tier: label, symbol: commentSymbol(comment.body)});
         }
     }
 
@@ -95,7 +116,9 @@ export function partitionPublishedFindings(findings, comments, marker) {
     const alreadyPublishedFindings = [];
 
     for (const finding of findings) {
-        const isAlreadyPublished = existingCommentSignatures.has(findingSignature(finding, marker));
+        const isAlreadyPublished =
+            existingCommentSignatures.has(findingSignature(finding, marker)) ||
+            tieredComments.some((comment) => isNearbyTieredComment(finding, comment));
 
         if (isAlreadyPublished) {
             alreadyPublishedFindings.push(finding);
