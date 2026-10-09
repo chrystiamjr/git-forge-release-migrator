@@ -38,6 +38,13 @@ test('real evidence requires same ticket/head, artifacts and successful scenario
   assert.equal(evaluateEvidence({ ...evidence, head_sha: 'stale' }, context).status, 'pending');
 });
 
+test('CI core delegates native/live evidence instead of leaving it pending', () => {
+  const result = evaluateEvidence(null, { ticket: 'LOCAL-ci-validation', head: 'abc', kind: 'live', ciCore: true });
+  assert.equal(result.status, 'delegated');
+  assert.match(result.reason, /not final delivery verification/);
+  assert.equal(evaluateEvidence(null, { ticket: 'GFRM-1', head: 'abc', kind: 'live' }).status, 'pending');
+});
+
 test('options reject unknown flags and omitted ticket/base', () => {
   assert.throws(() => parseOptions(['--ticket', 'GFRM-23']));
   assert.throws(() => parseOptions(['--base', 'main', '--ticket', 'other']));
