@@ -69,6 +69,10 @@ function commentLabel(body) {
     return String(body).split('\n')[1]?.match(/^\[([a-z_]+)\]/)?.[1] ?? null;
 }
 
+function commentSymbol(body) {
+    return String(body).match(/^Symbol: `([^`]+)`$/m)?.[1] ?? null;
+}
+
 // LLM wording changes between runs, so tiered findings match an existing comment by path + line + tier;
 // deterministic findings keep exact-text matching.
 function findingSignature(finding, marker) {
@@ -76,8 +80,24 @@ function findingSignature(finding, marker) {
     return inlineCommentSignature(finding.path, finding.line, body);
 }
 
+// The model also re-anchors the same concern a few lines away between runs: same path, tier, and symbol nearby
+// counts as already published.
+const NEARBY_LINE_WINDOW = 30;
+
+function isNearbyTieredComment(finding, comment) {
+    return (
+        Boolean(finding.tier && finding.symbol) &&
+        typeof comment.line === 'number' &&
+        comment.path === finding.path &&
+        comment.tier === finding.tier &&
+        comment.symbol === finding.symbol &&
+        Math.abs(comment.line - finding.line) <= NEARBY_LINE_WINDOW
+    );
+}
+
 export function partitionPublishedFindings(findings, comments, marker) {
     const existingCommentSignatures = new Set();
+    const tieredComments = [];
 
     for (const comment of comments) {
         if (!String(comment.body || '').includes(marker)) {
@@ -88,6 +108,7 @@ export function partitionPublishedFindings(findings, comments, marker) {
         const label = commentLabel(comment.body);
         if (label) {
             existingCommentSignatures.add(inlineCommentSignature(comment.path, comment.line, `tier:${label}`));
+            tieredComments.push({path: comment.path, line: comment.line, tier: label, symbol: commentSymbol(comment.body)});
         }
     }
 
@@ -95,7 +116,9 @@ export function partitionPublishedFindings(findings, comments, marker) {
     const alreadyPublishedFindings = [];
 
     for (const finding of findings) {
-        const isAlreadyPublished = existingCommentSignatures.has(findingSignature(finding, marker));
+        const isAlreadyPublished =
+            existingCommentSignatures.has(findingSignature(finding, marker)) ||
+            tieredComments.some((comment) => isNearbyTieredComment(finding, comment));
 
         if (isAlreadyPublished) {
             alreadyPublishedFindings.push(finding);
@@ -116,6 +139,14 @@ export function isInlineFinding(finding) {
     return finding.inline !== false;
 }
 
+function buildDetails(title, items) {
+    if (items.length === 0) {
+        return [];
+    }
+
+    return ['', '<details>', `<summary>${title} (${items.length})</summary>`, '', ...items, '', '</details>'];
+}
+
 function buildLlmSection(llm) {
     if (!llm) {
         return [];
@@ -129,25 +160,10 @@ function buildLlmSection(llm) {
         return ['', `**LLM review:** skipped. ${llm.skipped}`];
     }
 
-    const lines = ['', '### Change Summary', llm.change_summary || '(none)'];
-
-    if (Array.isArray(llm.tests_needed) && llm.tests_needed.length > 0) {
-        lines.push('', '### Tests Needed', ...llm.tests_needed.map((test) => `- ${test}`));
-    }
-
-    if (Array.isArray(llm.design_notes) && llm.design_notes.length > 0) {
-        lines.push(
-            '',
-            '### Design Notes',
-            ...llm.design_notes.map(
-                (note) =>
-                    `- **${note.kind}** (${note.worth_doing_now ? 'now' : 'later'}) \`${note.location}\`: ${note.problem} → ${note.direction}`,
-            ),
-        );
-    }
+    const lines = [];
 
     if (llm.verdict_reasoning) {
-        lines.push('', '### Verdict Reasoning', llm.verdict_reasoning);
+        lines.push('', `**Verdict:** ${llm.verdict_reasoning}`);
     }
 
     const partialContext = [...(llm.truncated_files ?? []), ...(llm.omitted_files ?? [])];
@@ -155,23 +171,34 @@ function buildLlmSection(llm) {
         lines.push('', `Reviewed with partial context (size budget): ${partialContext.map((path) => `\`${path}\``).join(', ')}.`);
     }
 
+    // Secondary detail stays collapsed so the inline comments remain the main read.
+    const testsNeeded = Array.isArray(llm.tests_needed) ? llm.tests_needed : [];
+    lines.push(...buildDetails('Tests needed', testsNeeded.map((test) => `- ${test}`)));
+
+    const designNotes = Array.isArray(llm.design_notes) ? llm.design_notes : [];
+    lines.push(
+        ...buildDetails(
+            'Design notes',
+            designNotes.map(
+                (note) =>
+                    `- **${note.kind}** (${note.worth_doing_now ? 'now' : 'later'}) \`${note.location}\`: ${note.problem} → ${note.direction}`,
+            ),
+        ),
+    );
+
     const dismissedHints = Array.isArray(llm.dismissed_hints) ? llm.dismissed_hints : [];
-    if (dismissedHints.length > 0) {
-        lines.push(
-            '',
-            '<details>',
-            `<summary>Dismissed heuristic hints (${dismissedHints.length})</summary>`,
-            '',
-            ...dismissedHints.map((hint) => `- \`${hint.rule}\` in \`${hint.path}\`: ${hint.reason}`),
-            '',
-            '</details>',
-        );
-    }
+    lines.push(
+        ...buildDetails(
+            'Dismissed heuristic hints',
+            dismissedHints.map((hint) => `- \`${hint.rule}\` in \`${hint.path}\`: ${hint.reason}`),
+        ),
+    );
 
     const level = llm.effort ? `effort: ${llm.effort}` : `thinking: ${llm.thinking_level}`;
     const duration = typeof llm.duration_seconds === 'number' ? ` in ${Math.round(llm.duration_seconds)}s` : '';
     const cost = typeof llm.cost_usd === 'number' ? `, est. cost $${llm.cost_usd.toFixed(2)}` : '';
-    lines.push('', `_Reviewed by ${llm.engine} / ${llm.model} (${llm.model_version}, ${level})${duration}${cost}._`);
+    const route = llm.tier ? ` Routed to ${llm.tier}: ${llm.route_reason}` : '';
+    lines.push('', `_Reviewed by ${llm.engine} / ${llm.model} (${llm.model_version}, ${level})${duration}${cost}.${route}_`);
     return lines;
 }
 

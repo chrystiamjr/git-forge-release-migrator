@@ -279,7 +279,8 @@ test('publishReviewResult renders summary-only findings and LLM sections in the 
         effort: 'medium',
         duration_seconds: 61.4,
         cost_usd: 1.234,
-        change_summary: 'Adds resume guard.',
+        tier: 'deep',
+        route_reason: 'Touches resume semantics.',
         tests_needed: ['resume with empty checkpoint'],
         verdict_reasoning: 'Blocking bug in resume.',
         truncated_files: ['big.dart'],
@@ -301,15 +302,16 @@ test('publishReviewResult renders summary-only findings and LLM sections in the 
   assert.equal(event, 'REQUEST_CHANGES');
   assert.match(body, /Findings without an inline anchor in the diff:\n- \[important\] Outside hunk\. \(a\.dart:50\)/);
   assert.doesNotMatch(body, /Inline\. \(a\.dart:2\)/);
-  assert.match(body, /### Change Summary\nAdds resume guard\./);
-  assert.match(body, /### Tests Needed\n- resume with empty checkpoint/);
+  assert.doesNotMatch(body, /###/);
+  assert.match(body, /\*\*Verdict:\*\* Blocking bug in resume\./);
+  assert.match(body, /<summary>Tests needed \(1\)<\/summary>\n\n- resume with empty checkpoint\n\n<\/details>/);
   assert.match(
     body,
-    /### Design Notes\n- \*\*duplication\*\* \(now\) `a\.dart:parse`: Same hunk parser as b\.dart\. → Share one helper\.\n- \*\*design\*\* \(later\) `c\.dart`: Engine knows provider\. → Inject adapter\./,
+    /<summary>Design notes \(2\)<\/summary>\n\n- \*\*duplication\*\* \(now\) `a\.dart:parse`: Same hunk parser as b\.dart\. → Share one helper\.\n- \*\*design\*\* \(later\) `c\.dart`: Engine knows provider\. → Inject adapter\./,
   );
   assert.match(body, /partial context \(size budget\): `big\.dart`/);
   assert.match(body, /<summary>Dismissed heuristic hints \(1\)<\/summary>\n\n- `long_method` in `a\.dart`: Generated table, not logic\./);
-  assert.match(body, /_Reviewed by claude \/ opus \(claude-opus-5-5, effort: medium\) in 61s, est\. cost \$1\.23\._/);
+  assert.match(body, /_Reviewed by claude \/ opus \(claude-opus-5-5, effort: medium\) in 61s, est\. cost \$1\.23\. Routed to deep: Touches resume semantics\._/);
   assert.ok(body.endsWith('<!-- auto-pr-review -->'));
 });
 
@@ -389,4 +391,26 @@ test('publishReviewResult renders a skipped LLM review without a model footer', 
 
   assert.match(calls[0].body, /\*\*LLM review:\*\* skipped\. AI review disabled\./);
   assert.doesNotMatch(calls[0].body, /Reviewed by/);
+});
+
+test('partitionPublishedFindings treats the same tier and symbol re-anchored nearby as already published', () => {
+  const marker = '<!-- auto-pr-review -->';
+  const existing = {
+    path: 'http.dart',
+    line: 180,
+    body: `${marker}\n[question] Is validateStatus relaxed?\n\nSymbol: \`requestJson\`\n\nWhy: w`,
+  };
+  const reanchored = { tier: 'question', severity: 'note', path: 'http.dart', line: 157, symbol: 'requestJson', message: 'Reworded.' };
+  const otherSymbol = { ...reanchored, symbol: 'requestStatus' };
+  const farAway = { ...reanchored, line: 100 };
+  const otherTier = { ...reanchored, tier: 'important', severity: 'blocking' };
+
+  const { unpublishedFindings, alreadyPublishedFindings } = partitionPublishedFindings(
+    [reanchored, otherSymbol, farAway, otherTier],
+    [existing],
+    marker,
+  );
+
+  assert.deepEqual(alreadyPublishedFindings, [reanchored]);
+  assert.deepEqual(unpublishedFindings, [otherSymbol, farAway, otherTier]);
 });

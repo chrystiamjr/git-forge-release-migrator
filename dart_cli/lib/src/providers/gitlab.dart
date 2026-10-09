@@ -183,6 +183,12 @@ class GitLabAdapter extends ProviderAdapter {
       return '';
     }
 
+    // For annotated tags `target` is the tag object id; `commit.id` is the tagged commit.
+    final dynamic commit = payload['commit'];
+    if (commit is Map && (commit['id'] ?? '').toString().isNotEmpty) {
+      return commit['id'].toString();
+    }
+
     return (payload['target'] ?? '').toString();
   }
 

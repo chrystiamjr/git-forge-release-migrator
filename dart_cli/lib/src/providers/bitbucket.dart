@@ -264,8 +264,14 @@ class BitbucketAdapter extends ProviderAdapter {
     );
   }
 
-  Future<Map<String, dynamic>> uploadDownload(ProviderRef ref, String token, String filepath) async {
-    final FormData form = FormData.fromMap(<String, dynamic>{'files': await MultipartFile.fromFile(filepath)});
+  Future<Map<String, dynamic>> uploadDownload(
+    ProviderRef ref,
+    String token,
+    String filepath, {
+    String uploadName = '',
+  }) async {
+    final MultipartFile file = await MultipartFile.fromFile(filepath, filename: uploadName.isEmpty ? null : uploadName);
+    final FormData form = FormData.fromMap(<String, dynamic>{'files': file});
     final Response<dynamic> response = await _dio.post<dynamic>(
       _repoApiUrl(ref, '/downloads'),
       data: form,
@@ -300,7 +306,7 @@ class BitbucketAdapter extends ProviderAdapter {
     if (existing != null) {
       await deleteDownload(ref, token, targetName);
     }
-    return uploadDownload(ref, token, filepath);
+    return uploadDownload(ref, token, filepath, uploadName: targetName);
   }
 
   @override
@@ -640,14 +646,29 @@ class BitbucketAdapter extends ProviderAdapter {
 
   @override
   Future<String> publishRelease(PublishReleaseInput input) async {
+    // Downloads share one repository-wide namespace: list it once instead of once per asset.
+    final Set<String> existingNames = (await listDownloads(input.providerRef, input.token))
+        .map((Map<String, dynamic> item) => (item['name'] ?? '').toString())
+        .toSet();
     final List<({String name, String url})?> uploadResults =
         await Concurrency.mapWithLimit<String, ({String name, String url})?>(
       items: input.downloadedFiles,
       limit: _assetUploadWorkers,
       task: (String filePath, int _) async {
         final String name = ProviderCommon.basename(filePath);
+        // Scope by tag so same-named assets of different releases never replace each other.
+        // The manifest keeps the original name; readers resolve the file through its URL.
+        final String uploadName = '${input.tag}-$name';
         try {
-          final String uploadedUrl = await uploadFile(input.providerRef, input.token, filePath);
+          if (existingNames.contains(uploadName)) {
+            await deleteDownload(input.providerRef, input.token, uploadName);
+          }
+          final Map<String, dynamic> payload =
+              await uploadDownload(input.providerRef, input.token, filePath, uploadName: uploadName);
+          final String uploadedUrl = _downloadUrlFromItem(payload);
+          if (uploadedUrl.isEmpty) {
+            return null;
+          }
           return (name: name, url: uploadedUrl);
         } on AuthenticationError {
           rethrow;

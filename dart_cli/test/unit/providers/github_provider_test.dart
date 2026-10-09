@@ -204,20 +204,48 @@ void main() {
       expect(result, isNull);
     });
 
-    test('resolveCommitShaForMigration returns canonical sha when non-empty', () async {
-      final ScriptedHttpClientHelper stub = ScriptedHttpClientHelper();
-      final GitHubAdapter adapter = GitHubAdapter(http: stub);
-      final ProviderRef ref = adapter.parseUrl('https://github.com/acme/repo');
-      final CanonicalRelease canonical = CanonicalRelease.fromMap(<String, dynamic>{
-        'tag_name': 'v1.0.0',
-        'name': 'v1.0.0',
-        'description_markdown': '',
-        'commit_sha': 'preexisting-sha',
-        'assets': <String, dynamic>{'links': <dynamic>[], 'sources': <dynamic>[]},
-        'provider_metadata': <String, dynamic>{},
+    group('resolveCommitShaForMigration', () {
+      const String tagSha = 'feedcafefeedcafefeedcafefeedcafefeedcafe';
+      const String commitishSha = 'abcdef0123456789abcdef0123456789abcdef01';
+
+      CanonicalRelease canonicalWith(String commitSha) => CanonicalRelease.fromMap(<String, dynamic>{
+            'tag_name': 'v1.0.0',
+            'name': 'v1.0.0',
+            'description_markdown': '',
+            'commit_sha': commitSha,
+            'assets': <String, dynamic>{'links': <dynamic>[], 'sources': <dynamic>[]},
+            'provider_metadata': <String, dynamic>{},
+          });
+
+      test('uses the tag commit, not a branch-name target_commitish', () async {
+        final GitHubAdapter adapter =
+            GitHubAdapter(http: ScriptedHttpClientHelper(jsonResponse: <String, dynamic>{'sha': tagSha}));
+        final ProviderRef ref = adapter.parseUrl('https://github.com/acme/repo');
+
+        expect(await adapter.resolveCommitShaForMigration(ref, 'token', 'v1.0.0', canonicalWith('main')), tagSha);
       });
 
-      expect(await adapter.resolveCommitShaForMigration(ref, 'token', 'v1.0.0', canonical), 'preexisting-sha');
+      test('falls back to a full-SHA target_commitish when the tag lookup fails', () async {
+        final GitHubAdapter adapter =
+            GitHubAdapter(http: ScriptedHttpClientHelper(jsonResponse: HttpRequestError('HTTP 404')));
+        final ProviderRef ref = adapter.parseUrl('https://github.com/acme/repo');
+
+        expect(
+          await adapter.resolveCommitShaForMigration(ref, 'token', 'v1.0.0', canonicalWith(commitishSha)),
+          commitishSha,
+        );
+      });
+
+      test('throws when the tag lookup fails and target_commitish is a branch name', () async {
+        final GitHubAdapter adapter =
+            GitHubAdapter(http: ScriptedHttpClientHelper(jsonResponse: HttpRequestError('HTTP 404')));
+        final ProviderRef ref = adapter.parseUrl('https://github.com/acme/repo');
+
+        await expectLater(
+          adapter.resolveCommitShaForMigration(ref, 'token', 'v1.0.0', canonicalWith('main')),
+          throwsA(isA<HttpRequestError>()),
+        );
+      });
     });
 
     test('supportsSourceFallbackTagNotes returns true', () {

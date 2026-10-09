@@ -37,6 +37,9 @@ final class ScriptedHttpClientHelper extends HttpClientHelper {
   final bool allowUnscriptedDownload;
   final Future<void> Function(String destination)? onDownload;
 
+  /// Every requestJson call in order, so tests can assert on request sequencing.
+  final List<({String method, String url})> jsonRequests = <({String method, String url})>[];
+
   int _jsonIndex = 0;
   int _statusIndex = 0;
   int _downloadIndex = 0;
@@ -50,6 +53,7 @@ final class ScriptedHttpClientHelper extends HttpClientHelper {
     Map<String, String>? headers,
     Duration retryDelay = const Duration(seconds: 2),
   }) async {
+    jsonRequests.add((method: method, url: url));
     if (_jsonIndex >= jsonResponses.length) {
       if (_jsonIndex == 0 && !identical(_jsonSeed, _missingJsonResponse)) {
         _jsonIndex += 1;

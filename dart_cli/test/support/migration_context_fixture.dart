@@ -21,6 +21,7 @@ MigrationContext buildMigrationContext(
   bool dryRun = false,
   int releaseWorkers = 1,
   String targetProvider = 'gitlab',
+  String sourceToken = 'src-token',
 }) {
   final ProviderRef sourceRef = source.parseUrl('https://github.com/acme/source');
   final ProviderRef targetRef = target.parseUrl('https://gitlab.com/acme/target');
@@ -39,6 +40,7 @@ MigrationContext buildMigrationContext(
       skipReleaseMigration: skipReleaseMigration,
       skipReleaseAssetMigration: skipReleaseAssetMigration,
       targetProvider: targetProvider,
+      sourceToken: sourceToken,
     ),
     logPath: '${temp.path}/migration.jsonl',
     workdir: temp,

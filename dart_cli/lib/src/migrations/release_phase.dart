@@ -95,7 +95,7 @@ class ReleasePhaseRunner {
     return '[$index/$total - ${percent.toString().padLeft(3)}%] [$bar] $message';
   }
 
-  Future<String> _publishRelease(
+  Future<({String status, String cause})> _publishRelease(
     MigrationContext ctx,
     String tag,
     String releaseName,
@@ -105,7 +105,8 @@ class ReleasePhaseRunner {
     ExistingReleaseInfo existingInfo,
   ) async {
     try {
-      return ctx.target.publishRelease(
+      // `await` is required: a returned future's error would escape this try/catch.
+      final String status = await ctx.target.publishRelease(
         PublishReleaseInput(
           providerRef: ctx.targetRef,
           token: ctx.options.targetToken,
@@ -117,11 +118,25 @@ class ReleasePhaseRunner {
           existingInfo: existingInfo,
         ),
       );
+      return (status: status, cause: '');
     } on AuthenticationError {
       rethrow;
-    } catch (_) {
-      return 'failed';
+    } on Exception catch (exc) {
+      // Only runtime failures fail this one release; programming Errors propagate.
+      return (
+        status: 'failed',
+        cause: _redactTokens(exc.toString(), <String>[ctx.options.targetToken, ctx.options.sourceToken]),
+      );
     }
+  }
+
+  String _redactTokens(String message, List<String> tokens) {
+    String redacted = message;
+    for (final String token in tokens.where((String token) => token.isNotEmpty)) {
+      // URLs may carry the token query-encoded (e.g. GitLab private_token links).
+      redacted = redacted.replaceAll(token, '***').replaceAll(Uri.encodeQueryComponent(token), '***');
+    }
+    return redacted;
   }
 
   bool _handleAlreadyProcessed(
@@ -351,7 +366,7 @@ class ReleasePhaseRunner {
       return 'failed';
     }
 
-    final String publishStatus = await _publishRelease(
+    final ({String status, String cause}) publish = await _publishRelease(
       ctx,
       tag,
       releaseName,
@@ -361,14 +376,16 @@ class ReleasePhaseRunner {
       existingInfo,
     );
     final int durationMs = DateTime.now().difference(start).inMilliseconds;
-    if (publishStatus == 'failed') {
+    if (publish.status == 'failed') {
+      final String failure =
+          'Release publish operation failed on ${SelectionService.capitalizeProvider(ctx.options.targetProvider)}';
+      final String message = publish.cause.isEmpty ? failure : '$failure: ${publish.cause}';
       FileSystemUtils.cleanupDir(releaseDir.path);
       _appendLog(
         ctx.logPath,
         status: 'failed',
         tag: tag,
-        message:
-            'Release publish operation failed on ${SelectionService.capitalizeProvider(ctx.options.targetProvider)}',
+        message: message,
         assetCount: downloaded.length,
         durationMs: durationMs,
         dryRun: false,
@@ -378,9 +395,9 @@ class ReleasePhaseRunner {
         tag: tag,
         status: 'failed',
         assetCount: downloaded.length,
-        message:
-            'Release publish operation failed on ${SelectionService.capitalizeProvider(ctx.options.targetProvider)}',
+        message: message,
       );
+      logger.warn('[$tag] failed: $message');
       return 'failed';
     }
 

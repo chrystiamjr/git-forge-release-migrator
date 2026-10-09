@@ -109,8 +109,8 @@ jobs:
       #   vars.AI_REVIEW_ENABLED          'true' to enable; anything else = deterministic rules only
       #   vars.AI_REVIEW_ENGINE           optional, claude (default) | gemini
       #   secrets.CLAUDE_CODE_OAUTH_TOKEN claude engine; from `claude setup-token` (Claude subscription)
-      #   vars.CLAUDE_MODEL               optional, default opus
-      #   vars.CLAUDE_EFFORT              optional, default medium
+      #   vars.CLAUDE_MODEL               optional; unset = Haiku triage routes to haiku/sonnet/opus, set = pinned model
+      #   vars.CLAUDE_EFFORT              optional, default medium; used only with CLAUDE_MODEL
       #   secrets.GEMINI_API_KEY          gemini engine
       #   vars.GEMINI_MODEL               optional, default gemini-flash-latest (e.g. gemini-pro-latest)
       #   vars.GEMINI_THINKING_LEVEL      optional, default high

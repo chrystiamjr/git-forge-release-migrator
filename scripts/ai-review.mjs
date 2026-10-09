@@ -17,14 +17,29 @@ const INITIAL_RETRY_DELAY_IN_MILLISECONDS = 2_000;
 const MAX_ATTEMPTS = 4;
 const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
 
-const DEFAULT_CLAUDE_MODEL = 'opus';
 const DEFAULT_CLAUDE_EFFORT = 'medium';
 const CLAUDE_TIMEOUT_IN_MILLISECONDS = 600_000;
 const CLAUDE_OUTPUT_EXCERPT_LENGTH = 500;
 
+// Unless CLAUDE_MODEL pins a model, a cheap Haiku triage call picks the review tier for each PR.
+const TRIAGE_MODEL = 'haiku';
+const TRIAGE_EFFORT = 'low';
+const ROUTE_TIERS = {
+  light: { model: 'haiku', effort: 'low' },
+  standard: { model: 'sonnet', effort: 'medium' },
+  deep: { model: 'opus', effort: 'medium' },
+};
+const FALLBACK_TIER = 'standard';
+// ~50K tokens: keeps the triage prompt inside Haiku's lowest price tier (prompts up to 100K tokens).
+const TRIAGE_CHAR_BUDGET = 200_000;
+// Docs-only PRs skip the triage call and go straight to the light tier.
+const DOCS_ONLY_PATTERNS = [/^website\/.*\.mdx?$/, /(^|\/)README\.md$/];
+
 // ~150K tokens: keeps prompts under the >200K-token price tier.
 const CONTEXT_CHAR_BUDGET = 600_000;
 const MAX_INLINE_FINDINGS = 20;
+// One GitHub Contents API call per file; stay well under GitHub's secondary rate limit on concurrent requests.
+const MAX_CONCURRENT_FILE_READS = 8;
 
 const TIERS = ['critical', 'important', 'suggestion', 'question'];
 const BLOCKING_TIERS = new Set(['critical', 'important']);
@@ -32,6 +47,7 @@ const BLOCKING_TIERS = new Set(['critical', 'important']);
 const AGENTS_PATH = 'AGENTS.md';
 const INSTRUCTIONS_DIR = '.github/instructions';
 const PROMPT_PATH = fileURLToPath(new URL('./ai-review-prompt.md', import.meta.url));
+const TRIAGE_PROMPT_PATH = fileURLToPath(new URL('./ai-review-triage-prompt.md', import.meta.url));
 
 const SKIPPED_FILE_PATTERNS = [
   /\.g\.dart$/,
@@ -45,7 +61,6 @@ const SKIPPED_FILE_PATTERNS = [
 export const REVIEW_SCHEMA = {
   type: 'object',
   properties: {
-    change_summary: { type: 'string' },
     findings: {
       type: 'array',
       items: {
@@ -90,7 +105,16 @@ export const REVIEW_SCHEMA = {
     tests_needed: { type: 'array', items: { type: 'string' } },
     verdict_reasoning: { type: 'string' },
   },
-  required: ['change_summary', 'findings', 'design_notes', 'dismissed_hints', 'tests_needed', 'verdict_reasoning'],
+  required: ['findings', 'design_notes', 'dismissed_hints', 'tests_needed', 'verdict_reasoning'],
+};
+
+export const TRIAGE_SCHEMA = {
+  type: 'object',
+  properties: {
+    tier: { type: 'string', enum: Object.keys(ROUTE_TIERS) },
+    reason: { type: 'string' },
+  },
+  required: ['tier', 'reason'],
 };
 
 // Gemini's responseSchema uses the OpenAPI subset with uppercase type names.
@@ -191,17 +215,23 @@ export async function buildReviewContext(files, io = DISK_IO) {
     }
   }
 
-  const candidates = [];
-  for (const file of reviewableFiles) {
-    const content = await io.readChangedFile(file);
-    candidates.push({
-      path: file.filename,
-      status: file.status,
-      patch: file.patch ?? '',
-      content: content === null ? null : withLineNumbers(content),
-      truncated: content === null,
-    });
-  }
+  const contents = new Array(reviewableFiles.length);
+  let nextIndex = 0;
+  const readNext = async () => {
+    while (nextIndex < reviewableFiles.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      contents[index] = await io.readChangedFile(reviewableFiles[index]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(MAX_CONCURRENT_FILE_READS, reviewableFiles.length) }, readNext));
+  const candidates = reviewableFiles.map((file, index) => ({
+    path: file.filename,
+    status: file.status,
+    patch: file.patch ?? '',
+    content: contents[index] === null ? null : withLineNumbers(contents[index]),
+    truncated: contents[index] === null,
+  }));
 
   let remainingBudget = CONTEXT_CHAR_BUDGET - guidance.reduce((total, entry) => total + entry.content.length, 0);
   const includedFiles = [];
@@ -246,12 +276,21 @@ function formatHint(hint) {
   return `- [${hint.rule}] ${location} — ${hint.message}`;
 }
 
-export function buildUserPrompt(context, hints, pr) {
+function formatPriorComment(comment) {
+  const replies = comment.replies.map((reply) => `  reply from ${reply.author}: ${reply.body}`);
+  return [`- ${comment.path}:${comment.line ?? 'outdated'} ${comment.body}`, ...replies].join('\n');
+}
+
+export function buildUserPrompt(context, hints, pr, priorComments = []) {
   const sections = [
     `<pr>\ntitle: ${pr.title ?? ''}\n\n${pr.body ?? ''}\n</pr>`,
     ...context.guidance.map((entry) => `<repo_guidance path="${entry.path}">\n${entry.content}\n</repo_guidance>`),
     `<heuristic_hints>\n${hints.length > 0 ? hints.map(formatHint).join('\n') : '(none)'}\n</heuristic_hints>`,
   ];
+
+  if (priorComments.length > 0) {
+    sections.push(`<prior_review_comments>\n${priorComments.map(formatPriorComment).join('\n')}\n</prior_review_comments>`);
+  }
 
   if (context.omittedFiles.length > 0) {
     sections.push(`<omitted_files>\n${context.omittedFiles.join('\n')}\n</omitted_files>`);
@@ -297,14 +336,22 @@ export async function callGemini({
 
   let response;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-    response = await fetchImpl(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body,
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_IN_MILLISECONDS),
-    });
+    try {
+      response = await fetchImpl(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_IN_MILLISECONDS),
+      });
+    } catch (error) {
+      // Timeouts and connection resets are as likely as a 503 under high demand: retry them too.
+      if (attempt === MAX_ATTEMPTS) {
+        throw error;
+      }
+      response = null;
+    }
 
-    if (response.ok || !RETRYABLE_STATUS_CODES.has(response.status) || attempt === MAX_ATTEMPTS) {
+    if (response && (response.ok || !RETRYABLE_STATUS_CODES.has(response.status) || attempt === MAX_ATTEMPTS)) {
       break;
     }
 
@@ -367,7 +414,12 @@ export function normalizeFindings(review, files) {
   const findings = [];
   let inlineCount = 0;
 
-  for (const finding of review.findings ?? []) {
+  // Blocking findings first, so lower tiers never take their inline slots.
+  const orderedFindings = [...(review.findings ?? [])].sort(
+    (left, right) => Number(BLOCKING_TIERS.has(right.tier)) - Number(BLOCKING_TIERS.has(left.tier)),
+  );
+
+  for (const finding of orderedFindings) {
     const file = filesByPath.get(finding.path);
     const isBlocking = BLOCKING_TIERS.has(finding.tier);
     // Never drop a blocking finding because of a path mismatch: keep it in the summary so the verdict still blocks.
@@ -439,7 +491,14 @@ function runClaudeCli(args, input) {
   });
 }
 
-export async function callClaudeCode({ model, effort, systemInstruction, userText, runCommand = runClaudeCli }) {
+export async function callClaudeCode({
+  model,
+  effort,
+  systemInstruction,
+  userText,
+  schema = REVIEW_SCHEMA,
+  runCommand = runClaudeCli,
+}) {
   const args = [
     '-p',
     '--output-format',
@@ -451,7 +510,7 @@ export async function callClaudeCode({ model, effort, systemInstruction, userTex
     '--system-prompt',
     systemInstruction,
     '--json-schema',
-    JSON.stringify(REVIEW_SCHEMA),
+    JSON.stringify(schema),
   ];
   if (model) {
     args.push('--model', model);
@@ -483,6 +542,59 @@ export async function callClaudeCode({ model, effort, systemInstruction, userTex
   };
 }
 
+export function buildTriagePrompt(context, pr) {
+  const sections = [`<pr>\ntitle: ${pr.title ?? ''}\n\n${pr.body ?? ''}\n</pr>`];
+  let remainingBudget = TRIAGE_CHAR_BUDGET;
+
+  for (const file of context.files) {
+    const header = `<changed_file path="${file.path}" status="${file.status}">`;
+    if (file.patch.length <= remainingBudget) {
+      sections.push(`${header}\n${file.patch}\n</changed_file>`);
+      remainingBudget -= file.patch.length;
+    } else {
+      sections.push(`${header}\n(patch omitted: size budget)\n</changed_file>`);
+    }
+  }
+
+  if (context.omittedFiles.length > 0) {
+    sections.push(`<omitted_files>\n${context.omittedFiles.join('\n')}\n</omitted_files>`);
+  }
+
+  return sections.join('\n\n');
+}
+
+function routeTo(tier, reason, triageCostUsd = null) {
+  return { ...ROUTE_TIERS[tier], tier, route_reason: reason, triage_cost_usd: triageCostUsd };
+}
+
+// Triage only saves cost, so it fails soft to the standard tier; the review itself still fails closed.
+export async function routeClaudeReview({ context, pr, runCommand = runClaudeCli }) {
+  const paths = [...context.files.map((file) => file.path), ...context.omittedFiles];
+  if (paths.every((path) => DOCS_ONLY_PATTERNS.some((pattern) => pattern.test(path)))) {
+    return routeTo('light', 'Docs-only change.');
+  }
+
+  try {
+    const { review: triage, costUsd } = await callClaudeCode({
+      model: TRIAGE_MODEL,
+      effort: TRIAGE_EFFORT,
+      systemInstruction: await readFile(TRIAGE_PROMPT_PATH, 'utf8'),
+      userText: buildTriagePrompt(context, pr),
+      schema: TRIAGE_SCHEMA,
+      runCommand,
+    });
+
+    if (!Object.hasOwn(ROUTE_TIERS, triage.tier)) {
+      throw new Error(`unknown tier "${triage.tier}"`);
+    }
+
+    return routeTo(triage.tier, triage.reason, costUsd);
+  } catch (error) {
+    console.error(`[ai-review] Triage failed, using the ${FALLBACK_TIER} tier: ${error.message}`);
+    return routeTo(FALLBACK_TIER, 'Triage unavailable.');
+  }
+}
+
 // Every engine receives the same system prompt, user prompt, and schema, and returns { review, modelVersion }.
 const ENGINES = {
   claude: {
@@ -491,11 +603,12 @@ const ENGINES = {
         throw new Error('CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY is not configured.');
       }
     },
-    settings(env) {
-      return {
-        model: env.CLAUDE_MODEL || DEFAULT_CLAUDE_MODEL,
-        effort: env.CLAUDE_EFFORT || DEFAULT_CLAUDE_EFFORT,
-      };
+    async settings({ env, context, pr, runCommand }) {
+      if (env.CLAUDE_MODEL) {
+        return { model: env.CLAUDE_MODEL, effort: env.CLAUDE_EFFORT || DEFAULT_CLAUDE_EFFORT };
+      }
+
+      return routeClaudeReview({ context, pr, runCommand });
     },
     review({ settings, systemInstruction, userText, runCommand }) {
       return callClaudeCode({ model: settings.model, effort: settings.effort, systemInstruction, userText, runCommand });
@@ -507,7 +620,7 @@ const ENGINES = {
         throw new Error('GEMINI_API_KEY is not configured.');
       }
     },
-    settings(env) {
+    async settings({ env }) {
       return {
         model: env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
         thinking_level: env.GEMINI_THINKING_LEVEL || DEFAULT_GEMINI_THINKING_LEVEL,
@@ -527,10 +640,16 @@ const ENGINES = {
   },
 };
 
+function sumCosts(...costs) {
+  const known = costs.filter((cost) => typeof cost === 'number');
+  return known.length > 0 ? known.reduce((total, cost) => total + cost, 0) : null;
+}
+
 export async function runAiReview({
   files,
   hints,
   pr,
+  priorComments = [],
   env = process.env,
   io = DISK_IO,
   fetchImpl = fetch,
@@ -544,7 +663,6 @@ export async function runAiReview({
   }
 
   engine.assertConfigured(env);
-  const settings = engine.settings(env);
 
   const context = await buildReviewContext(files, io);
   if (context.files.length === 0 && context.omittedFiles.length === 0) {
@@ -552,19 +670,19 @@ export async function runAiReview({
       findings: [],
       llm: {
         engine: engineName,
-        ...settings,
         skipped: 'No reviewable files (only generated, lock, binary, or removed files changed).',
       },
     };
   }
 
-  const systemInstruction = await readFile(PROMPT_PATH, 'utf8');
   const startedAt = Date.now();
+  const settings = await engine.settings({ env, context, pr, runCommand });
+  const systemInstruction = await readFile(PROMPT_PATH, 'utf8');
   const { review, modelVersion, costUsd } = await engine.review({
     env,
     settings,
     systemInstruction,
-    userText: buildUserPrompt(context, hints, pr),
+    userText: buildUserPrompt(context, hints, pr, priorComments),
     fetchImpl,
     sleep,
     runCommand,
@@ -577,8 +695,7 @@ export async function runAiReview({
       ...settings,
       model_version: modelVersion,
       duration_seconds: (Date.now() - startedAt) / 1000,
-      cost_usd: costUsd,
-      change_summary: review.change_summary ?? '',
+      cost_usd: sumCosts(costUsd, settings.triage_cost_usd),
       tests_needed: review.tests_needed ?? [],
       design_notes: review.design_notes ?? [],
       verdict_reasoning: review.verdict_reasoning ?? '',

@@ -390,6 +390,20 @@ void main() {
         expect(await adapter.tagCommitSha(ref, 'token', 'v1.0.0'), 'abc123');
       });
 
+      test('tagCommitSha returns the commit id, not the annotated tag object id', () async {
+        final ScriptedHttpClientHelper stub = ScriptedHttpClientHelper(
+          jsonResponse: <String, dynamic>{
+            'name': 'v1.0.0',
+            'target': 'tag-object-sha',
+            'commit': <String, dynamic>{'id': 'commit-sha'},
+          },
+        );
+        final GitLabAdapter adapter = GitLabAdapter(http: stub);
+        final ProviderRef ref = adapter.parseUrl('https://gitlab.com/acme/project');
+
+        expect(await adapter.tagCommitSha(ref, 'token', 'v1.0.0'), 'commit-sha');
+      });
+
       test('tagCommitSha returns empty string when response is not a Map', () async {
         final ScriptedHttpClientHelper stub = ScriptedHttpClientHelper(jsonResponse: null);
         final GitLabAdapter adapter = GitLabAdapter(http: stub);

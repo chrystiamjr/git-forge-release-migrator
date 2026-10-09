@@ -57,7 +57,11 @@ export function requiredEvidence(scope) {
   return ['native', 'live'].filter((kind) => scope[kind]);
 }
 
-export function evaluateEvidence(evidence, { ticket, head, kind }) {
+export function evaluateEvidence(evidence, { ticket, head, kind, ciCore = false }) {
+  // CI cannot run a native or live-forge scenario; like GUI goldens it delegates, and passed_core is not final delivery.
+  if (ciCore) {
+    return { status: 'delegated', reason: `Requires local ${kind} acceptance evidence; this is not final delivery verification` };
+  }
   if (!evidence || evidence.ticket !== ticket || evidence.head_sha !== head || evidence.kind !== kind) {
     return { status: 'pending', reason: `Missing matching ${kind} evidence` };
   }

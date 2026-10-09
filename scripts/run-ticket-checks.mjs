@@ -114,7 +114,7 @@ export async function main(args = process.argv.slice(2)) {
   for (const kind of requiredEvidence(scope)) {
     let evidence;
     try { evidence = JSON.parse(await readFile(join(options['evidence-dir'] || '', `${kind}.json`), 'utf8')); } catch { /* Missing evidence remains pending. */ }
-    const result = evaluateEvidence(evidence, { ticket: options.ticket, head, kind });
+    const result = evaluateEvidence(evidence, { ticket: options.ticket, head, kind, ciCore: options.ciCore });
     if (result.status === 'passed') {
       for (const artifact of evidence.artifacts) {
         try {
