@@ -14,6 +14,7 @@ export function parseOptions(args) {
   const keys = new Set(['base', 'ticket', 'out', 'baseline-report', 'evidence-dir']);
   for (let index = 0; index < args.length; index++) {
     const key = args[index].replace(/^--/, '');
+    if (args[index] === '--ci-core') { options.ciCore = true; continue; }
     if (args[index] === '--baseline-only') { options.baselineOnly = true; continue; }
     if (!args[index].startsWith('--') || !keys.has(key) || !args[index + 1] || args[index + 1].startsWith('--')) {
       throw new Error(`Invalid option: ${args[index]}`);
@@ -35,6 +36,7 @@ function run(command, args, cwd) {
 
 export async function main(args = process.argv.slice(2)) {
   const options = parseOptions(args);
+  if (options.ciCore && process.env.CI !== 'true') throw new Error('CI orchestration flag requires CI environment');
   const cwd = process.cwd();
   const git = (...args) => {
     const result = run('git', args, cwd);
@@ -97,9 +99,12 @@ export async function main(args = process.argv.slice(2)) {
   if (await check('dart-coverage-tests', 'yarn', ['coverage:dart'])) await coverage('dart', scope.dart);
   if (scope.gui) {
     if (!options.baselineOnly) await check('gui-lint', 'yarn', ['lint:flutter']);
-    if (await check('gui-coverage-tests', 'node', [fileURLToPath(new URL('./run-dart.js', import.meta.url)), '--flutter', 'test', '--coverage'], join(cwd, 'gui'))) await coverage('gui', true);
+    if (await check('gui-coverage-tests', 'node', [fileURLToPath(new URL('./run-dart.js', import.meta.url)), '--flutter', 'test', '--coverage', '--exclude-tags', 'visual'], join(cwd, 'gui'))) await coverage('gui', true);
   }
-  if (!options.baselineOnly && scope.visual) await check('gui-goldens', 'yarn', ['test:flutter:visual']);
+  if (!options.baselineOnly && scope.visual) {
+    if (options.ciCore) report.checks.push({ name: 'gui-goldens', status: 'delegated', reason: 'Required canonical GUI visual job; this is not final delivery verification' });
+    else await check('gui-goldens', 'yarn', ['test:flutter:visual']);
+  }
   if (scope.docs) {
     await check('translation-parity', 'node', ['scripts/check-translations.mjs']);
     await check('docs-build', 'yarn', ['docs:build']);
@@ -120,13 +125,13 @@ export async function main(args = process.argv.slice(2)) {
     }
     report.checks.push({ name: `${kind}-acceptance`, ...result });
   }
-  report.status = report.checks.every((check) => check.status === 'passed') ? 'passed' : 'pending_or_failed';
+  report.status = report.checks.every((check) => check.status === 'passed' || (options.ciCore && check.status === 'delegated')) ? (options.ciCore ? 'passed_core' : 'passed') : 'pending_or_failed';
   await writeFile(join(out, 'validation-report.json'), JSON.stringify(report, null, 2) + '\n');
   await writeFile(join(out, 'summary.md'), `# ${options.ticket || 'Baseline'} validation\n\nHead: ${head}\nBase: ${base}\nResult: ${report.status}\n\n${report.checks.map((check) => `- ${check.name}: ${check.status}${check.reason ? ` (${check.reason})` : ''}`).join('\n')}\n`);
   console.log(`Validation ${report.status}: ${out}/validation-report.json`);
-  return report.status === 'passed' ? 0 : 1;
+  return ['passed', 'passed_core'].includes(report.status) ? 0 : 1;
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === realpathSync(process.argv[1])) {
+if (process.argv[1] && process.argv[1] !== '-' && fileURLToPath(import.meta.url) === realpathSync(process.argv[1])) {
   main().then((code) => { process.exitCode = code; }).catch(() => { console.error('Ticket validation failed; verify options, committed source and baseline.'); process.exitCode = 1; });
 }

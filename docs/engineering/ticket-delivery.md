@@ -46,3 +46,13 @@ The example PR number is illustrative. `link` creates/updates and reads back a c
 The trusted `.github/ticket-delivery.json` defines repository, host/project, human identities and required check names. Standalone maintenance PRs may explicitly include `Process plan: LOCAL-<slug>` instead of a tracker URL; never use this to omit the selected cloud ticket. Duplicate or other-author comment markers require reconciliation rather than overwriting another person's evidence.
 
 Sync failures are visible and leave delivery pending; retry an event at most once, preserve the existing PR, then use the documented dry-run/reconciliation command. Historical completed checkpoints must be reconciled against the canonical issue; a stale local Done never overrides remote Review.
+
+## Workflow activation and reviewer steps
+
+After the workflow PR is human-reviewed and merged to main, the owner must configure repository secret `YOUTRACK_TOKEN` and variable `ENABLE_YOUTRACK_SYNC=true`. Give the token only needed issue/comment permissions for the allowlisted project. Do not paste it into PRs or commit files. Metadata-only workflows run default-branch code, never install or execute PR-head code with these credentials. Cloud linkage requires an authorized same-repository PR author; fork metadata alone cannot write YouTrack.
+
+Observe the new checks, then require `test`, `ticket-validation`, `human-review` and `ticket-link` on main; retain resolved conversations and stale-review dismissal. Tighten admin bypass only after bootstrap works. The auxiliary bot intentionally ignores human/link gate contexts in its own opinion so it cannot deadlock solo review; those gates remain separately mandatory for merge and Done.
+
+For each PR, personally review report, diff and applicable visual artifacts, then post `/reviewed <full-current-head-sha>` in GitHub. Post a new comment rather than editing an old decision. `/revoke-review <sha>`, deletion, edits or a new commit invalidates readiness. Merge manually once required checks are green. A decision posted after merge cannot retroactively satisfy automated pre-merge approval evidence.
+
+The closed/merged event verifies immutable head, authorized human merger, effective pre-merge decision, successful latest GitHub Actions checks and resolved conversations before Done. Re-run the event workflow or the read-only `merge` reconciliation command after API outages; opt-in plus `--apply` is needed for mutations. Unknown/manual or backwards states stay untouched. Historical bootstrap work may require a separately documented owner decision; do not add a generic force/bypass completion flag.

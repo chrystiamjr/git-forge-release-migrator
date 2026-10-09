@@ -8,7 +8,7 @@ import { createApi, githubList, trackerComments } from './ticket-pr-api.mjs';
 const config = JSON.parse(await readFile(new URL('../.github/ticket-delivery.json', import.meta.url), 'utf8'));
 const head = 'a'.repeat(40);
 function pull() {
-  return { number: 68, body: `YouTrack: https://${config.youtrackHost}/issue/GFRM-23`, html_url: `https://github.com/${config.repository}/pull/68`, state: 'open', merged: false, base: { ref: 'main', repo: { full_name: config.repository } }, head: { sha: head, ref: 'feat/progress' } };
+  return { number: 68, body: `YouTrack: https://${config.youtrackHost}/issue/GFRM-23`, html_url: `https://github.com/${config.repository}/pull/68`, state: 'open', merged: false, user: { login: 'chrystiamjr' }, base: { ref: 'main', repo: { full_name: config.repository } }, head: { sha: head, ref: 'feat/progress', repo: { full_name: config.repository } } };
 }
 function decision(body = `/reviewed ${head}`) {
   return { id: 1, body, user: { type: 'User', login: 'chrystiamjr' }, author_association: 'OWNER', created_at: '2026-10-08T12:00:00Z', updated_at: '2026-10-08T12:00:00Z', html_url: 'https://github.com/example/review' };
@@ -19,7 +19,9 @@ function fixture(current = 'Review') {
   const calls = [];
   const api = {
     async gh(path) {
-      if (path.endsWith('/pulls/68')) return p;
+      if (path === '/graphql') return { data: { repository: { pullRequest: { reviewThreads: { nodes: [], pageInfo: { hasNextPage: false } } } } } };
+      if (path.includes('/check-runs')) return { check_runs: config.requiredChecks.map((name) => ({ name, status: 'completed', conclusion: 'success', app: { slug: 'github-actions' } })) };
+      if (path.endsWith('/pulls/68')) return structuredClone(p);
       return [];
     },
     async yt(path, method, body) {
@@ -64,13 +66,15 @@ test('human attestation excludes bots, unauthorized users, stale SHA and edited/
 test('completion requires actual authorized human merge, current human evidence and all successful checks', () => {
   const p = { ...pull(), merged: true, merged_at: '2026-10-08T14:00:00Z', merge_commit_sha: 'b'.repeat(40), merged_by: { login: 'chrystiamjr', type: 'User' } };
   const human = activeHumanDecision([decision()], head, config.humanReviewers);
-  const checks = config.requiredChecks.map((name) => ({ name, passed: true }));
+  const checks = [...config.requiredChecks.map((name) => ({ name, passed: true })), { name: 'resolved-conversations', passed: true }];
   assert.equal(canComplete(p, human, checks, config), true);
   for (const change of [{ merged: false }, { merge_commit_sha: null }, { base: { ref: 'other' } }, { merged_by: { login: 'bot', type: 'Bot' } }]) {
     assert.equal(canComplete({ ...p, ...change }, human, checks, config), false);
   }
+  assert.equal(canComplete(p, { ...human, reviewed_at: '2026-10-08T15:00:00Z' }, checks, config), false);
   assert.equal(canComplete(p, null, checks, config), false);
   assert.equal(canComplete(p, human, [], config), false);
+  assert.equal(canComplete(p, human, [...checks, { name: 'test', passed: false }], config), false);
   assert.equal(canComplete(p, human, checks.map((check) => ({ ...check, passed: false })), config), false);
 });
 
@@ -133,4 +137,27 @@ test('HTTP failures expose status only, reject redirects and never include crede
   }
   await assert.rejects(createApi(config, {}, async () => {}).gh('/repos/x/y/pulls/1'), /credential/);
   assert.throws(() => createApi(config).yt('/api/issues/OTHER-23'));
+});
+
+test('fork cloud metadata cannot mutate tracker even with a trusted-looking ticket URL', async () => {
+  const f = fixture(); f.p.head.repo.full_name = 'attacker/fork';
+  await assert.rejects(syncTicket(f.api, config, { action: 'review', number: 68, apply: true, enabled: true }), /same-repository/);
+  assert.equal(f.calls.length, 0);
+});
+
+test('verified merged delivery writes Done once after pre-merge human evidence; open PR never does', async () => {
+  const f = fixture();
+  f.p.merged = true; f.p.state = 'closed'; f.p.merged_at = '2026-10-08T14:00:00Z';
+  f.p.merge_commit_sha = 'b'.repeat(40); f.p.merged_by = { login: 'chrystiamjr', type: 'User' };
+  const original = f.api.gh;
+  f.api.gh = (path, ...args) => path.includes('/issues/68/comments') ? Promise.resolve([decision()]) : original(path, ...args);
+  const options = { action: 'merge', number: 68, apply: true, enabled: true };
+  assert.equal((await syncTicket(f.api, config, options)).complete, true);
+  assert.equal(f.state(), 'Done');
+  assert.match(f.comments[0].text, /canonical state verified/);
+  await syncTicket(f.api, config, options);
+  assert.equal(f.calls.filter((call) => call.path === '/api/commands').length, 1);
+  const open = fixture();
+  assert.equal((await syncTicket(open.api, config, options)).complete, false);
+  assert.equal(open.state(), 'Review');
 });

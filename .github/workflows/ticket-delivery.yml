@@ -1,0 +1,37 @@
+name: Ticket Delivery
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review, closed]
+  issue_comment:
+    types: [created, edited, deleted]
+
+concurrency:
+  group: ticket-delivery-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  synchronize:
+    if: github.event_name == 'pull_request_target' || github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+      checks: write
+    steps:
+      # Metadata-only privileged workflow: never execute or install PR-head code.
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+      - name: Verify human decision and ticket delivery
+        env:
+          GH_TOKEN: ${{ github.token }}
+          YOUTRACK_TOKEN: ${{ secrets.YOUTRACK_TOKEN }}
+          ENABLE_YOUTRACK_SYNC: ${{ vars.ENABLE_YOUTRACK_SYNC }}
+        run: node scripts/ticket-delivery-event.mjs

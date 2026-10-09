@@ -4,10 +4,29 @@
   "youtrackHost": "envolvosystems.youtrack.cloud",
   "issueProject": "GFRM",
   "stateField": "Stage",
-  "stateOrder": ["Backlog", "Develop", "Review", "Test", "Staging", "Done"],
+  "stateOrder": [
+    "Backlog",
+    "Develop",
+    "Review",
+    "Test",
+    "Staging",
+    "Done"
+  ],
   "reviewState": "Review",
   "doneState": "Done",
-  "humanReviewers": ["chrystiamjr"],
-  "humanMergers": ["chrystiamjr"],
-  "requiredChecks": ["test", "ticket-validation", "human-review", "ticket-link"]
+  "humanReviewers": [
+    "chrystiamjr"
+  ],
+  "humanMergers": [
+    "chrystiamjr"
+  ],
+  "requiredChecks": [
+    "test",
+    "ticket-validation",
+    "human-review",
+    "ticket-link"
+  ],
+  "ticketAuthors": [
+    "chrystiamjr"
+  ]
 }

@@ -48,25 +48,24 @@ export async function trackerComments(api, issue) {
   throw new Error('Collection pagination limit reached; no truncated evidence accepted');
 }
 
-export async function checkStates(api, repository, number) {
+export async function checkStates(api, repository, number, head) {
+  const runs = await githubList(api, `/repos/${repository}/commits/${head}/check-runs?filter=latest`);
+  const checks = runs.filter((run) => run.app?.slug === 'github-actions').map((run) => ({
+    name: run.name, passed: run.status === 'completed' && run.conclusion === 'success',
+  }));
   const [owner, name] = repository.split('/');
-  const checks = [];
   let cursor = null;
-  do {
-    const result = await api.gh('/graphql', 'POST', {
-      query: `query($owner:String!,$name:String!,$number:Int!,$cursor:String){ repository(owner:$owner,name:$name){ pullRequest(number:$number){ commits(last:1){nodes{commit{statusCheckRollup{contexts(first:100,after:$cursor){pageInfo{hasNextPage,endCursor} nodes{... on CheckRun{name status conclusion startedAt checkSuite{app{slug}}} ... on StatusContext{context state}}}}}}}}}}`,
+  let resolved = true;
+  for (let page = 0; page < MAX_COLLECTION_PAGES; page++) {
+    const response = await api.gh('/graphql', 'POST', {
+      query: `query($owner:String!,$name:String!,$number:Int!,$cursor:String){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100,after:$cursor){nodes{isResolved}pageInfo{hasNextPage endCursor}}}}}`,
       variables: { owner, name, number, cursor },
     });
-    if (result.errors?.length) throw new Error('Check-state query failed');
-    const contexts = result.data?.repository?.pullRequest?.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts;
-    if (!contexts) return checks;
-    for (const row of contexts.nodes) {
-      checks.push({ name: row.name || row.context, passed: row.status === 'COMPLETED' && row.conclusion === 'SUCCESS' && row.checkSuite?.app?.slug === 'github-actions', started: row.startedAt });
-    }
-    cursor = contexts.pageInfo.hasNextPage ? contexts.pageInfo.endCursor : null;
-  } while (cursor);
-  // Newer failed executions must supersede earlier successful executions.
-  const latest = new Map();
-  for (const row of checks.sort((a, b) => new Date(a.started || 0) - new Date(b.started || 0))) latest.set(row.name, row);
-  return [...latest.values()];
+    const threads = response.data?.repository?.pullRequest?.reviewThreads;
+    if (response.errors?.length || !threads) throw new Error('Conversation evidence unavailable');
+    resolved = resolved && threads.nodes.every((thread) => thread.isResolved === true);
+    if (!threads.pageInfo.hasNextPage) return [...checks, { name: 'resolved-conversations', passed: resolved }];
+    cursor = threads.pageInfo.endCursor;
+  }
+  throw new Error('Conversation evidence exceeds pagination limit');
 }

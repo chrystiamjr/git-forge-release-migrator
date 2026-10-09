@@ -4,7 +4,7 @@ export function classifyChanges(files) {
   return {
     dart: files.some((path) => /^dart_cli\/(lib|bin)\//.test(path)),
     gui: files.some((path) => /^gui\//.test(path) || /^dart_cli\/lib\//.test(path)),
-    visual: files.some((path) => /^gui\/lib\/src\/(features|core\/widgets|theme|app)\//.test(path)),
+    visual: files.some((path) => (/^gui\/lib\/src\/(features|core\/widgets|theme|app)\//.test(path) || /^gui\/test\/(visual|goldens)\//.test(path))),
     docs: files.some((path) => /^(website\/|README.md$|package.json$|yarn.lock$)/.test(path)),
     tooling: files.some((path) => /^(scripts\/|\.github\/|\.husky\/|package.json$)/.test(path)),
     native: files.some((path) => /^gui\/(macos|windows|linux)\//.test(path)),
@@ -43,12 +43,13 @@ export function inspectSecrets(files) {
 export function redactLog(output, environment = process.env) {
   let text = output;
   for (const [name, value] of Object.entries(environment)) {
-    if (/(TOKEN|PASSWORD|SECRET|PRIVATE_KEY)/i.test(name) && value?.length >= 8) {
+    if (/(TOKEN|PASSWORD|SECRET|(?:ACCESS|API|PRIVATE)_KEY)/i.test(name) && value?.length >= 8) {
       text = text.replaceAll(value, '[REDACTED]');
     }
   }
   // Pattern detection also protects secrets not represented in the environment.
   return text.replace(/\b(?:github_pat_|gh[pousr]_|glpat-|xox[baprs]-)[\w-]+\b/g, '[REDACTED]')
+    .replace(/\b(?:AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35})\b/g, '[REDACTED]')
     .replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, '[REDACTED]');
 }
 
