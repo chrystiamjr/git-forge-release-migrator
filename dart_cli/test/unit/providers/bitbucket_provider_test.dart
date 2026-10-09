@@ -973,6 +973,75 @@ void main() {
       expect(uploadedNames, <String?>['v1.1.0-app.zip', '.gfrm-release-v1.1.0.json']);
     });
 
+    test('publishRelease deletes the existing tag-scoped download before re-uploading it', () async {
+      final Directory temp = createTempDir('gfrm-bb-publish-replace-');
+      final File notes = File('${temp.path}/notes.md')..writeAsStringSync('notes');
+      final File asset = File('${temp.path}/app.zip')..writeAsStringSync('v1.1.0 build');
+      final ScriptedHttpClientHelper http = ScriptedHttpClientHelper(
+        jsonResponses: <dynamic>[
+          // A previous run of this release already uploaded its tag-scoped asset.
+          <String, dynamic>{
+            'values': <dynamic>[
+              <String, dynamic>{'name': 'v1.1.0-app.zip'},
+            ],
+            'next': '',
+          },
+          <String, dynamic>{},
+          <String, dynamic>{'values': <dynamic>[], 'next': ''},
+        ],
+      );
+      final _QueueDio dio = _QueueDio(
+        postResults: <Response<dynamic>>[
+          _response(
+            'https://api.bitbucket.org/2.0/repositories/workspace/repo/downloads',
+            201,
+            data: <String, dynamic>{
+              'name': 'v1.1.0-app.zip',
+              'links': <String, dynamic>{
+                'download': <String, dynamic>{'href': 'https://downloads.example/v1.1.0-app.zip'},
+              },
+            },
+          ),
+          _response(
+            'https://api.bitbucket.org/2.0/repositories/workspace/repo/downloads',
+            201,
+            data: <String, dynamic>{
+              'name': '.gfrm-release-v1.1.0.json',
+              'links': <String, dynamic>{
+                'download': <String, dynamic>{'href': 'https://downloads.example/manifest.json'},
+              },
+            },
+          ),
+        ],
+      );
+      final BitbucketAdapter adapter = BitbucketAdapter(http: http, dio: dio);
+      final ProviderRef ref = adapter.parseUrl('https://bitbucket.org/workspace/repo');
+
+      final String status = await adapter.publishRelease(
+        PublishReleaseInput(
+          providerRef: ref,
+          token: 'token',
+          tag: 'v1.1.0',
+          releaseName: 'Release v1.1.0',
+          notesFile: notes,
+          downloadedFiles: <String>[asset.path],
+          expectedAssets: 1,
+          existingInfo: const ExistingReleaseInfo(exists: true, shouldRetry: true, reason: ''),
+        ),
+      );
+
+      expect(status, 'ok');
+      expect(
+        http.jsonRequests.where((request) => request.method == 'DELETE').map((request) => request.url),
+        <String>['https://api.bitbucket.org/2.0/repositories/workspace/repo/downloads/v1.1.0-app.zip'],
+      );
+      final List<String?> uploadedNames = dio.postedData
+          .whereType<FormData>()
+          .map((FormData form) => form.files.single.value.filename)
+          .toList(growable: false);
+      expect(uploadedNames.first, 'v1.1.0-app.zip');
+    });
+
     test('downloadCanonicalLink and downloadCanonicalSource return false when URL is missing', () async {
       final BitbucketAdapter adapter = BitbucketAdapter();
       final ProviderRef ref = adapter.parseUrl('https://bitbucket.org/workspace/repo');

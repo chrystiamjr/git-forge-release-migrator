@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:gfrm_dart/src/core/adapters/provider_adapter.dart';
 import 'package:gfrm_dart/src/core/exceptions/authentication_error.dart';
+import 'package:gfrm_dart/src/core/exceptions/http_request_error.dart';
 import 'package:gfrm_dart/src/core/logging.dart';
 import 'package:gfrm_dart/src/core/types/canonical_release.dart';
 import 'package:gfrm_dart/src/core/types/phase.dart';
@@ -324,14 +325,14 @@ void main() {
       expect(ctx.failedTags, contains('v1.0.0'));
     });
 
-    test('marks release failed and keeps going when publishRelease throws', () async {
+    test('marks release failed with a token-free cause and keeps going when publishRelease throws', () async {
       final Directory temp = createTempDir('gfrm-rel-phase-');
 
       final _StubTargetAdapter target = _StubTargetAdapter(
         tagExistsResult: true,
         onPublish: (PublishReleaseInput input) async {
           if (input.tag == 'v1.0.0') {
-            throw StateError('HTTP 422 asset already exists');
+            throw HttpRequestError('HTTP 422 for https://gitlab.example/uploads?token=dst-token: asset already exists');
           }
           return 'ok';
         },
@@ -353,6 +354,32 @@ void main() {
       expect(counts.failed, 1);
       expect(counts.created, 1);
       expect(ctx.failedTags, <String>{'v1.0.0'});
+      final String log = File(ctx.logPath).readAsStringSync();
+      expect(log, contains('Release publish operation failed on GitLab: HTTP 422 for'));
+      expect(log, contains('token=***: asset already exists'));
+      expect(log, isNot(contains('dst-token')));
+    });
+
+    test('propagates programming Errors from publishRelease instead of counting a failed release', () async {
+      final Directory temp = createTempDir('gfrm-rel-phase-');
+
+      final _StubTargetAdapter target = _StubTargetAdapter(
+        tagExistsResult: true,
+        onPublish: (_) async => throw StateError('bug in publishRelease'),
+      );
+      final MigrationContext ctx = buildMigrationContext(
+        temp,
+        _StubSourceAdapter(),
+        target,
+        selectedTags: <String>['v1.0.0'],
+        targetTags: <String>{'v1.0.0'},
+        releases: <Map<String, dynamic>>[buildMinimalReleasePayload('v1.0.0')],
+      );
+
+      await expectLater(
+        ReleasePhaseRunner(logger: logger).run(ctx),
+        throwsA(isA<StateError>()),
+      );
     });
 
     test('rethrows AuthenticationError from publishRelease', () async {
