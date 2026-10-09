@@ -1,3 +1,12 @@
+## [0.18.2](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.18.1...v0.18.2) (2026-10-09)
+
+### Bug Fixes
+
+* **ci:** delegate native and live acceptance in CI core validation ([3cd2ace](https://github.com/chrystiamjr/git-forge-release-migrator/commit/3cd2ace6abbb80190daef2a272cf8c0f3fdccfa7))
+* **dart:** keep tags, assets and runs intact across providers ([1af6335](https://github.com/chrystiamjr/git-forge-release-migrator/commit/1af63357bc214b8171b14eba486fe4eb05eb21a3))
+* **dart:** redact both tokens and truncate bodies in failure causes ([34c95d5](https://github.com/chrystiamjr/git-forge-release-migrator/commit/34c95d5f3c5d76165cea69639cf3ef3727c26f26))
+* **dart:** surface publish failure causes and let errors propagate ([99f656a](https://github.com/chrystiamjr/git-forge-release-migrator/commit/99f656a4d2d169300d4cb4ce3784a87f0b415384))
+
 ## [0.18.1](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.18.0...v0.18.1) (2026-10-09)
 
 ### Bug Fixes
