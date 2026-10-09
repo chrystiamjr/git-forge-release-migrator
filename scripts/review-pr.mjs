@@ -1753,7 +1753,8 @@ function truncateComment(body) {
 }
 
 // Earlier bot comments and their replies, so the model does not raise the same concern again on another line.
-export function buildPriorReviewComments(comments, marker = AUTO_REVIEW_MARKER) {
+// Only replies from trusted authors pass: anyone can reply on a public repo, and the model acts on replies.
+export function buildPriorReviewComments(comments, trustedAuthors, marker = AUTO_REVIEW_MARKER) {
   const botComments = comments.filter((comment) => !comment.in_reply_to_id && String(comment.body ?? '').includes(marker));
 
   return botComments.map((comment) => ({
@@ -1761,14 +1762,14 @@ export function buildPriorReviewComments(comments, marker = AUTO_REVIEW_MARKER) 
     line: comment.line ?? null,
     body: truncateComment(String(comment.body).replace(marker, '')),
     replies: comments
-      .filter((reply) => reply.in_reply_to_id === comment.id)
+      .filter((reply) => reply.in_reply_to_id === comment.id && trustedAuthors.includes(reply.user?.login))
       .map((reply) => ({ author: reply.user?.login ?? 'unknown', body: truncateComment(reply.body) })),
   }));
 }
 
-async function fetchPriorReviewComments(owner, repo) {
+async function fetchPriorReviewComments(owner, repo, trustedAuthors) {
   try {
-    return buildPriorReviewComments(await paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/comments`));
+    return buildPriorReviewComments(await paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/comments`), trustedAuthors);
   } catch (error) {
     // Best-effort context: without it the review still runs, it may just repeat an earlier comment.
     console.error(`[review-pr] Could not load earlier review comments: ${error.message}`);
@@ -1835,7 +1836,7 @@ export async function runReview() {
   const [reviewRound, checkState, priorComments] = await Promise.all([
     fetchReviewRound(owner, repo),
     fetchCheckState(owner, repo),
-    fetchPriorReviewComments(owner, repo),
+    fetchPriorReviewComments(owner, repo, [pullRequest.user?.login, owner].filter(Boolean)),
   ]);
 
   const { findings, llm } = await buildReviewFindings(
