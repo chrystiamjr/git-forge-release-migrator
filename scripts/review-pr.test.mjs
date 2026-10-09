@@ -16,6 +16,7 @@ import {
   buildMultiClassFindings,
   buildPriorReviewComments,
   buildReviewFindings,
+  countAiReviewRounds,
   createChangedFileReader,
   buildPrintInProductionFindings,
   buildRawExceptionFindings,
@@ -24,6 +25,7 @@ import {
   buildSilentCatchFindings,
   buildTargetedCoverageFindings,
   isAiReviewEnabled,
+  resolveAiReviewGate,
   shouldRunAiReview,
   isBranchProtectionAccessDeniedError,
   selectApplicableRule,
@@ -1277,4 +1279,31 @@ test('buildPriorReviewComments keeps bot comments with trusted replies and drops
   assert.equal(prior.length, 2);
   assert.equal(prior[1].line, null);
   assert.ok(prior[1].body.length <= 601);
+});
+
+test('countAiReviewRounds counts only reviews where the LLM ran', () => {
+  const reviews = [
+    { body: 'Issues found.\n\n<!-- auto-pr-review:llm -->\n\n<!-- auto-pr-review -->' },
+    { body: '**LLM review:** skipped.\n\n<!-- auto-pr-review -->' },
+    { body: 'Human review.' },
+    { body: null },
+  ];
+
+  assert.equal(countAiReviewRounds(reviews), 1);
+});
+
+test('resolveAiReviewGate caps AI rounds per PR, skips drafts, and honors the extra-round label', () => {
+  const env = { AI_REVIEW_ENABLED: 'true' };
+  const pullRequest = { user: { login: 'owner' }, draft: false, labels: [] };
+  const gate = (overrides = {}, aiRoundsUsed = 0, gateEnv = env) =>
+    resolveAiReviewGate({ env: gateEnv, pullRequest: { ...pullRequest, ...overrides }, owner: 'owner', aiRoundsUsed });
+
+  assert.deepEqual(gate({}, 2), { enabled: true, usesExtraRoundLabel: false });
+  assert.match(gate({}, 3).reason, /AI review limit reached \(3 of 3 rounds\)\. Add the `ai-review` label/);
+  assert.deepEqual(gate({ labels: [{ name: 'ai-review' }] }, 3), { enabled: true, usesExtraRoundLabel: true });
+  assert.equal(gate({}, 1, { ...env, AI_REVIEW_MAX_ROUNDS: '1' }).enabled, false);
+  assert.equal(gate({}, 3, { ...env, AI_REVIEW_MAX_ROUNDS: 'lots' }).enabled, false);
+  assert.match(gate({ draft: true }).reason, /Draft PR/);
+  assert.match(gate({ user: { login: 'someone' } }).reason, /authored by the repository owner/);
+  assert.deepEqual(gate({}, 0, {}), { enabled: false });
 });

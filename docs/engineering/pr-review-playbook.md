@@ -36,6 +36,11 @@ model. It drops concerns the code fixed or a reply answered, and re-raises the r
 blocking findings still block. As a deterministic backstop, the publisher skips a finding with the same path, tier, and
 symbol within 30 lines of an existing bot comment.
 
+Each PR gets at most `AI_REVIEW_MAX_ROUNDS` AI rounds (default 3); later pushes get the deterministic rules only.
+To buy one more round, add the `ai-review` label and re-run the Automated PR Review workflow; the bot removes the label
+after using it. Draft PRs get no AI round until they are marked ready for review. A run that finds the PR merged or
+closed, before reviewing or before publishing, posts nothing.
+
 ## 1. Fetch inline comments
 
 ```bash

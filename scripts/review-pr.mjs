@@ -15,6 +15,11 @@ import {
 import { DISK_IO, runAiReview } from './ai-review.mjs';
 
 const AUTO_REVIEW_MARKER = '<!-- auto-pr-review -->';
+// publish-pr-review.mjs adds this to reviews where the LLM actually ran; it counts AI rounds per PR.
+const AI_REVIEW_ROUND_MARKER = '<!-- auto-pr-review:llm -->';
+const DEFAULT_AI_REVIEW_MAX_ROUNDS = 3;
+// Lets the owner buy one more AI round after the limit; only users with write access can add labels.
+const AI_REVIEW_EXTRA_ROUND_LABEL = 'ai-review';
 const RUN_ID = process.env.GITHUB_RUN_ID || '';
 
 const SECRET_PATTERNS = [
@@ -1481,12 +1486,17 @@ export function buildGuiBoundaryFindings(files) {
   return findings;
 }
 
-async function fetchReviewRound(owner, repo) {
+async function fetchReviewRounds(owner, repo) {
   const reviews = await paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/reviews`);
 
-  return (
-    reviews.filter((review) => String(review.body || '').includes(AUTO_REVIEW_MARKER)).length + 1
-  );
+  return {
+    reviewRound: reviews.filter((review) => String(review.body || '').includes(AUTO_REVIEW_MARKER)).length + 1,
+    aiRoundsUsed: countAiReviewRounds(reviews),
+  };
+}
+
+export function countAiReviewRounds(reviews) {
+  return reviews.filter((review) => String(review.body || '').includes(AI_REVIEW_ROUND_MARKER)).length;
 }
 
 export function selectRequiredContexts(baseRefName, branchProtectionRules, { branchProtectionAvailable = true } = {}) {
@@ -1787,6 +1797,52 @@ export function shouldRunAiReview(env, prAuthor, repositoryOwner) {
   return isAiReviewEnabled(env) && Boolean(prAuthor) && prAuthor === repositoryOwner;
 }
 
+function parseMaxRounds(value) {
+  const rounds = Number.parseInt(String(value ?? ''), 10);
+  return Number.isInteger(rounds) && rounds >= 0 ? rounds : DEFAULT_AI_REVIEW_MAX_ROUNDS;
+}
+
+// Each AI round costs real quota, so a PR gets a fixed number of them; drafts get none until marked ready.
+export function resolveAiReviewGate({ env, pullRequest, owner, aiRoundsUsed }) {
+  if (!isAiReviewEnabled(env)) {
+    return { enabled: false };
+  }
+
+  if (!shouldRunAiReview(env, pullRequest.user?.login, owner)) {
+    return { enabled: false, reason: 'AI review runs only on PRs authored by the repository owner.' };
+  }
+
+  if (pullRequest.draft) {
+    return { enabled: false, reason: 'Draft PR: AI review runs once it is marked ready for review.' };
+  }
+
+  const maxRounds = parseMaxRounds(env.AI_REVIEW_MAX_ROUNDS);
+  if (aiRoundsUsed < maxRounds) {
+    return { enabled: true, usesExtraRoundLabel: false };
+  }
+
+  const labels = (pullRequest.labels ?? []).map((label) => label.name);
+  if (labels.includes(AI_REVIEW_EXTRA_ROUND_LABEL)) {
+    return { enabled: true, usesExtraRoundLabel: true };
+  }
+
+  return {
+    enabled: false,
+    reason: `AI review limit reached (${aiRoundsUsed} of ${maxRounds} rounds). Add the \`${AI_REVIEW_EXTRA_ROUND_LABEL}\` label and re-run the Automated PR Review workflow for one more round.`,
+  };
+}
+
+async function removeExtraRoundLabel(owner, repo) {
+  try {
+    await githubRequest(`/repos/${owner}/${repo}/issues/${PR_NUMBER}/labels/${AI_REVIEW_EXTRA_ROUND_LABEL}`, {
+      method: 'DELETE',
+    });
+  } catch (error) {
+    // The label stays and keeps granting rounds; the owner can remove it by hand.
+    console.error(`[review-pr] Could not remove the ${AI_REVIEW_EXTRA_ROUND_LABEL} label: ${error.message}`);
+  }
+}
+
 export async function buildReviewFindings(
   files,
   llmReviewer,
@@ -1828,17 +1884,21 @@ export async function runReview() {
   assertRequiredEnv();
 
   const { owner, repo } = parseRepository(REPOSITORY);
-  const [pullRequest, files] = await Promise.all([
-    githubRequest(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}`),
-    paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/files`),
-  ]);
+  const pullRequest = await githubRequest(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}`);
+  // A run queued before the merge or close must not review or comment afterwards.
+  if (pullRequest.state !== 'open') {
+    return { pr_number: PR_NUMBER, verdict: 'skip', skip_reason: `PR is ${pullRequest.state}.`, findings: [], marker: AUTO_REVIEW_MARKER };
+  }
 
-  const [reviewRound, checkState, priorComments] = await Promise.all([
-    fetchReviewRound(owner, repo),
+  const files = await paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/files`);
+
+  const [{ reviewRound, aiRoundsUsed }, checkState, priorComments] = await Promise.all([
+    fetchReviewRounds(owner, repo),
     fetchCheckState(owner, repo),
     fetchPriorReviewComments(owner, repo, [pullRequest.user?.login, owner].filter(Boolean)),
   ]);
 
+  const aiGate = resolveAiReviewGate({ env: process.env, pullRequest, owner, aiRoundsUsed });
   const { findings, llm } = await buildReviewFindings(
     files,
     (hints) =>
@@ -1849,13 +1909,12 @@ export async function runReview() {
         priorComments,
         io: { ...DISK_IO, readChangedFile: createChangedFileReader(owner, repo, pullRequest.head.sha) },
       }),
-    {
-      enabled: shouldRunAiReview(process.env, pullRequest.user?.login, owner),
-      disabledReason: isAiReviewEnabled()
-        ? 'AI review runs only on PRs authored by the repository owner.'
-        : undefined,
-    },
+    { enabled: aiGate.enabled, disabledReason: aiGate.reason },
   );
+
+  if (aiGate.usesExtraRoundLabel && llm && !llm.error && !llm.skipped) {
+    await removeExtraRoundLabel(owner, repo);
+  }
 
   const blockingFindings = findings.filter((finding) => finding.severity === 'blocking').length;
   const nonBlockingFindings = findings.length - blockingFindings;

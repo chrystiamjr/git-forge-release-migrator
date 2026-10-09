@@ -311,6 +311,7 @@ test('publishReviewResult renders summary-only findings and LLM sections in the 
   );
   assert.match(body, /partial context \(size budget\): `big\.dart`/);
   assert.match(body, /<summary>Dismissed heuristic hints \(1\)<\/summary>\n\n- `long_method` in `a\.dart`: Generated table, not logic\./);
+  assert.match(body, /<!-- auto-pr-review:llm -->\n\n<!-- auto-pr-review -->$/);
   assert.match(body, /_Reviewed by claude \/ opus \(claude-opus-5-5, effort: medium\) in 61s, est\. cost \$1\.23\. Routed to deep: Touches resume semantics\._/);
   assert.ok(body.endsWith('<!-- auto-pr-review -->'));
 });
@@ -391,6 +392,7 @@ test('publishReviewResult renders a skipped LLM review without a model footer', 
 
   assert.match(calls[0].body, /\*\*LLM review:\*\* skipped\. AI review disabled\./);
   assert.doesNotMatch(calls[0].body, /Reviewed by/);
+  assert.doesNotMatch(calls[0].body, /auto-pr-review:llm/);
 });
 
 test('partitionPublishedFindings treats the same tier and symbol re-anchored nearby as already published', () => {

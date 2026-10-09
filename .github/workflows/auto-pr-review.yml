@@ -107,6 +107,8 @@ jobs:
       # default-branch checkout.
       # When enabled it fails closed: a missing or failing engine adds a blocking llm_review_unavailable finding.
       #   vars.AI_REVIEW_ENABLED          'true' to enable; anything else = deterministic rules only
+      #   vars.AI_REVIEW_MAX_ROUNDS       optional, default 3; AI rounds per PR, then deterministic rules only.
+      #                                   Label `ai-review` + re-run grants one more round. Drafts get no AI round.
       #   vars.AI_REVIEW_ENGINE           optional, claude (default) | gemini
       #   secrets.CLAUDE_CODE_OAUTH_TOKEN claude engine; from `claude setup-token` (Claude subscription)
       #   vars.CLAUDE_MODEL               optional; unset = Haiku triage routes to haiku/sonnet/opus, set = pinned model
@@ -142,6 +144,7 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           AI_REVIEW_ENABLED: ${{ steps.ai-gate.outputs.enabled }}
           AI_REVIEW_ENGINE: ${{ vars.AI_REVIEW_ENGINE }}
+          AI_REVIEW_MAX_ROUNDS: ${{ vars.AI_REVIEW_MAX_ROUNDS }}
           CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.ai-gate.outputs.enabled == 'true' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
           CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL }}
           CLAUDE_EFFORT: ${{ vars.CLAUDE_EFFORT }}
