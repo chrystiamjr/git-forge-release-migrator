@@ -260,3 +260,12 @@ test('comment metadata retains only evidence for its listed scenarios', () => {
   assert.equal(checklistMetadata(body).evidence.tests.length, 0);
   assert.ok(body.length < 5000);
 });
+
+test('pretty-printed Vitest output retains exact named results after startup output', () => {
+  const output = 'Yarn startup\n' + JSON.stringify({ numTotalTestSuites: 1, testResults: [
+    { name: '/repo/website/src/a.test.ts', assertionResults: [
+      { fullName: 'form submits', status: 'passed' }, { fullName: 'form skips', status: 'pending' },
+    ] },
+  ] }, null, 2);
+  assert.deepEqual(parseTestEvidence(output, 'website', '/repo').map((item) => item.status), ['passed', 'skipped']);
+});

@@ -9,4 +9,3 @@ export function classifyChanges(files) {
     live: files.some((path) => /^dart_cli\/lib\/src\/providers\/(github|gitlab|bitbucket)\.dart$/.test(path)),
   };
 }
-

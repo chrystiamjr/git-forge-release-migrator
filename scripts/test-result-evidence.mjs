@@ -14,9 +14,9 @@ export function parseTestEvidence(output, suite, root) {
     if (event.type === 'testStart') starts.set(event.test.id, event.test);
     if (event.type === 'testDone') {
       const test = starts.get(event.testID);
-      if (!test) continue;
+      if (!test?.url || event.hidden) continue;
       results.push({ suite, file: normalizeTestPath(test.url || '', root), name: test.name,
-        status: event.skipped || test.metadata?.skip ? 'skipped' : event.result === 'success' && !event.hidden ? 'passed' : 'failed' });
+        status: event.skipped || test.metadata?.skip ? 'skipped' : event.result === 'success' ? 'passed' : 'failed' });
     }
     if (event.type === 'test:pass' || event.type === 'test:fail') {
       // Suite containers do not prove that a named test ran.
@@ -27,7 +27,7 @@ export function parseTestEvidence(output, suite, root) {
   }
   if (suite === 'website') {
     // Vitest JSON can be preceded by Yarn's startup output.
-    const start = output.indexOf('{"numTotalTestSuites"');
+    const start = output.search(/\{\s*"numTotalTestSuites"\s*:/);
     try {
       const report = JSON.parse(output.slice(start));
       for (const file of report.testResults || []) for (const test of file.assertionResults || []) {
