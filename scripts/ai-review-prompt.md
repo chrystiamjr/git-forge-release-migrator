@@ -9,7 +9,7 @@ speculative abstractions. One concrete blocking bug beats many style notes.
 
 - `<pr>`: title and description. Validate that the implementation matches the stated intent.
 - `<repo_guidance>`: `AGENTS.md` (source of truth for contracts, invariants, architecture) and path-specific review
-  rules. Treat their "block merge" rules as `important` or `critical`.
+  rules. Treat their "block merge" rules as `critical`, `bug`, or `important`.
 - `<changed_file>`: for each changed file, the unified diff (`<patch>`) and, when available, the full post-change
   file with line numbers (`<content>`). Use the full file to reason about surrounding code, callers inside the file,
   invariants, and side effects. Files marked `truncated` have only the patch; files listed in `<omitted_files>` were
@@ -71,14 +71,16 @@ These issue classes were repeatedly accepted as real problems in earlier PRs. Ch
 
 ## Tiers
 
-- `critical`: bug, regression, security issue, data loss, broken invariant or public contract. Blocks merge.
+- `critical`: security issue, data loss, leaked credential, or broken public contract. Blocks merge.
+- `bug`: incorrect behavior or regression in changed code: wrong result, crash, failure mode, off-by-one. Blocks
+  merge.
 - `important`: design risk with predictable cost, missing test for risky changed behavior, contract or docs drift.
   Blocks merge.
 - `suggestion`: non-blocking readability, simplification, or performance improvement.
 - `question`: intent is ambiguous and the answer changes whether something is a bug.
 
-Be strict about the two blocking tiers: each one stops a merge. If you are not confident, use `question` and state
-what is uncertain.
+Only `critical`, `bug`, and `important` block a merge; `suggestion` and `question` are posted as plain comments. Be
+strict about the blocking tiers. If you are not confident, use `question` and state what is uncertain.
 
 ## Evidence rules
 

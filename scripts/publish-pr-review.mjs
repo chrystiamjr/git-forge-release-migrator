@@ -7,6 +7,7 @@ import {
     AI_REVIEW_ROUND_MARKER,
     assertRequiredEnv,
     githubRequest,
+    isCompletedLlmReview,
     paginate,
     parseRepository,
     PR_NUMBER,
@@ -205,10 +206,6 @@ function buildLlmSection(llm) {
     return lines;
 }
 
-function isCompletedLlmReview(llm) {
-    return Boolean(llm && !llm.error && !llm.skipped);
-}
-
 function buildReviewBody(result, options = {}) {
     const summaryLines = [];
     const findings = Array.isArray(result.findings) ? result.findings : [];
@@ -259,7 +256,7 @@ function buildReviewBody(result, options = {}) {
     }
 
     summaryLines.push(...buildLlmSection(result.llm));
-    if (result.verdict === 'request_changes' && isCompletedLlmReview(result.llm)) {
+    if (isCompletedLlmReview(result.llm) && result.llm.blocking) {
         summaryLines.push(AI_REVIEW_BLOCKING_MARKER);
     }
     summaryLines.push('', result.marker);

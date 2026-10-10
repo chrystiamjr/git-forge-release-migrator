@@ -41,8 +41,9 @@ const MAX_INLINE_FINDINGS = 20;
 // One GitHub Contents API call per file; stay well under GitHub's secondary rate limit on concurrent requests.
 const MAX_CONCURRENT_FILE_READS = 8;
 
-const TIERS = ['critical', 'important', 'suggestion', 'question'];
-const BLOCKING_TIERS = new Set(['critical', 'important']);
+const TIERS = ['critical', 'bug', 'important', 'suggestion', 'question'];
+// Only these tiers block a merge; every other finding is posted as a plain comment.
+export const BLOCKING_TIERS = new Set(['critical', 'bug', 'important']);
 
 const AGENTS_PATH = 'AGENTS.md';
 const INSTRUCTIONS_DIR = '.github/instructions';
@@ -688,14 +689,17 @@ export async function runAiReview({
     runCommand,
   });
 
+  const findings = normalizeFindings(review, files);
   return {
-    findings: normalizeFindings(review, files),
+    findings,
     llm: {
       engine: engineName,
       ...settings,
       model_version: modelVersion,
       duration_seconds: (Date.now() - startedAt) / 1000,
       cost_usd: sumCosts(costUsd, settings.triage_cost_usd),
+      // Whether the AI's own findings block, as opposed to deterministic rules; drives the round's blocking marker.
+      blocking: findings.some((finding) => finding.severity === 'blocking'),
       tests_needed: review.tests_needed ?? [],
       design_notes: review.design_notes ?? [],
       verdict_reasoning: review.verdict_reasoning ?? '',

@@ -12,9 +12,10 @@ import {
   parseRepository,
   githubRequest,
   githubGraphql,
+  isCompletedLlmReview,
   paginate,
 } from './github-api.mjs';
-import { DISK_IO, runAiReview } from './ai-review.mjs';
+import { BLOCKING_TIERS, DISK_IO, runAiReview } from './ai-review.mjs';
 
 const AUTO_REVIEW_MARKER = '<!-- auto-pr-review -->';
 const DEFAULT_AI_REVIEW_MAX_ROUNDS = 3;
@@ -1716,6 +1717,19 @@ async function handleFatalError(error) {
 }
 
 // Exact invariants: cheap, never hallucinate, always post and block on their own.
+function withTier(finding, tier) {
+  return { ...finding, tier, severity: BLOCKING_TIERS.has(tier) ? 'blocking' : 'note' };
+}
+
+// Leaked secrets are critical; the other hard rules block as important, and their notes stay suggestions.
+function hardFindingTier(finding) {
+  if (finding.rule.startsWith('secret_')) {
+    return 'critical';
+  }
+
+  return finding.severity === 'blocking' ? 'important' : 'suggestion';
+}
+
 export function buildHardFindings(files) {
   return [
     ...buildMissingPatchFindings(files),
@@ -1725,10 +1739,11 @@ export function buildHardFindings(files) {
     ...buildGuiBoundaryFindings(files),
     ...buildDocsSyncFindings(files),
     ...buildContractDocsFindings(files),
-  ];
+  ].map((finding) => withTier(finding, hardFindingTier(finding)));
 }
 
-// Fuzzy heuristics: passed to the LLM reviewer as hints to confirm or dismiss.
+// Fuzzy heuristics: passed to the LLM reviewer as hints to confirm or dismiss. Posted without the LLM, they are
+// unconfirmed, so they never block.
 export function buildHintFindings(files) {
   return [
     ...buildRawExceptionFindings(files),
@@ -1743,7 +1758,7 @@ export function buildHintFindings(files) {
     ...buildTargetedCoverageFindings(files),
     ...buildFlutterTestFindings(files),
     ...buildFlutterTargetedCoverageFindings(files),
-  ];
+  ].map((finding) => withTier(finding, 'suggestion'));
 }
 
 function compareFindings(left, right) {
@@ -1853,6 +1868,7 @@ export function buildPendingAiFinding(gate, lastAiRoundBlocked) {
 
   return {
     rule: 'llm_review_pending',
+    tier: 'important',
     severity: 'blocking',
     path: null,
     line: null,
@@ -1863,7 +1879,7 @@ export function buildPendingAiFinding(gate, lastAiRoundBlocked) {
 
 // The label buys exactly one AI round: keep it when the round was skipped or the engine failed.
 export function shouldConsumeExtraRoundLabel(gate, llm) {
-  return Boolean(gate.usesExtraRoundLabel && llm && !llm.error && !llm.skipped);
+  return Boolean(gate.usesExtraRoundLabel && isCompletedLlmReview(llm));
 }
 
 async function removeExtraRoundLabel(owner, repo) {
@@ -1900,6 +1916,7 @@ export async function buildReviewFindings(
     console.error(`[review-pr] LLM review unavailable: ${error.message}`);
     const unavailableFinding = {
       rule: 'llm_review_unavailable',
+      tier: 'important',
       severity: 'blocking',
       path: null,
       line: null,

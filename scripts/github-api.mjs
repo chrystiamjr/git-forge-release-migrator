@@ -27,6 +27,11 @@ const AI_REVIEW_ROUND_MARKER = '<!-- auto-pr-review:llm -->';
 // Added next to the round marker when that AI round requested changes.
 const AI_REVIEW_BLOCKING_MARKER = '<!-- auto-pr-review:llm:blocking -->';
 
+// True when an AI round actually ran: it was neither skipped nor failed.
+function isCompletedLlmReview(llm) {
+  return Boolean(llm && !llm.error && !llm.skipped);
+}
+
 async function githubRequest(path, init = {}) {
   const response = await fetch(`https://api.github.com${path}`, {
     ...init,
@@ -101,5 +106,6 @@ export {
   parseRepository,
   githubRequest,
   githubGraphql,
+  isCompletedLlmReview,
   paginate,
 };

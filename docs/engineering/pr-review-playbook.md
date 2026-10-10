@@ -6,11 +6,14 @@ Use this flow when asked to address inline review comments on an open PR.
 
 `scripts/review-pr.mjs` runs two layers after Quality Checks:
 
-- **Hard rules** (secrets, contract invariants, EN/PT-BR docs sync, layer imports): deterministic `[blocking]`.
+- **Hard rules** (secrets, contract invariants, EN/PT-BR docs sync, layer imports): deterministic. Secrets are
+  `[critical]`, the other blocking rules `[important]`, and their notes `[suggestion]`.
 - **AI review** (`scripts/ai-review.mjs`, prompt in `scripts/ai-review-prompt.md`): reads the patch plus the full
-  post-change file, `AGENTS.md`, and the matching `.github/instructions/*`. `[critical]` and `[important]` block;
-  `[suggestion]` and `[question]` do not. Fuzzy heuristics (long method, `setState`, test gaps, …) are sent as hints
-  that the model confirms or dismisses.
+  post-change file, `AGENTS.md`, and the matching `.github/instructions/*`. Fuzzy heuristics (long method, `setState`,
+  test gaps, …) are sent as hints that the model confirms or dismisses; posted without the model, they are
+  `[suggestion]`.
+
+Only `[critical]`, `[bug]`, and `[important]` block a merge. `[suggestion]` and `[question]` are plain comments.
 
 The AI layer is opt-in and owner-only: set repo variable `AI_REVIEW_ENABLED=true`; it then runs only on PRs authored
 and triggered by the repository owner. PR content is untrusted prompt input, so the gate limits prompt-injection exposure and

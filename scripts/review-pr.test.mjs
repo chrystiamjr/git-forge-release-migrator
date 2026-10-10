@@ -9,6 +9,7 @@ import {
   buildFlutterTestFindings,
   buildGodClassFindings,
   buildGuiBoundaryFindings,
+  buildHardFindings,
   buildInvariantContractFindings,
   buildLogicInBuildFindings,
   buildLongMethodFindings,
@@ -1194,6 +1195,8 @@ test('buildReviewFindings fails closed with hints and a blocking finding when th
 
   const unavailable = findings.find((finding) => finding.rule === 'llm_review_unavailable');
   assert.equal(unavailable.severity, 'blocking');
+  assert.equal(unavailable.tier, 'important');
+  assert.equal(findings.find((finding) => finding.rule === 'set_state_in_riverpod_project').severity, 'note');
   assert.equal(unavailable.inline, false);
   assert.ok(findings.some((finding) => finding.rule === 'set_state_in_riverpod_project'));
   assert.deepEqual(llm, { error: 'GEMINI_API_KEY is not configured.' });
@@ -1216,10 +1219,27 @@ test('buildReviewFindings skips the LLM and posts hints when AI review is disabl
   );
 
   assert.deepEqual(
-    findings.map((finding) => finding.rule),
-    ['set_state_in_riverpod_project'],
+    findings.map(({ rule, tier, severity }) => ({ rule, tier, severity })),
+    [{ rule: 'set_state_in_riverpod_project', tier: 'suggestion', severity: 'note' }],
   );
   assert.match(llm.skipped, /AI_REVIEW_ENABLED=true/);
+});
+
+test('buildHardFindings blocks only as critical or important, with secrets as critical', () => {
+  const findings = buildHardFindings([
+    buildPatchedFile({
+      filename: 'README.md',
+      status: 'modified',
+      changes: 2,
+      patch: '@@ -1,1 +1,1 @@\n+export GH_TOKEN=ghp_example12345678901234567890',
+    }),
+    buildPatchedFile({ filename: 'website/docs/intro.md', patch: '@@ -1,1 +1,1 @@\n+Updated intro' }),
+  ]);
+
+  const byRule = Object.fromEntries(findings.map(({ rule, tier, severity }) => [rule, { tier, severity }]));
+  assert.deepEqual(byRule.secret_github_token, { tier: 'critical', severity: 'blocking' });
+  assert.ok(findings.every((finding) => ['critical', 'important', 'suggestion'].includes(finding.tier)));
+  assert.ok(findings.every((finding) => (finding.severity === 'blocking') === (finding.tier !== 'suggestion')));
 });
 
 test('isAiReviewEnabled is opt-in', () => {
