@@ -1,0 +1,264 @@
+# Desktop page dependency trees
+Includes local UI, state and runtime boundaries; omit pure logic from design-generation payloads.
+
+## dashboard_empty_page
+- `gui/lib/src/features/dashboard/presentation/dashboard_empty_page.dart`
+  - `gui/lib/src/app/navigation/app_routes.dart`
+  - `gui/lib/src/core/widgets/atoms/gfrm_button.dart`
+    - `gui/lib/src/theme/gfrm_app_theme.dart`
+      - `gui/lib/src/theme/gfrm_colors.dart`
+      - `gui/lib/src/theme/gfrm_shadows.dart`
+      - `gui/lib/src/theme/gfrm_theme.dart`
+      - `gui/lib/src/theme/gfrm_typography.dart`
+      - `gui/lib/src/theme/gfrm_unit.dart`
+  - `gui/lib/src/core/widgets/molecules/gfrm_empty_state.dart`
+    - `gui/lib/src/theme/gfrm_app_theme.dart` (shared; already traced)
+  - `gui/lib/src/core/widgets/molecules/gfrm_stat_card.dart`
+    - `gui/lib/src/theme/gfrm_app_theme.dart` (shared; already traced)
+  - `gui/lib/src/theme/gfrm_app_theme.dart` (shared; already traced)
+
+## history_empty_page
+- `gui/lib/src/features/history/presentation/history_empty_page.dart`
+  - `gui/lib/src/core/widgets/molecules/gfrm_empty_state.dart`
+    - `gui/lib/src/theme/gfrm_app_theme.dart`
+      - `gui/lib/src/theme/gfrm_colors.dart`
+      - `gui/lib/src/theme/gfrm_shadows.dart`
+      - `gui/lib/src/theme/gfrm_theme.dart`
+      - `gui/lib/src/theme/gfrm_typography.dart`
+      - `gui/lib/src/theme/gfrm_unit.dart`
+  - `gui/lib/src/theme/gfrm_app_theme.dart` (shared; already traced)
+
+## new_migration_page
+- `gui/lib/src/features/new_migration/presentation/new_migration_page.dart`
+  - `gui/lib/src/application/run/contracts/desktop_run_controller.dart`
+    - `gui/lib/src/application/run/models/desktop_preflight_request.dart`
+    - `gui/lib/src/application/run/models/desktop_preflight_summary.dart`
+      - `gui/lib/src/application/run/models/desktop_preflight_check_item.dart`
+    - `gui/lib/src/application/run/models/desktop_run_action_result.dart`
+    - `gui/lib/src/application/run/models/desktop_run_resume_request.dart`
+    - `gui/lib/src/application/run/models/desktop_run_session.dart`
+      - `gui/lib/src/application/run/models/desktop_run_completion.dart`
+        - `gui/lib/src/application/run/models/desktop_run_failure_summary.dart`
+        - `gui/lib/src/application/run/models/desktop_run_snapshot.dart`
+          - `gui/lib/src/application/run/models/desktop_artifacts_summary.dart`
+          - `gui/lib/src/application/run/models/desktop_preflight_summary.dart` (shared; already traced)
+          - `gui/lib/src/application/run/models/desktop_run_count_summary.dart`
+          - `gui/lib/src/application/run/models/desktop_run_failure_summary.dart` (shared; already traced)
+          - `gui/lib/src/application/run/models/desktop_run_progress_item.dart`
+      - `gui/lib/src/application/run/models/desktop_run_snapshot.dart` (shared; already traced)
+    - `gui/lib/src/application/run/models/desktop_run_snapshot.dart` (shared; already traced)
+    - `gui/lib/src/application/run/models/desktop_run_start_request.dart`
+  - `gui/lib/src/features/new_migration/application/new_migration_wizard_controller.dart`
+    - `gui/lib/src/application/run/models/desktop_preflight_check_item.dart` (shared; already traced)
+    - `gui/lib/src/application/run/contracts/desktop_run_controller.dart` (shared; already traced)
+    - `gui/lib/src/application/run/models/desktop_preflight_summary.dart` (shared; already traced)
+    - `gui/lib/src/features/new_migration/application/new_migration_wizard_state.dart`
+      - `gui/lib/src/application/run/models/desktop_preflight_request.dart` (shared; already traced)
+      - `gui/lib/src/application/run/models/desktop_preflight_summary.dart` (shared; already traced)
+      - `gui/lib/src/application/run/models/desktop_run_start_request.dart` (shared; already traced)
+      - `gui/lib/src/features/new_migration/domain/migration_provider_option.dart`
+    - `gui/lib/src/features/new_migration/domain/migration_provider_option.dart` (shared; already traced)
+  - `gui/lib/src/features/new_migration/application/new_migration_wizard_state.dart` (shared; already traced)
+  - `gui/lib/src/features/new_migration/presentation/organisms/new_migration_options_step.dart`
+    - `gui/lib/src/application/run/contracts/desktop_run_controller.dart` (shared; already traced)
+    - `gui/lib/src/core/widgets/atoms/gfrm_button.dart`
+      - `gui/lib/src/theme/gfrm_app_theme.dart`
+        - `gui/lib/src/theme/gfrm_colors.dart`
+        - `gui/lib/src/theme/gfrm_shadows.dart`
+        - `gui/lib/src/theme/gfrm_theme.dart`
+        - `gui/lib/src/theme/gfrm_typography.dart`
+        - `gui/lib/src/theme/gfrm_unit.dart`
+    - `gui/lib/src/features/new_migration/application/new_migration_wizard_controller.dart` (shared; already traced)
+    - `gui/lib/src/features/new_migration/application/new_migration_wizard_state.dart` (shared; already traced)
+    - `gui/lib/src/features/new_migration/presentation/molecules/matching_tags_preview_section.dart`
+      - `gui/lib/src/features/new_migration/presentation/molecules/new_migration_section_card.dart`
+        - `gui/lib/src/theme/gfrm_app_theme.dart` (shared; already traced)
+      - `gui/lib/src/theme/gfrm_app_theme.dart` (shared; already traced)
+    - `gui/lib/src/features/new_migration/presentation/molecules/migration_option_toggle.dart`
+    - `gui/lib/src/features/new_migration/presentation/molecules/new_migration_section_card.dart` (shared; already traced)
+    - `gui/lib/src/theme/gfrm_app_theme.dart` (shared; already traced)
+  - `gui/lib/src/features/new_migration/presentation/organisms/new_migration_preflight_step.dart`
+    - `gui/lib/src/core/widgets/atoms/gfrm_button.dart` (shared; already traced)
+    - `gui/lib/src/features/new_migration/application/new_migration_wizard_controller.dart` (shared; already traced)
+    - `gui/lib/src/features/new_migration/application/new_migration_wizard_state.dart` (shared; already traced)
+    - `gui/lib/src/features/new_migration/presentation/molecules/new_migration_preflight_results_card.dart`
+      - `gui/lib/src/application/run/models/desktop_preflight_check_item.dart` (shared; already traced)
+      - `gui/lib/src/features/new_migration/application/new_migration_wizard_state.dart` (shared; already traced)
+      - `gui/lib/src/features/new_migration/presentation/molecules/new_migration_blocking_error_banner.dart`
+        - `gui/lib/src/theme/gfrm_app_theme.dart` (shared; already traced)
+      - `gui/lib/src/features/new_migration/presentation/molecules/new_migration_preflight_check_row.dart`
+        - `gui/lib/src/application/run/models/desktop_preflight_check_item.dart` (shared; already traced)
+        - `gui/lib/src/core/widgets/atoms/gfrm_badge.dart`
+          - `gui/lib/src/theme/gfrm_app_theme.dart` (shared; already traced)
+        - `gui/lib/src/core/widgets/molecules/gfrm_checklist_item.dart`
+          - `gui/lib/src/core/widgets/atoms/gfrm_badge.dart` (shared; already traced)
+          - `gui/lib/src/theme/gfrm_app_theme.dart` (shared; already traced)
+        - `gui/lib/src/theme/gfrm_app_theme.dart` (shared; already traced)
+      - `gui/lib/src/features/new_migration/presentation/molecules/new_migration_section_card.dart` (shared; already traced)
+      - `gui/lib/src/theme/gfrm_app_theme.dart` (shared; already traced)
+    - `gui/lib/src/features/new_migration/presentation/molecules/new_migration_summary_card.dart`
+      - `gui/lib/src/features/new_migration/application/new_migration_wizard_state.dart` (shared; already traced)
+      - `gui/lib/src/theme/gfrm_app_theme.dart` (shared; already traced)
+    - `gui/lib/src/theme/gfrm_app_theme.dart` (shared; already traced)
+  - `gui/lib/src/features/new_migration/presentation/organisms/new_migration_source_target_step.dart`
+    - `gui/lib/src/core/widgets/atoms/gfrm_button.dart` (shared; already traced)
+    - `gui/lib/src/features/new_migration/application/new_migration_wizard_controller.dart` (shared; already traced)
+    - `gui/lib/src/features/new_migration/application/new_migration_wizard_state.dart` (shared; already traced)
+    - `gui/lib/src/features/new_migration/presentation/molecules/migration_endpoint_section.dart`
+      - `gui/lib/src/features/new_migration/domain/migration_provider_option.dart` (shared; already traced)
+      - `gui/lib/src/features/new_migration/presentation/molecules/new_migration_section_card.dart` (shared; already traced)
+      - `gui/lib/src/features/new_migration/presentation/molecules/migration_provider_option_icon.dart`
+        - `gui/lib/src/features/new_migration/domain/migration_provider_option.dart` (shared; already traced)
+      - `gui/lib/src/theme/gfrm_app_theme.dart` (shared; already traced)
+    - `gui/lib/src/theme/gfrm_app_theme.dart` (shared; already traced)
+  - `gui/lib/src/runtime/run/providers/desktop_run_controller_provider.dart`
+    - `gui/lib/src/application/run/contracts/desktop_run_controller.dart` (shared; already traced)
+    - `gui/lib/src/application/run/models/desktop_run_snapshot.dart` (shared; already traced)
+    - `gui/lib/src/runtime/run/services/gfrm_desktop_run_controller.dart`
+      - `gui/lib/src/application/run/models/desktop_preflight_request.dart` (shared; already traced)
+      - `gui/lib/src/application/run/models/desktop_preflight_summary.dart` (shared; already traced)
+      - `gui/lib/src/application/run/models/desktop_run_action_result.dart` (shared; already traced)
+      - `gui/lib/src/application/run/models/desktop_run_completion.dart` (shared; already traced)
+      - `gui/lib/src/application/run/contracts/desktop_run_controller.dart` (shared; already traced)
+      - `gui/lib/src/application/run/models/desktop_run_failure_summary.dart` (shared; already traced)
+      - `gui/lib/src/application/run/models/desktop_run_resume_request.dart` (shared; already traced)
+      - `gui/lib/src/application/run/models/desktop_run_session.dart` (shared; already traced)
+      - `gui/lib/src/application/run/models/desktop_run_snapshot.dart` (shared; already traced)
+      - `gui/lib/src/application/run/models/desktop_run_start_request.dart` (shared; already traced)
+      - `gui/lib/src/runtime/run/mappers/map_desktop_preflight_request_to_runtime_options.dart`
+        - `gui/lib/src/application/run/models/desktop_preflight_request.dart` (shared; already traced)
+        - `gui/lib/src/runtime/run/services/build_gui_runtime_options.dart`
+      - `gui/lib/src/runtime/run/mappers/map_desktop_run_failure_to_summary.dart`
+        - `gui/lib/src/application/run/models/desktop_run_failure_summary.dart` (shared; already traced)
+      - `gui/lib/src/runtime/run/mappers/map_desktop_run_resume_request_to_run_request.dart`
+        - `gui/lib/src/application/run/models/desktop_preflight_request.dart` (shared; already traced)
+        - `gui/lib/src/application/run/models/desktop_run_resume_request.dart` (shared; already traced)
+        - `gui/lib/src/runtime/run/services/build_gui_runtime_options.dart` (shared; already traced)
+      - `gui/lib/src/runtime/run/mappers/map_desktop_run_start_request_to_run_request.dart`
+        - `gui/lib/src/application/run/models/desktop_preflight_request.dart` (shared; already traced)
+        - `gui/lib/src/application/run/models/desktop_run_start_request.dart` (shared; already traced)
+        - `gui/lib/src/runtime/run/services/build_gui_runtime_options.dart` (shared; already traced)
+      - `gui/lib/src/runtime/run/mappers/map_preflight_checks_to_summary.dart`
+        - `gui/lib/src/application/run/models/desktop_preflight_check_item.dart` (shared; already traced)
+        - `gui/lib/src/application/run/models/desktop_preflight_summary.dart` (shared; already traced)
+        - `gui/lib/src/runtime/run/mappers/map_desktop_preflight_check_to_item.dart`
+          - `gui/lib/src/application/run/models/desktop_preflight_check_item.dart` (shared; already traced)
+      - `gui/lib/src/runtime/run/mappers/map_run_result_to_completion.dart`
+        - `gui/lib/src/application/run/models/desktop_run_completion.dart` (shared; already traced)
+        - `gui/lib/src/application/run/models/desktop_run_failure_summary.dart` (shared; already traced)
+        - `gui/lib/src/application/run/models/desktop_run_snapshot.dart` (shared; already traced)
+        - `gui/lib/src/runtime/run/mappers/map_desktop_run_failure_to_summary.dart` (shared; already traced)
+      - `gui/lib/src/runtime/run/mappers/map_run_state_to_snapshot.dart`
+        - `gui/lib/src/application/run/models/desktop_artifacts_summary.dart` (shared; already traced)
+        - `gui/lib/src/application/run/models/desktop_preflight_summary.dart` (shared; already traced)
+        - `gui/lib/src/application/run/models/desktop_run_count_summary.dart` (shared; already traced)
+        - `gui/lib/src/application/run/models/desktop_run_progress_item.dart` (shared; already traced)
+        - `gui/lib/src/application/run/models/desktop_run_snapshot.dart` (shared; already traced)
+        - `gui/lib/src/runtime/run/mappers/map_run_state_failure_to_summary.dart`
+          - `gui/lib/src/application/run/models/desktop_run_failure_summary.dart` (shared; already traced)
+      - `gui/lib/src/runtime/run/services/runtime_log_event_sink.dart`
+      - `gui/lib/src/runtime/run/services/runtime_run_state_sink.dart`
+  - `gui/lib/src/theme/gfrm_app_theme.dart` (shared; already traced)
+
+## run_progress_page
+- `gui/lib/src/features/progress/presentation/run_progress_page.dart`
+  - `gui/lib/src/application/run/models/desktop_run_snapshot.dart`
+    - `gui/lib/src/application/run/models/desktop_artifacts_summary.dart`
+    - `gui/lib/src/application/run/models/desktop_preflight_summary.dart`
+      - `gui/lib/src/application/run/models/desktop_preflight_check_item.dart`
+    - `gui/lib/src/application/run/models/desktop_run_count_summary.dart`
+    - `gui/lib/src/application/run/models/desktop_run_failure_summary.dart`
+    - `gui/lib/src/application/run/models/desktop_run_progress_item.dart`
+  - `gui/lib/src/features/progress/presentation/organisms/run_progress_summary.dart`
+    - `gui/lib/src/application/run/models/desktop_run_snapshot.dart` (shared; already traced)
+    - `gui/lib/src/core/widgets/molecules/gfrm_empty_state.dart`
+      - `gui/lib/src/theme/gfrm_app_theme.dart`
+        - `gui/lib/src/theme/gfrm_colors.dart`
+        - `gui/lib/src/theme/gfrm_shadows.dart`
+        - `gui/lib/src/theme/gfrm_theme.dart`
+        - `gui/lib/src/theme/gfrm_typography.dart`
+        - `gui/lib/src/theme/gfrm_unit.dart`
+    - `gui/lib/src/features/progress/presentation/molecules/run_progress_counts.dart`
+      - `gui/lib/src/application/run/models/desktop_run_count_summary.dart` (shared; already traced)
+      - `gui/lib/src/core/widgets/molecules/gfrm_stat_card.dart`
+        - `gui/lib/src/theme/gfrm_app_theme.dart` (shared; already traced)
+      - `gui/lib/src/theme/gfrm_app_theme.dart` (shared; already traced)
+    - `gui/lib/src/theme/gfrm_app_theme.dart` (shared; already traced)
+  - `gui/lib/src/runtime/run/providers/desktop_run_controller_provider.dart`
+    - `gui/lib/src/application/run/contracts/desktop_run_controller.dart`
+      - `gui/lib/src/application/run/models/desktop_preflight_request.dart`
+      - `gui/lib/src/application/run/models/desktop_preflight_summary.dart` (shared; already traced)
+      - `gui/lib/src/application/run/models/desktop_run_action_result.dart`
+      - `gui/lib/src/application/run/models/desktop_run_resume_request.dart`
+      - `gui/lib/src/application/run/models/desktop_run_session.dart`
+        - `gui/lib/src/application/run/models/desktop_run_completion.dart`
+          - `gui/lib/src/application/run/models/desktop_run_failure_summary.dart` (shared; already traced)
+          - `gui/lib/src/application/run/models/desktop_run_snapshot.dart` (shared; already traced)
+        - `gui/lib/src/application/run/models/desktop_run_snapshot.dart` (shared; already traced)
+      - `gui/lib/src/application/run/models/desktop_run_snapshot.dart` (shared; already traced)
+      - `gui/lib/src/application/run/models/desktop_run_start_request.dart`
+    - `gui/lib/src/application/run/models/desktop_run_snapshot.dart` (shared; already traced)
+    - `gui/lib/src/runtime/run/services/gfrm_desktop_run_controller.dart`
+      - `gui/lib/src/application/run/models/desktop_preflight_request.dart` (shared; already traced)
+      - `gui/lib/src/application/run/models/desktop_preflight_summary.dart` (shared; already traced)
+      - `gui/lib/src/application/run/models/desktop_run_action_result.dart` (shared; already traced)
+      - `gui/lib/src/application/run/models/desktop_run_completion.dart` (shared; already traced)
+      - `gui/lib/src/application/run/contracts/desktop_run_controller.dart` (shared; already traced)
+      - `gui/lib/src/application/run/models/desktop_run_failure_summary.dart` (shared; already traced)
+      - `gui/lib/src/application/run/models/desktop_run_resume_request.dart` (shared; already traced)
+      - `gui/lib/src/application/run/models/desktop_run_session.dart` (shared; already traced)
+      - `gui/lib/src/application/run/models/desktop_run_snapshot.dart` (shared; already traced)
+      - `gui/lib/src/application/run/models/desktop_run_start_request.dart` (shared; already traced)
+      - `gui/lib/src/runtime/run/mappers/map_desktop_preflight_request_to_runtime_options.dart`
+        - `gui/lib/src/application/run/models/desktop_preflight_request.dart` (shared; already traced)
+        - `gui/lib/src/runtime/run/services/build_gui_runtime_options.dart`
+      - `gui/lib/src/runtime/run/mappers/map_desktop_run_failure_to_summary.dart`
+        - `gui/lib/src/application/run/models/desktop_run_failure_summary.dart` (shared; already traced)
+      - `gui/lib/src/runtime/run/mappers/map_desktop_run_resume_request_to_run_request.dart`
+        - `gui/lib/src/application/run/models/desktop_preflight_request.dart` (shared; already traced)
+        - `gui/lib/src/application/run/models/desktop_run_resume_request.dart` (shared; already traced)
+        - `gui/lib/src/runtime/run/services/build_gui_runtime_options.dart` (shared; already traced)
+      - `gui/lib/src/runtime/run/mappers/map_desktop_run_start_request_to_run_request.dart`
+        - `gui/lib/src/application/run/models/desktop_preflight_request.dart` (shared; already traced)
+        - `gui/lib/src/application/run/models/desktop_run_start_request.dart` (shared; already traced)
+        - `gui/lib/src/runtime/run/services/build_gui_runtime_options.dart` (shared; already traced)
+      - `gui/lib/src/runtime/run/mappers/map_preflight_checks_to_summary.dart`
+        - `gui/lib/src/application/run/models/desktop_preflight_check_item.dart` (shared; already traced)
+        - `gui/lib/src/application/run/models/desktop_preflight_summary.dart` (shared; already traced)
+        - `gui/lib/src/runtime/run/mappers/map_desktop_preflight_check_to_item.dart`
+          - `gui/lib/src/application/run/models/desktop_preflight_check_item.dart` (shared; already traced)
+      - `gui/lib/src/runtime/run/mappers/map_run_result_to_completion.dart`
+        - `gui/lib/src/application/run/models/desktop_run_completion.dart` (shared; already traced)
+        - `gui/lib/src/application/run/models/desktop_run_failure_summary.dart` (shared; already traced)
+        - `gui/lib/src/application/run/models/desktop_run_snapshot.dart` (shared; already traced)
+        - `gui/lib/src/runtime/run/mappers/map_desktop_run_failure_to_summary.dart` (shared; already traced)
+      - `gui/lib/src/runtime/run/mappers/map_run_state_to_snapshot.dart`
+        - `gui/lib/src/application/run/models/desktop_artifacts_summary.dart` (shared; already traced)
+        - `gui/lib/src/application/run/models/desktop_preflight_summary.dart` (shared; already traced)
+        - `gui/lib/src/application/run/models/desktop_run_count_summary.dart` (shared; already traced)
+        - `gui/lib/src/application/run/models/desktop_run_progress_item.dart` (shared; already traced)
+        - `gui/lib/src/application/run/models/desktop_run_snapshot.dart` (shared; already traced)
+        - `gui/lib/src/runtime/run/mappers/map_run_state_failure_to_summary.dart`
+          - `gui/lib/src/application/run/models/desktop_run_failure_summary.dart` (shared; already traced)
+      - `gui/lib/src/runtime/run/services/runtime_log_event_sink.dart`
+      - `gui/lib/src/runtime/run/services/runtime_run_state_sink.dart`
+  - `gui/lib/src/theme/gfrm_app_theme.dart` (shared; already traced)
+
+## results_empty_page
+- `gui/lib/src/features/results/presentation/results_empty_page.dart`
+  - `gui/lib/src/core/widgets/molecules/gfrm_empty_state.dart`
+    - `gui/lib/src/theme/gfrm_app_theme.dart`
+      - `gui/lib/src/theme/gfrm_colors.dart`
+      - `gui/lib/src/theme/gfrm_shadows.dart`
+      - `gui/lib/src/theme/gfrm_theme.dart`
+      - `gui/lib/src/theme/gfrm_typography.dart`
+      - `gui/lib/src/theme/gfrm_unit.dart`
+  - `gui/lib/src/theme/gfrm_app_theme.dart` (shared; already traced)
+
+
+## /settings, /settings/credentials, /settings/profiles, /settings/general
+Entry: `gui/lib/src/app/placeholders/gfrm_route_placeholder.dart`
+- `gui/lib/src/app/placeholders/gfrm_route_placeholder.dart`
+  - `gui/lib/src/app/placeholders/gfrm_content_placeholder.dart`
+  - `gui/lib/src/theme/gfrm_app_theme.dart`
+Shared shell and theme dependencies above apply. These are placeholders, not functioning settings forms.

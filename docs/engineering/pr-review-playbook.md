@@ -34,10 +34,57 @@ docs-only PRs (`website/**`, `README.md`) go straight to `light`; otherwise a Ha
 patches and picks `light` (haiku, `low`), `standard` (sonnet, `medium`), or `deep` (opus, `medium`). If triage fails,
 the review uses `standard`. The review footer shows the chosen tier, its reason, and the combined cost.
 
-Each run sends the bot's earlier inline comments, with replies from the PR author or repository owner only, to the
-model. It drops concerns the code fixed or a reply answered, and re-raises the rest at the same anchor so unresolved
-blocking findings still block. As a deterministic backstop, the publisher skips a finding with the same path, tier, and
-symbol within 30 lines of an existing bot comment.
+Each run loads the verified bot's review threads, including resolved/outdated threads, original locations and
+replies from the PR author or repository owner. Both threads and replies are paginated. Stable finding IDs,
+stored in hidden comment metadata, keep the same concern attached to its original discussion even when its
+wording, severity, line or filename changes. Existing comments use their GitHub comment IDs for compatibility.
+Two different causes in one symbol remain separate findings; proximity alone never suppresses a finding.
+
+The model assesses every prior finding against current code. Unchanged findings keep blocking without another
+inline comment; review summaries link to their discussions. A change of assessment or severity gets one reply
+in the original thread. Resolved threads and claims of a fix are not proof; omitted/uncertain assessments retain
+previous blockers. History failures cannot silently clear them. Replies are reconsidered on the next push or
+manual review rerun, without triggering an extra AI call immediately.
+
+Reusable lessons belong in `.github/instructions/review-lessons.instructions.md`. Promote an accepted finding
+or corrected false positive through a normal documentation PR with maintainer review and merge. Each entry
+includes scope, guidance, exceptions, and a permanent source-thread link. Only the trusted default-branch copy
+is loaded; discussions never automatically become repository policy.
+
+### One required-tests checklist
+
+The metadata-only PR Review Lifecycle workflow creates one bot-owned **Required tests** comment on open/reopen,
+including draft PRs, and refreshes its scope on pushes. It runs trusted default-branch scripts; it never executes
+PR-head code. When Quality Checks completes, a separate evidence job updates that comment before AI analysis.
+The review publisher merges additional scenarios into the same comment before publishing its verdict. Reviews
+link to the checklist instead of repeating a "Tests needed" section.
+
+The checklist uses existing validation scope rules. Passing rows link to the CI run/job; failed, cancelled,
+skipped, missing, or delegated evidence stays unchecked with its status. Native/live acceptance remains separate
+and CI delegation is not a pass. This comment is informational and does not introduce a new merge gate.
+
+Validation reports include PR head/base, tested revision, workflow run/attempt, and named test results. The reader
+requires the current PR revision and latest CI attempt; a synthetic merge commit must have the current head and
+base as its parents. For AI-requested scenarios, a green suite is insufficient: the reviewer must inspect a test
+implementation and name the exact test that passed. Missing/skipped tests remain pending. Verified obsolete
+requirements can be withdrawn with a stated reason; failures to review do not remove prior requirements.
+
+The lifecycle, evidence, and publication jobs share a per-PR publication concurrency group. Writers re-read the
+current comment, edit only the verified bot's copy, and skip identical updates. New heads invalidate previous
+checkmarks. Only evidence relevant to listed scenarios is retained in comment metadata, not the full test inventory.
+
+### Closure and stale results
+
+Eligibility is checked before AI tooling setup and again before model calls and publication. Closing or merging
+a PR triggers a small cancellation job for queued/running review workflows. Every publication, dismissal,
+checklist edit and label change also checks live PR state and the reviewed head. Stale or closed work is skipped.
+Already-in-flight API calls cannot be recalled; cancellation and write guards prevent further work once closure
+is observed. New verdicts are published before older bot verdicts are dismissed.
+
+Bot credentials need pull-request read/write plus Actions read for validation artifacts. Only the cancellation
+job uses the workflow token with Actions write. An unresolved bot identity stops publication rather than trusting
+another author's marker. Review scripts/workflows take effect after they are merged into the default branch;
+validate their fixtures locally first and observe a disposable PR after human merge.
 
 Each PR gets at most `AI_REVIEW_MAX_ROUNDS` AI rounds (default 3); later pushes get the deterministic rules only.
 To buy one more round, add the `ai-review` label and re-run the Automated PR Review workflow; the bot removes the label

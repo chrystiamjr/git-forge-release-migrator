@@ -1,0 +1,46 @@
+name: Review bot identity
+description: Resolve the same verified identity for reviews and the persistent test checklist
+inputs:
+  app-id:
+    required: false
+  app-key:
+    required: false
+  bot-token:
+    required: false
+  fallback-token:
+    required: false
+outputs:
+  configured:
+    value: ${{ steps.identity.outputs.configured }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/create-github-app-token@v3
+      id: app
+      if: inputs.app-id != '' && inputs.app-key != ''
+      with:
+        app-id: ${{ inputs.app-id }}
+        private-key: ${{ inputs.app-key }}
+    - id: identity
+      shell: bash
+      env:
+        APP_TOKEN: ${{ steps.app.outputs.token }}
+        APP_SLUG: ${{ steps.app.outputs.app-slug }}
+        BOT_TOKEN: ${{ inputs.bot-token }}
+        FALLBACK_TOKEN: ${{ inputs.fallback-token }}
+      run: |
+        token="${APP_TOKEN:-${BOT_TOKEN:-${FALLBACK_TOKEN}}}"
+        if [[ -z "$token" ]]; then
+          echo 'configured=false' >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        echo "::add-mask::$token"
+        if [[ -n "$APP_TOKEN" ]]; then
+          login="${APP_SLUG}[bot]"
+        else
+          login="$(GH_TOKEN="$token" gh api user --jq .login)"
+        fi
+        [[ -n "$login" ]]
+        echo "GH_TOKEN=$token" >> "$GITHUB_ENV"
+        echo "REVIEW_BOT_LOGIN=$login" >> "$GITHUB_ENV"
+        echo 'configured=true' >> "$GITHUB_OUTPUT"

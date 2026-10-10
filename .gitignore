@@ -48,3 +48,6 @@ website/.docusaurus/
 # Golden comparison diagnostics; baselines remain tracked
 gui/test/goldens/failures/
 gui/test/visual/failures/
+
+# Plugin-generated engineering standards breadcrumb (ls-eng)
+.claude/rules/ls-standards/

@@ -37,6 +37,7 @@ async function githubRequest(path, init = {}) {
     ...init,
     headers: {
       Accept: 'application/vnd.github+json',
+      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
       Authorization: `Bearer ${GH_TOKEN}`,
       'User-Agent': 'gfrm-auto-pr-review',
       ...init.headers,
@@ -71,13 +72,13 @@ async function githubGraphql(query, variables) {
   return result.data;
 }
 
-async function paginate(path) {
+async function paginate(path, request = githubRequest) {
   const items = [];
   let page = 1;
 
   while (true) {
     const separator = path.includes('?') ? '&' : '?';
-    const data = await githubRequest(`${path}${separator}per_page=100&page=${page}`);
+    const data = await request(`${path}${separator}per_page=100&page=${page}`);
 
     if (!Array.isArray(data) || data.length === 0) {
       break;

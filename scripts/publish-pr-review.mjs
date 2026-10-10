@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 
+import { findingId, findingMarker, findingMetadata, priorFinding } from './review-history.mjs';
+import { assertReviewCurrent, guardedRequest, ReviewStopped } from './review-lifecycle.mjs';
+import { updateChecklist } from './review-checklist.mjs';
+import { collectReviewEvidence } from './review-evidence.mjs';
 import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {
@@ -47,7 +51,7 @@ function findingLabel(finding) {
 }
 
 function formatInlineComment(finding, marker) {
-    const lines = [marker, `[${findingLabel(finding)}] ${finding.message}`];
+    const lines = [marker, `[${findingLabel(finding)}] ${finding.message}`, findingMarker(finding)];
 
     if (finding.symbol) {
         lines.push('', `Symbol: \`${finding.symbol}\``);
@@ -60,77 +64,29 @@ function formatInlineComment(finding, marker) {
     return lines.join('\n');
 }
 
-function inlineCommentSignature(path, line, body) {
-    return `${path ?? ''}\0${line ?? ''}\0${body ?? ''}`;
-}
-
 export function filterAlreadyPublishedFindings(findings, comments, marker) {
     return partitionPublishedFindings(findings, comments, marker).unpublishedFindings;
 }
 
-function commentLabel(body) {
-    return String(body).split('\n')[1]?.match(/^\[([a-z_]+)\]/)?.[1] ?? null;
-}
-
-function commentSymbol(body) {
-    return String(body).match(/^Symbol: `([^`]+)`$/m)?.[1] ?? null;
-}
-
-// LLM wording changes between runs, so tiered findings match an existing comment by path + line + tier;
-// deterministic findings keep exact-text matching.
-function findingSignature(finding, marker) {
-    const body = finding.tier ? `tier:${finding.tier}` : formatInlineComment(finding, marker);
-    return inlineCommentSignature(finding.path, finding.line, body);
-}
-
-// The model also re-anchors the same concern a few lines away between runs: same path, tier, and symbol nearby
-// counts as already published.
-const NEARBY_LINE_WINDOW = 30;
-
-function isNearbyTieredComment(finding, comment) {
-    return (
-        Boolean(finding.tier && finding.symbol) &&
-        typeof comment.line === 'number' &&
-        comment.path === finding.path &&
-        comment.tier === finding.tier &&
-        comment.symbol === finding.symbol &&
-        Math.abs(comment.line - finding.line) <= NEARBY_LINE_WINDOW
-    );
-}
-
 export function partitionPublishedFindings(findings, comments, marker) {
-    const existingCommentSignatures = new Set();
-    const tieredComments = [];
-
-    for (const comment of comments) {
-        if (!String(comment.body || '').includes(marker)) {
-            continue;
-        }
-
-        existingCommentSignatures.add(inlineCommentSignature(comment.path, comment.line, comment.body));
-        const label = commentLabel(comment.body);
-        if (label) {
-            existingCommentSignatures.add(inlineCommentSignature(comment.path, comment.line, `tier:${label}`));
-            tieredComments.push({path: comment.path, line: comment.line, tier: label, symbol: commentSymbol(comment.body)});
-        }
-    }
-
+    const byId = new Map(comments.filter((comment) => !comment.in_reply_to_id && String(comment.body || '').includes(marker))
+        .map((comment) => [priorFinding(comment).finding_id, comment]));
     const unpublishedFindings = [];
     const alreadyPublishedFindings = [];
-
+    const seen = new Set();
     for (const finding of findings) {
-        const isAlreadyPublished =
-            existingCommentSignatures.has(findingSignature(finding, marker)) ||
-            tieredComments.some((comment) => isNearbyTieredComment(finding, comment));
-
-        if (isAlreadyPublished) {
-            alreadyPublishedFindings.push(finding);
-        } else {
-            unpublishedFindings.push(finding);
-        }
+        const id = findingId(finding);
+        if (seen.has(id)) continue;
+        seen.add(id);
+        const existing = byId.get(id);
+        // Exact legacy text is safe; location/severity alone cannot identify a concern.
+        const legacy = existing || comments.find((comment) => !comment.in_reply_to_id &&
+            String(comment.body || '').includes(marker) && comment.path === finding.path &&
+            String(comment.body).split('\n')[1] === `[${findingLabel(finding)}] ${finding.message}`);
+        if (legacy) alreadyPublishedFindings.push(legacy.html_url ? { ...finding, existing_url: legacy.html_url } : finding);
+        else unpublishedFindings.push(finding);
     }
-
-    return {unpublishedFindings, alreadyPublishedFindings};
+    return { unpublishedFindings, alreadyPublishedFindings };
 }
 
 function formatFindingSummary(finding) {
@@ -174,9 +130,7 @@ function buildLlmSection(llm) {
         lines.push('', `Reviewed with partial context (size budget): ${partialContext.map((path) => `\`${path}\``).join(', ')}.`);
     }
 
-    // Secondary detail stays collapsed so the inline comments remain the main read.
-    const testsNeeded = Array.isArray(llm.tests_needed) ? llm.tests_needed : [];
-    lines.push(...buildDetails('Tests needed', testsNeeded.map((test) => `- ${test}`)));
+    // Required tests live in the single persistent checklist.
 
     const designNotes = Array.isArray(llm.design_notes) ? llm.design_notes : [];
     lines.push(
@@ -243,78 +197,26 @@ function buildReviewBody(result, options = {}) {
         if (summarizedFindings.length > 0) {
             summaryLines.push('');
             summaryLines.push(
-                'These findings matched existing automated inline comments and are repeated here so the review is self-contained:',
+                'Outstanding findings in existing threads:',
             );
-            summaryLines.push(...summarizedFindings.map((finding) => formatFindingSummary(finding)));
+            summaryLines.push(...summarizedFindings.map((finding) => finding.existing_url ? `- [${findingLabel(finding)}] [Existing discussion](${finding.existing_url})` : `- [${findingLabel(finding)}] Existing finding ${findingId(finding)}`));
         }
 
-        const summaryOnlyFindings = findings.filter((finding) => !isInlineFinding(finding));
+        const summaryOnlyFindings = findings.filter((finding) => !isInlineFinding(finding) && !summarizedFindings.some((prior) => findingId(prior) === findingId(finding)));
         if (summaryOnlyFindings.length > 0) {
             summaryLines.push('', 'Findings without an inline anchor in the diff:');
             summaryLines.push(...summaryOnlyFindings.map((finding) => formatFindingSummary(finding)));
         }
     }
 
+    if (result.checklist_url) summaryLines.push('', `[Required tests](${result.checklist_url})`);
     summaryLines.push(...buildLlmSection(result.llm));
     if (isCompletedLlmReview(result.llm) && result.llm.blocking) {
         summaryLines.push(AI_REVIEW_BLOCKING_MARKER);
     }
+    if (result.publication_key) summaryLines.push('', `<!-- gfrm-review-run:${result.publication_key} -->`);
     summaryLines.push('', result.marker);
     return summaryLines.join('\n');
-}
-
-async function dismissPreviousReviews(owner, repo, marker) {
-    const reviews = await paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/reviews`);
-    const dismissableReviews = reviews.filter(
-        (review) =>
-            String(review.body || '').includes(marker) &&
-            (review.state === 'CHANGES_REQUESTED' || review.state === 'APPROVED'),
-    );
-
-    for (const review of dismissableReviews) {
-        try {
-            await githubRequest(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/reviews/${review.id}/dismissals`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    message: 'Superseded by new automated review run.',
-                }),
-            });
-        } catch {
-            // Best-effort: dismiss may fail if token lacks permission or review was already dismissed.
-        }
-    }
-}
-
-async function postInlineFinding(owner, repo, headSha, finding, marker) {
-    await githubRequest(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/comments`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            body: formatInlineComment(finding, marker),
-            commit_id: headSha,
-            path: finding.path,
-            line: finding.line,
-            side: 'RIGHT',
-        }),
-    });
-}
-
-async function submitReview(owner, repo, event, body) {
-    await githubRequest(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/reviews`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            event,
-            body,
-        }),
-    });
 }
 
 async function loadReviewResult() {
@@ -333,7 +235,7 @@ export async function publishReviewResult(result, submitReview, options = {}) {
 
             await submitReview('COMMENT', buildReviewBody(result, {...options, usedRequestChangesFallback: true}));
         }
-        return;
+        return true;
     }
 
     if (result.verdict === 'approve') {
@@ -346,74 +248,82 @@ export async function publishReviewResult(result, submitReview, options = {}) {
 
             await submitReview('COMMENT', buildReviewBody(result, {...options, usedApprovalFallback: true}));
         }
-        return;
+        return true;
     }
 
     // A completed AI round must leave a review carrying its round marker, or review-pr.mjs would not count it.
     if (result.verdict === 'wait' && isCompletedLlmReview(result.llm)) {
         await submitReview('COMMENT', buildReviewBody(result, options));
+        return true;
+    }
+    return false;
+}
+
+export async function publishResult(result, {
+    repository = REPOSITORY, number = PR_NUMBER, botLogin = process.env.REVIEW_BOT_LOGIN,
+    request = githubRequest, evidenceLoader = collectReviewEvidence,
+} = {}) {
+    if (result.verdict === 'skip') return;
+    if (!botLogin) throw new Error('Verified review bot identity required');
+    const head = result.head_sha;
+    if (!head) throw new Error('Refusing to publish an analysis without a reviewed head');
+    await assertReviewCurrent(repository, number, head, request);
+    const write = guardedRequest(repository, number, head, request);
+    const base = `/repos/${repository}/pulls/${number}`;
+    const evidence = await evidenceLoader(repository, number, head, request);
+    result.checklist_url = await updateChecklist({ repository, number, head, botLogin, llm: result.llm, evidence, request });
+    const comments = (await paginate(`${base}/comments`, request)).filter((comment) => comment.user?.login === botLogin);
+    const reviews = await paginate(`${base}/reviews`, request);
+    if (result.publication_key && reviews.some((review) => review.user?.login === botLogin &&
+        review.body?.includes(`<!-- gfrm-review-run:${result.publication_key} -->`))) return;
+    const previousReviews = reviews.filter((review) =>
+        review.user?.login === botLogin && review.body?.includes(result.marker) && ['CHANGES_REQUESTED', 'APPROVED'].includes(review.state));
+    const findings = Array.isArray(result.findings) ? result.findings : [];
+    const { unpublishedFindings, alreadyPublishedFindings } = partitionPublishedFindings(findings, comments, result.marker);
+    let inlineCommentsPublished = true;
+    for (const finding of unpublishedFindings.filter(isInlineFinding)) {
+        try {
+            await write(`${base}/comments`, { method: 'POST', body: JSON.stringify({
+                body: formatInlineComment(finding, result.marker), commit_id: head,
+                path: finding.path, line: finding.line, side: 'RIGHT',
+            }) });
+        } catch (error) {
+            if (!isInlineCommentPermissionError(error)) throw error;
+            inlineCommentsPublished = false;
+            break;
+        }
+    }
+    for (const assessment of result.llm?.prior_assessments || []) {
+        const prior = result.prior_comments?.find((item) => item.finding_id === assessment.finding_id);
+        if (!prior) continue;
+        const threadComments = comments.filter((comment) => comment.id === prior.comment_id || comment.in_reply_to_id === prior.comment_id);
+        const latest = threadComments.filter((comment) => findingMetadata(comment.body)).at(-1);
+        const previous = findingMetadata(latest?.body) || { state: 'applicable', tier: prior.tier };
+        const finding = findings.find((item) => findingId(item) === prior.finding_id);
+        const tier = finding?.tier || prior.tier;
+        if (previous.state === assessment.state && previous.tier === tier) continue;
+        const state = { finding_id: prior.finding_id, tier, message: assessment.reason };
+        await write(`${base}/comments/${prior.comment_id}/replies`, { method: 'POST', body: JSON.stringify({
+            body: `${findingMarker(state, assessment.state)}\n${assessment.state}: ${assessment.reason}\n\nVerified against \`${head}\`.`,
+        }) });
+    }
+    const published = await publishReviewResult(result, (event, body) => write(`${base}/reviews`, {
+        method: 'POST', body: JSON.stringify({ event, body, commit_id: head }),
+    }), { inlineCommentsPublished, summarizedFindings: alreadyPublishedFindings });
+    // Replace the verdict before dismissing its predecessor; cancellation must not erase the only blocker.
+    for (const review of published ? previousReviews : []) {
+        try { await write(`${base}/reviews/${review.id}/dismissals`, { method: 'PUT', body: JSON.stringify({ message: 'Superseded by new automated review run.' }) }); }
+        catch (error) { if (error instanceof ReviewStopped) throw error; console.warn(`Could not dismiss review ${review.id}`); }
+    }
+    if (result.consume_extra_round_label) {
+        await write(`/repos/${repository}/issues/${number}/labels/ai-review`, { method: 'DELETE' });
     }
 }
 
 async function main() {
     assertRequiredEnv();
-
-    const result = await loadReviewResult();
-    const {owner, repo} = parseRepository(REPOSITORY);
-    if (result.verdict === 'skip') {
-        console.log(`Automated review skipped: ${result.skip_reason}`);
-        return;
-    }
-
-    // The review takes a minute or more; the PR may have been merged or closed meanwhile.
-    const pullRequest = await githubRequest(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}`);
-    if (pullRequest.state !== 'open') {
-        console.log(`Automated review not published: PR is ${pullRequest.state}.`);
-        return;
-    }
-
-    let inlineCommentsPublished = true;
-
-    await dismissPreviousReviews(owner, repo, result.marker);
-    let existingComments = [];
-
-    try {
-        existingComments = await paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/comments`);
-    } catch (error) {
-        if (!isInlineCommentPermissionError(error)) {
-            throw error;
-        }
-
-        inlineCommentsPublished = false;
-    }
-
-    const findings = Array.isArray(result.findings) ? result.findings : [];
-    const {unpublishedFindings, alreadyPublishedFindings} = partitionPublishedFindings(
-        findings.filter(isInlineFinding),
-        existingComments,
-        result.marker,
-    );
-
-    if (inlineCommentsPublished) {
-        for (const finding of unpublishedFindings) {
-            try {
-                await postInlineFinding(owner, repo, result.head_sha, finding, result.marker);
-            } catch (error) {
-                if (!isInlineCommentPermissionError(error)) {
-                    throw error;
-                }
-
-                inlineCommentsPublished = false;
-                break;
-            }
-        }
-    }
-
-    await publishReviewResult(
-        result,
-        (event, body) => submitReview(owner, repo, event, body),
-        {inlineCommentsPublished, summarizedFindings: alreadyPublishedFindings},
-    );
+    try { await publishResult(await loadReviewResult()); }
+    catch (error) { if (error instanceof ReviewStopped) console.log(error.message); else throw error; }
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) == process.argv[1]) {
