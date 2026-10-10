@@ -311,7 +311,7 @@ test('publishReviewResult renders summary-only findings and LLM sections in the 
   );
   assert.match(body, /partial context \(size budget\): `big\.dart`/);
   assert.match(body, /<summary>Dismissed heuristic hints \(1\)<\/summary>\n\n- `long_method` in `a\.dart`: Generated table, not logic\./);
-  assert.match(body, /<!-- auto-pr-review:llm -->\n\n<!-- auto-pr-review -->$/);
+  assert.match(body, /<!-- auto-pr-review:llm -->\n<!-- auto-pr-review:llm:blocking -->\n\n<!-- auto-pr-review -->$/);
   assert.match(body, /_Reviewed by claude \/ opus \(claude-opus-5-5, effort: medium\) in 61s, est\. cost \$1\.23\. Routed to deep: Touches resume semantics\._/);
   assert.ok(body.endsWith('<!-- auto-pr-review -->'));
 });
@@ -415,4 +415,25 @@ test('partitionPublishedFindings treats the same tier and symbol re-anchored nea
 
   assert.deepEqual(alreadyPublishedFindings, [reanchored]);
   assert.deepEqual(unpublishedFindings, [otherSymbol, farAway, otherTier]);
+});
+
+test('publishReviewResult posts a marked COMMENT for a completed AI round while checks are pending', async () => {
+  const calls = [];
+  const llm = { engine: 'claude', model: 'sonnet', model_version: 'claude-sonnet-5-5', effort: 'medium', verdict_reasoning: 'Safe.' };
+  const record = async (event, body) => {
+    calls.push({ event, body });
+  };
+
+  await publishReviewResult({ verdict: 'wait', marker: '<!-- auto-pr-review -->', findings: [], llm }, record, {});
+  await publishReviewResult(
+    { verdict: 'wait', marker: '<!-- auto-pr-review -->', findings: [], llm: { skipped: 'AI review limit reached.' } },
+    record,
+    {},
+  );
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].event, 'COMMENT');
+  assert.match(calls[0].body, /^Automated review complete with no blocking findings; waiting for required checks\./);
+  assert.match(calls[0].body, /<!-- auto-pr-review:llm -->/);
+  assert.doesNotMatch(calls[0].body, /auto-pr-review:llm:blocking/);
 });

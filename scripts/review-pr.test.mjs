@@ -16,7 +16,7 @@ import {
   buildMultiClassFindings,
   buildPriorReviewComments,
   buildReviewFindings,
-  buildRoundLimitFinding,
+  buildPendingAiFinding,
   createChangedFileReader,
   buildPrintInProductionFindings,
   buildRawExceptionFindings,
@@ -25,6 +25,7 @@ import {
   buildSilentCatchFindings,
   buildTargetedCoverageFindings,
   isAiReviewEnabled,
+  isBlockingReview,
   resolveAiReviewGate,
   selectAiReviews,
   shouldConsumeExtraRoundLabel,
@@ -1296,15 +1297,23 @@ test('selectAiReviews counts only marked reviews from the bot login', () => {
   assert.equal(selectAiReviews(reviews, undefined).length, 2);
 });
 
-test('buildRoundLimitFinding keeps blocking past the limit only when the last AI round blocked', () => {
-  const finding = buildRoundLimitFinding({ enabled: false, limitReached: true }, true);
-  assert.equal(finding.rule, 'llm_review_round_limit');
-  assert.equal(finding.severity, 'blocking');
-  assert.match(finding.message, /Add the `ai-review` label/);
+test('buildPendingAiFinding keeps blocking while AI is deferred and the last AI round blocked', () => {
+  const limit = { enabled: false, aiDeferred: true, reason: 'AI review limit reached (3 of 3 rounds). Add the `ai-review` label.' };
+  const draft = { enabled: false, aiDeferred: true, reason: 'Draft PR: AI review runs once it is marked ready for review.' };
 
-  assert.equal(buildRoundLimitFinding({ enabled: false, limitReached: true }, false), null);
-  assert.equal(buildRoundLimitFinding({ enabled: false, reason: 'Draft PR' }, true), null);
-  assert.equal(buildRoundLimitFinding({ enabled: true }, true), null);
+  assert.equal(buildPendingAiFinding(limit, true).rule, 'llm_review_pending');
+  assert.equal(buildPendingAiFinding(limit, true).severity, 'blocking');
+  assert.match(buildPendingAiFinding(limit, true).message, /found blocking issues and this run had no AI round\. AI review limit reached/);
+  assert.match(buildPendingAiFinding(draft, true).message, /Draft PR/);
+  assert.equal(buildPendingAiFinding(limit, false), null);
+  assert.equal(buildPendingAiFinding({ enabled: false, reason: 'not the owner' }, true), null);
+  assert.equal(buildPendingAiFinding({ enabled: true }, true), null);
+});
+
+test('isBlockingReview reads the blocking marker, not the review wording', () => {
+  assert.equal(isBlockingReview({ body: 'Anything\n<!-- auto-pr-review:llm -->\n<!-- auto-pr-review:llm:blocking -->' }), true);
+  assert.equal(isBlockingReview({ body: 'Issues found — see inline comments.\n<!-- auto-pr-review:llm -->' }), false);
+  assert.equal(isBlockingReview(undefined), false);
 });
 
 test('shouldConsumeExtraRoundLabel only consumes the label after a completed AI round', () => {
@@ -1322,12 +1331,13 @@ test('resolveAiReviewGate caps AI rounds per PR, skips drafts, and honors the ex
     resolveAiReviewGate({ env: gateEnv, pullRequest: { ...pullRequest, ...overrides }, owner: 'owner', aiRoundsUsed });
 
   assert.deepEqual(gate({}, 2), { enabled: true, usesExtraRoundLabel: false });
-  assert.equal(gate({}, 3).limitReached, true);
+  assert.equal(gate({}, 3).aiDeferred, true);
   assert.match(gate({}, 3).reason, /AI review limit reached \(3 of 3 rounds\)\. Add the `ai-review` label/);
   assert.deepEqual(gate({ labels: [{ name: 'ai-review' }] }, 3), { enabled: true, usesExtraRoundLabel: true });
   assert.equal(gate({}, 1, { ...env, AI_REVIEW_MAX_ROUNDS: '1' }).enabled, false);
   assert.equal(gate({}, 3, { ...env, AI_REVIEW_MAX_ROUNDS: 'lots' }).enabled, false);
   assert.match(gate({ draft: true }).reason, /Draft PR/);
+  assert.equal(gate({ draft: true }).aiDeferred, true);
   assert.match(gate({ user: { login: 'someone' } }).reason, /authored by the repository owner/);
   assert.deepEqual(gate({}, 0, {}), { enabled: false });
 });

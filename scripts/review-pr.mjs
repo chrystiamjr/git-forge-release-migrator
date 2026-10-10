@@ -3,6 +3,7 @@
 import { writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import {
+  AI_REVIEW_BLOCKING_MARKER,
   AI_REVIEW_ROUND_MARKER,
   REVIEW_RESULT_PATH,
   REPOSITORY,
@@ -1505,9 +1506,8 @@ export function selectAiReviews(reviews, botLogin) {
   );
 }
 
-// Matches every request-changes body built by publish-pr-review.mjs, including its COMMENT fallbacks.
-function isBlockingReview(review) {
-  return String(review?.body ?? '').startsWith('Issues found');
+export function isBlockingReview(review) {
+  return String(review?.body ?? '').includes(AI_REVIEW_BLOCKING_MARKER);
 }
 
 export function selectRequiredContexts(baseRefName, branchProtectionRules, { branchProtectionAvailable = true } = {}) {
@@ -1824,7 +1824,7 @@ export function resolveAiReviewGate({ env, pullRequest, owner, aiRoundsUsed }) {
   }
 
   if (pullRequest.draft) {
-    return { enabled: false, reason: 'Draft PR: AI review runs once it is marked ready for review.' };
+    return { enabled: false, aiDeferred: true, reason: 'Draft PR: AI review runs once it is marked ready for review.' };
   }
 
   const maxRounds = parseMaxRounds(env.AI_REVIEW_MAX_ROUNDS);
@@ -1839,25 +1839,25 @@ export function resolveAiReviewGate({ env, pullRequest, owner, aiRoundsUsed }) {
 
   return {
     enabled: false,
-    limitReached: true,
+    aiDeferred: true,
     reason: `AI review limit reached (${aiRoundsUsed} of ${maxRounds} rounds). Add the \`${AI_REVIEW_EXTRA_ROUND_LABEL}\` label and re-run the Automated PR Review workflow for one more round.`,
   };
 }
 
-// Deterministic rules cannot clear AI findings: past the limit, a last AI round that blocked keeps blocking until
-// another AI round (the extra-round label) verifies the fixes.
-export function buildRoundLimitFinding(gate, lastAiRoundBlocked) {
-  if (!gate.limitReached || !lastAiRoundBlocked) {
+// Deterministic rules cannot clear AI findings: while AI is deferred (draft or round limit), a last AI round that
+// blocked keeps blocking until another AI round verifies the fixes.
+export function buildPendingAiFinding(gate, lastAiRoundBlocked) {
+  if (!gate.aiDeferred || !lastAiRoundBlocked) {
     return null;
   }
 
   return {
-    rule: 'llm_review_round_limit',
+    rule: 'llm_review_pending',
     severity: 'blocking',
     path: null,
     line: null,
     inline: false,
-    message: `The last AI review round found blocking issues and the AI round limit is reached. Add the \`${AI_REVIEW_EXTRA_ROUND_LABEL}\` label and re-run the Automated PR Review workflow so an AI round can verify the fixes.`,
+    message: `The last AI review round found blocking issues and this run had no AI round. ${gate.reason}`,
   };
 }
 
@@ -1950,8 +1950,8 @@ export async function runReview() {
     await removeExtraRoundLabel(owner, repo);
   }
 
-  const roundLimitFinding = buildRoundLimitFinding(aiGate, lastAiRoundBlocked);
-  const findings = roundLimitFinding ? [...reviewFindings, roundLimitFinding] : reviewFindings;
+  const pendingAiFinding = buildPendingAiFinding(aiGate, lastAiRoundBlocked);
+  const findings = pendingAiFinding ? [...reviewFindings, pendingAiFinding] : reviewFindings;
 
   const blockingFindings = findings.filter((finding) => finding.severity === 'blocking').length;
   const nonBlockingFindings = findings.length - blockingFindings;

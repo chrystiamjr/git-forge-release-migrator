@@ -73,6 +73,15 @@ jobs:
         if: steps.pr.outputs.number != ''
         run: |
           # REVIEW_BOT_LOGIN lets review-pr.mjs count only the bot's own AI rounds.
+          export_bot_login() {
+            local login
+            login="$(GH_TOKEN="$1" gh api user --jq .login 2>/dev/null || true)"
+            if [[ -z "${login}" ]]; then
+              echo "::warning::Could not resolve the review bot login; AI rounds will be counted from any reviewer's marked reviews."
+            fi
+            echo "REVIEW_BOT_LOGIN=${login}" >> "$GITHUB_ENV"
+          }
+
           if [[ -n "${{ steps.app-token.outputs.token }}" ]]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
             echo "identity=github_app" >> "$GITHUB_OUTPUT"
@@ -85,7 +94,7 @@ jobs:
             echo "configured=true" >> "$GITHUB_OUTPUT"
             echo "identity=bot_token" >> "$GITHUB_OUTPUT"
             echo "GH_TOKEN=${{ secrets.GH_REVIEW_BOT_TOKEN }}" >> "$GITHUB_ENV"
-            echo "REVIEW_BOT_LOGIN=$(GH_TOKEN='${{ secrets.GH_REVIEW_BOT_TOKEN }}' gh api user --jq .login)" >> "$GITHUB_ENV"
+            export_bot_login "${{ secrets.GH_REVIEW_BOT_TOKEN }}"
             exit 0
           fi
 
@@ -93,7 +102,7 @@ jobs:
             echo "configured=true" >> "$GITHUB_OUTPUT"
             echo "identity=gh_token" >> "$GITHUB_OUTPUT"
             echo "GH_TOKEN=${{ secrets.GH_TOKEN }}" >> "$GITHUB_ENV"
-            echo "REVIEW_BOT_LOGIN=$(GH_TOKEN='${{ secrets.GH_TOKEN }}' gh api user --jq .login)" >> "$GITHUB_ENV"
+            export_bot_login "${{ secrets.GH_TOKEN }}"
             exit 0
           fi
 

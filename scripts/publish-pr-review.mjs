@@ -3,6 +3,7 @@
 import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {
+    AI_REVIEW_BLOCKING_MARKER,
     AI_REVIEW_ROUND_MARKER,
     assertRequiredEnv,
     githubRequest,
@@ -204,6 +205,10 @@ function buildLlmSection(llm) {
     return lines;
 }
 
+function isCompletedLlmReview(llm) {
+    return Boolean(llm && !llm.error && !llm.skipped);
+}
+
 function buildReviewBody(result, options = {}) {
     const summaryLines = [];
     const findings = Array.isArray(result.findings) ? result.findings : [];
@@ -225,6 +230,8 @@ function buildReviewBody(result, options = {}) {
         } else {
             summaryLines.push('Automated review complete.');
         }
+    } else if (result.verdict === 'wait') {
+        summaryLines.push('Automated review complete with no blocking findings; waiting for required checks.');
     }
 
     if (options.usedRequestChangesFallback) {
@@ -252,6 +259,9 @@ function buildReviewBody(result, options = {}) {
     }
 
     summaryLines.push(...buildLlmSection(result.llm));
+    if (result.verdict === 'request_changes' && isCompletedLlmReview(result.llm)) {
+        summaryLines.push(AI_REVIEW_BLOCKING_MARKER);
+    }
     summaryLines.push('', result.marker);
     return summaryLines.join('\n');
 }
@@ -339,6 +349,12 @@ export async function publishReviewResult(result, submitReview, options = {}) {
 
             await submitReview('COMMENT', buildReviewBody(result, {...options, usedApprovalFallback: true}));
         }
+        return;
+    }
+
+    // A completed AI round must leave a review carrying its round marker, or review-pr.mjs would not count it.
+    if (result.verdict === 'wait' && isCompletedLlmReview(result.llm)) {
+        await submitReview('COMMENT', buildReviewBody(result, options));
     }
 }
 

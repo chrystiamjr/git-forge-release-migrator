@@ -24,6 +24,8 @@ function parseRepository(fullName) {
 
 // Added by publish-pr-review.mjs to reviews where the LLM ran; review-pr.mjs counts them to cap AI rounds per PR.
 const AI_REVIEW_ROUND_MARKER = '<!-- auto-pr-review:llm -->';
+// Added next to the round marker when that AI round requested changes.
+const AI_REVIEW_BLOCKING_MARKER = '<!-- auto-pr-review:llm:blocking -->';
 
 async function githubRequest(path, init = {}) {
   const response = await fetch(`https://api.github.com${path}`, {
@@ -89,6 +91,7 @@ async function paginate(path) {
 }
 
 export {
+  AI_REVIEW_BLOCKING_MARKER,
   AI_REVIEW_ROUND_MARKER,
   GH_TOKEN,
   REPOSITORY,
