@@ -40,7 +40,9 @@ export function evidenceFromRun(run, jobs, report, head, base) {
   }
   for (const job of jobs) {
     if (job.name === 'gui-visual') evidence.checks['gui-goldens'] = {
-      status: job.conclusion === 'success' ? 'passed' : job.conclusion || 'pending', url: job.html_url,
+      status: job.conclusion === 'success' ? validReport ? 'passed' : 'pending' : job.conclusion || 'pending',
+      reason: job.conclusion === 'success' && !validReport ? 'Waiting for evidence bound to the current head and base' : undefined,
+      url: job.html_url,
     };
     if (job.name !== 'test') continue;
     for (const step of job.steps || []) {

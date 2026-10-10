@@ -269,3 +269,10 @@ test('pretty-printed Vitest output retains exact named results after startup out
   ] }, null, 2);
   assert.deepEqual(parseTestEvidence(output, 'website', '/repo').map((item) => item.status), ['passed', 'skipped']);
 });
+
+test('visual success cannot certify an old merge base or a missing revision report', () => {
+  for (const report of [null, { schema_version: 1, head_sha: head, pr_head_sha: head, pr_base_sha: 'old', base_sha: 'old' }]) {
+    const evidence = evidenceFromRun({ id: 1, run_attempt: 1 }, [{ name: 'gui-visual', conclusion: 'success' }], report, head, base);
+    assert.equal(evidence.checks['gui-goldens'].status, 'pending');
+  }
+});
