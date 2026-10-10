@@ -166,6 +166,7 @@ test('normalizeFindings maps tiers, drops non-blocking unknown paths, and flags 
     {
       findings: [
         { tier: 'critical', path: 'a.dart', line: 2, symbol: 'run', message: 'bug', why: 'breaks' },
+        { tier: 'bug', path: 'a.dart', line: 1, symbol: 'run', message: 'wrong result', why: 'w' },
         { tier: 'important', path: 'a.dart', line: 50, symbol: '', message: 'outside', why: 'w' },
         { tier: 'suggestion', path: 'a.dart', line: 3, symbol: '', message: 'nit', why: 'w' },
         { tier: 'question', path: 'not-in-pr.dart', line: 1, symbol: '', message: 'ghost', why: 'w' },
@@ -178,6 +179,7 @@ test('normalizeFindings maps tiers, drops non-blocking unknown paths, and flags 
     findings.map(({ rule, severity, line, inline }) => ({ rule, severity, line, inline })),
     [
       { rule: 'llm_critical', severity: 'blocking', line: 2, inline: true },
+      { rule: 'llm_bug', severity: 'blocking', line: 1, inline: true },
       { rule: 'llm_important', severity: 'blocking', line: 50, inline: false },
       { rule: 'llm_suggestion', severity: 'note', line: 3, inline: true },
     ],
@@ -556,6 +558,7 @@ test('runAiReview sends the same review payload through the claude engine', asyn
 
   assert.match(input, /<changed_file path="a.dart" status="added">/);
   assert.equal(result.findings[0].rule, 'llm_critical');
+  assert.equal(result.llm.blocking, true);
   assert.equal(result.llm.engine, 'claude');
   assert.equal(result.llm.model, 'opus');
   assert.equal(result.llm.effort, 'medium');
@@ -730,6 +733,7 @@ test('runAiReview passes design notes through to llm metadata', async () => {
   });
 
   assert.deepEqual(result.llm.design_notes, [note]);
+  assert.equal(result.llm.blocking, false);
 });
 
 test('buildClaudeChildEnv strips repository and other-engine credentials but keeps Claude auth', () => {

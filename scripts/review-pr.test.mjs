@@ -9,6 +9,7 @@ import {
   buildFlutterTestFindings,
   buildGodClassFindings,
   buildGuiBoundaryFindings,
+  buildHardFindings,
   buildInvariantContractFindings,
   buildLogicInBuildFindings,
   buildLongMethodFindings,
@@ -16,6 +17,7 @@ import {
   buildMultiClassFindings,
   buildPriorReviewComments,
   buildReviewFindings,
+  buildPendingAiFinding,
   createChangedFileReader,
   buildPrintInProductionFindings,
   buildRawExceptionFindings,
@@ -24,6 +26,10 @@ import {
   buildSilentCatchFindings,
   buildTargetedCoverageFindings,
   isAiReviewEnabled,
+  isBlockingReview,
+  resolveAiReviewGate,
+  selectAiReviews,
+  shouldConsumeExtraRoundLabel,
   shouldRunAiReview,
   isBranchProtectionAccessDeniedError,
   selectApplicableRule,
@@ -1189,6 +1195,8 @@ test('buildReviewFindings fails closed with hints and a blocking finding when th
 
   const unavailable = findings.find((finding) => finding.rule === 'llm_review_unavailable');
   assert.equal(unavailable.severity, 'blocking');
+  assert.equal(unavailable.tier, 'important');
+  assert.equal(findings.find((finding) => finding.rule === 'set_state_in_riverpod_project').severity, 'note');
   assert.equal(unavailable.inline, false);
   assert.ok(findings.some((finding) => finding.rule === 'set_state_in_riverpod_project'));
   assert.deepEqual(llm, { error: 'GEMINI_API_KEY is not configured.' });
@@ -1211,10 +1219,27 @@ test('buildReviewFindings skips the LLM and posts hints when AI review is disabl
   );
 
   assert.deepEqual(
-    findings.map((finding) => finding.rule),
-    ['set_state_in_riverpod_project'],
+    findings.map(({ rule, tier, severity }) => ({ rule, tier, severity })),
+    [{ rule: 'set_state_in_riverpod_project', tier: 'suggestion', severity: 'note' }],
   );
   assert.match(llm.skipped, /AI_REVIEW_ENABLED=true/);
+});
+
+test('buildHardFindings blocks only as critical or important, with secrets as critical', () => {
+  const findings = buildHardFindings([
+    buildPatchedFile({
+      filename: 'README.md',
+      status: 'modified',
+      changes: 2,
+      patch: '@@ -1,1 +1,1 @@\n+export GH_TOKEN=ghp_example12345678901234567890',
+    }),
+    buildPatchedFile({ filename: 'website/docs/intro.md', patch: '@@ -1,1 +1,1 @@\n+Updated intro' }),
+  ]);
+
+  const byRule = Object.fromEntries(findings.map(({ rule, tier, severity }) => [rule, { tier, severity }]));
+  assert.deepEqual(byRule.secret_github_token, { tier: 'critical', severity: 'blocking' });
+  assert.ok(findings.every((finding) => ['critical', 'important', 'suggestion'].includes(finding.tier)));
+  assert.ok(findings.every((finding) => (finding.severity === 'blocking') === (finding.tier !== 'suggestion')));
 });
 
 test('isAiReviewEnabled is opt-in', () => {
@@ -1277,4 +1302,62 @@ test('buildPriorReviewComments keeps bot comments with trusted replies and drops
   assert.equal(prior.length, 2);
   assert.equal(prior[1].line, null);
   assert.ok(prior[1].body.length <= 601);
+});
+
+test('selectAiReviews counts only marked reviews from the bot login', () => {
+  const marked = 'Issues found.\n\n<!-- auto-pr-review:llm -->\n\n<!-- auto-pr-review -->';
+  const reviews = [
+    { body: marked, user: { login: 'review-bot[bot]' } },
+    { body: marked, user: { login: 'outsider' } },
+    { body: '**LLM review:** skipped.\n\n<!-- auto-pr-review -->', user: { login: 'review-bot[bot]' } },
+    { body: null, user: { login: 'owner' } },
+  ];
+
+  assert.equal(selectAiReviews(reviews, 'review-bot[bot]').length, 1);
+  assert.equal(selectAiReviews(reviews, undefined).length, 2);
+});
+
+test('buildPendingAiFinding keeps blocking while AI is deferred and the last AI round blocked', () => {
+  const limit = { enabled: false, aiDeferred: true, reason: 'AI review limit reached (3 of 3 rounds). Add the `ai-review` label.' };
+  const draft = { enabled: false, aiDeferred: true, reason: 'Draft PR: AI review runs once it is marked ready for review.' };
+
+  assert.equal(buildPendingAiFinding(limit, true).rule, 'llm_review_pending');
+  assert.equal(buildPendingAiFinding(limit, true).severity, 'blocking');
+  assert.match(buildPendingAiFinding(limit, true).message, /found blocking issues and this run had no AI round\. AI review limit reached/);
+  assert.match(buildPendingAiFinding(draft, true).message, /Draft PR/);
+  assert.equal(buildPendingAiFinding(limit, false), null);
+  assert.equal(buildPendingAiFinding({ enabled: false, reason: 'not the owner' }, true), null);
+  assert.equal(buildPendingAiFinding({ enabled: true }, true), null);
+});
+
+test('isBlockingReview reads the blocking marker, not the review wording', () => {
+  assert.equal(isBlockingReview({ body: 'Anything\n<!-- auto-pr-review:llm -->\n<!-- auto-pr-review:llm:blocking -->' }), true);
+  assert.equal(isBlockingReview({ body: 'Issues found — see inline comments.\n<!-- auto-pr-review:llm -->' }), false);
+  assert.equal(isBlockingReview(undefined), false);
+});
+
+test('shouldConsumeExtraRoundLabel only consumes the label after a completed AI round', () => {
+  const gate = { enabled: true, usesExtraRoundLabel: true };
+  assert.equal(shouldConsumeExtraRoundLabel(gate, { model: 'opus', model_version: 'claude-opus-5-5' }), true);
+  assert.equal(shouldConsumeExtraRoundLabel(gate, { error: 'engine down' }), false);
+  assert.equal(shouldConsumeExtraRoundLabel(gate, { skipped: 'No reviewable files.' }), false);
+  assert.equal(shouldConsumeExtraRoundLabel({ enabled: true, usesExtraRoundLabel: false }, { model: 'opus' }), false);
+});
+
+test('resolveAiReviewGate caps AI rounds per PR, skips drafts, and honors the extra-round label', () => {
+  const env = { AI_REVIEW_ENABLED: 'true' };
+  const pullRequest = { user: { login: 'owner' }, draft: false, labels: [] };
+  const gate = (overrides = {}, aiRoundsUsed = 0, gateEnv = env) =>
+    resolveAiReviewGate({ env: gateEnv, pullRequest: { ...pullRequest, ...overrides }, owner: 'owner', aiRoundsUsed });
+
+  assert.deepEqual(gate({}, 2), { enabled: true, usesExtraRoundLabel: false });
+  assert.equal(gate({}, 3).aiDeferred, true);
+  assert.match(gate({}, 3).reason, /AI review limit reached \(3 of 3 rounds\)\. Add the `ai-review` label/);
+  assert.deepEqual(gate({ labels: [{ name: 'ai-review' }] }, 3), { enabled: true, usesExtraRoundLabel: true });
+  assert.equal(gate({}, 1, { ...env, AI_REVIEW_MAX_ROUNDS: '1' }).enabled, false);
+  assert.equal(gate({}, 3, { ...env, AI_REVIEW_MAX_ROUNDS: 'lots' }).enabled, false);
+  assert.match(gate({ draft: true }).reason, /Draft PR/);
+  assert.equal(gate({ draft: true }).aiDeferred, true);
+  assert.match(gate({ user: { login: 'someone' } }).reason, /authored by the repository owner/);
+  assert.deepEqual(gate({}, 0, {}), { enabled: false });
 });

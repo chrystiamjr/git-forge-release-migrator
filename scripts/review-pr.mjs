@@ -3,6 +3,8 @@
 import { writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import {
+  AI_REVIEW_BLOCKING_MARKER,
+  AI_REVIEW_ROUND_MARKER,
   REVIEW_RESULT_PATH,
   REPOSITORY,
   PR_NUMBER,
@@ -10,11 +12,15 @@ import {
   parseRepository,
   githubRequest,
   githubGraphql,
+  isCompletedLlmReview,
   paginate,
 } from './github-api.mjs';
-import { DISK_IO, runAiReview } from './ai-review.mjs';
+import { BLOCKING_TIERS, DISK_IO, runAiReview } from './ai-review.mjs';
 
 const AUTO_REVIEW_MARKER = '<!-- auto-pr-review -->';
+const DEFAULT_AI_REVIEW_MAX_ROUNDS = 3;
+// Lets the owner buy one more AI round after the limit; only users with write access can add labels.
+const AI_REVIEW_EXTRA_ROUND_LABEL = 'ai-review';
 const RUN_ID = process.env.GITHUB_RUN_ID || '';
 
 const SECRET_PATTERNS = [
@@ -1481,12 +1487,28 @@ export function buildGuiBoundaryFindings(files) {
   return findings;
 }
 
-async function fetchReviewRound(owner, repo) {
+async function fetchReviewRounds(owner, repo) {
   const reviews = await paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/reviews`);
 
-  return (
-    reviews.filter((review) => String(review.body || '').includes(AUTO_REVIEW_MARKER)).length + 1
+  const aiReviews = selectAiReviews(reviews, process.env.REVIEW_BOT_LOGIN);
+  return {
+    reviewRound: reviews.filter((review) => String(review.body || '').includes(AUTO_REVIEW_MARKER)).length + 1,
+    aiRoundsUsed: aiReviews.length,
+    lastAiRoundBlocked: isBlockingReview(aiReviews.at(-1)),
+  };
+}
+
+// Anyone can submit a review on a public repo, so only the bot's own reviews count; without a known bot login
+// (local runs) every marked review counts.
+export function selectAiReviews(reviews, botLogin) {
+  return reviews.filter(
+    (review) =>
+      String(review.body || '').includes(AI_REVIEW_ROUND_MARKER) && (!botLogin || review.user?.login === botLogin),
   );
+}
+
+export function isBlockingReview(review) {
+  return String(review?.body ?? '').includes(AI_REVIEW_BLOCKING_MARKER);
 }
 
 export function selectRequiredContexts(baseRefName, branchProtectionRules, { branchProtectionAvailable = true } = {}) {
@@ -1695,6 +1717,19 @@ async function handleFatalError(error) {
 }
 
 // Exact invariants: cheap, never hallucinate, always post and block on their own.
+function withTier(finding, tier) {
+  return { ...finding, tier, severity: BLOCKING_TIERS.has(tier) ? 'blocking' : 'note' };
+}
+
+// Leaked secrets are critical; the other hard rules block as important, and their notes stay suggestions.
+function hardFindingTier(finding) {
+  if (finding.rule.startsWith('secret_')) {
+    return 'critical';
+  }
+
+  return finding.severity === 'blocking' ? 'important' : 'suggestion';
+}
+
 export function buildHardFindings(files) {
   return [
     ...buildMissingPatchFindings(files),
@@ -1704,10 +1739,11 @@ export function buildHardFindings(files) {
     ...buildGuiBoundaryFindings(files),
     ...buildDocsSyncFindings(files),
     ...buildContractDocsFindings(files),
-  ];
+  ].map((finding) => withTier(finding, hardFindingTier(finding)));
 }
 
-// Fuzzy heuristics: passed to the LLM reviewer as hints to confirm or dismiss.
+// Fuzzy heuristics: passed to the LLM reviewer as hints to confirm or dismiss. Posted without the LLM, they are
+// unconfirmed, so they never block.
 export function buildHintFindings(files) {
   return [
     ...buildRawExceptionFindings(files),
@@ -1722,7 +1758,7 @@ export function buildHintFindings(files) {
     ...buildTargetedCoverageFindings(files),
     ...buildFlutterTestFindings(files),
     ...buildFlutterTargetedCoverageFindings(files),
-  ];
+  ].map((finding) => withTier(finding, 'suggestion'));
 }
 
 function compareFindings(left, right) {
@@ -1787,6 +1823,76 @@ export function shouldRunAiReview(env, prAuthor, repositoryOwner) {
   return isAiReviewEnabled(env) && Boolean(prAuthor) && prAuthor === repositoryOwner;
 }
 
+function parseMaxRounds(value) {
+  const rounds = Number.parseInt(String(value ?? ''), 10);
+  return Number.isInteger(rounds) && rounds >= 0 ? rounds : DEFAULT_AI_REVIEW_MAX_ROUNDS;
+}
+
+// Each AI round costs real quota, so a PR gets a fixed number of them; drafts get none until marked ready.
+export function resolveAiReviewGate({ env, pullRequest, owner, aiRoundsUsed }) {
+  if (!isAiReviewEnabled(env)) {
+    return { enabled: false };
+  }
+
+  if (!shouldRunAiReview(env, pullRequest.user?.login, owner)) {
+    return { enabled: false, reason: 'AI review runs only on PRs authored by the repository owner.' };
+  }
+
+  if (pullRequest.draft) {
+    return { enabled: false, aiDeferred: true, reason: 'Draft PR: AI review runs once it is marked ready for review.' };
+  }
+
+  const maxRounds = parseMaxRounds(env.AI_REVIEW_MAX_ROUNDS);
+  if (aiRoundsUsed < maxRounds) {
+    return { enabled: true, usesExtraRoundLabel: false };
+  }
+
+  const labels = (pullRequest.labels ?? []).map((label) => label.name);
+  if (labels.includes(AI_REVIEW_EXTRA_ROUND_LABEL)) {
+    return { enabled: true, usesExtraRoundLabel: true };
+  }
+
+  return {
+    enabled: false,
+    aiDeferred: true,
+    reason: `AI review limit reached (${aiRoundsUsed} of ${maxRounds} rounds). Add the \`${AI_REVIEW_EXTRA_ROUND_LABEL}\` label and re-run the Automated PR Review workflow for one more round.`,
+  };
+}
+
+// Deterministic rules cannot clear AI findings: while AI is deferred (draft or round limit), a last AI round that
+// blocked keeps blocking until another AI round verifies the fixes.
+export function buildPendingAiFinding(gate, lastAiRoundBlocked) {
+  if (!gate.aiDeferred || !lastAiRoundBlocked) {
+    return null;
+  }
+
+  return {
+    rule: 'llm_review_pending',
+    tier: 'important',
+    severity: 'blocking',
+    path: null,
+    line: null,
+    inline: false,
+    message: `The last AI review round found blocking issues and this run had no AI round. ${gate.reason}`,
+  };
+}
+
+// The label buys exactly one AI round: keep it when the round was skipped or the engine failed.
+export function shouldConsumeExtraRoundLabel(gate, llm) {
+  return Boolean(gate.usesExtraRoundLabel && isCompletedLlmReview(llm));
+}
+
+async function removeExtraRoundLabel(owner, repo) {
+  try {
+    await githubRequest(`/repos/${owner}/${repo}/issues/${PR_NUMBER}/labels/${AI_REVIEW_EXTRA_ROUND_LABEL}`, {
+      method: 'DELETE',
+    });
+  } catch (error) {
+    // The label stays and keeps granting rounds; the owner can remove it by hand.
+    console.error(`[review-pr] Could not remove the ${AI_REVIEW_EXTRA_ROUND_LABEL} label: ${error.message}`);
+  }
+}
+
 export async function buildReviewFindings(
   files,
   llmReviewer,
@@ -1810,6 +1916,7 @@ export async function buildReviewFindings(
     console.error(`[review-pr] LLM review unavailable: ${error.message}`);
     const unavailableFinding = {
       rule: 'llm_review_unavailable',
+      tier: 'important',
       severity: 'blocking',
       path: null,
       line: null,
@@ -1828,18 +1935,22 @@ export async function runReview() {
   assertRequiredEnv();
 
   const { owner, repo } = parseRepository(REPOSITORY);
-  const [pullRequest, files] = await Promise.all([
-    githubRequest(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}`),
-    paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/files`),
-  ]);
+  const pullRequest = await githubRequest(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}`);
+  // A run queued before the merge or close must not review or comment afterwards.
+  if (pullRequest.state !== 'open') {
+    return { pr_number: PR_NUMBER, verdict: 'skip', skip_reason: `PR is ${pullRequest.state}.`, findings: [], marker: AUTO_REVIEW_MARKER };
+  }
 
-  const [reviewRound, checkState, priorComments] = await Promise.all([
-    fetchReviewRound(owner, repo),
+  const files = await paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/files`);
+
+  const [{ reviewRound, aiRoundsUsed, lastAiRoundBlocked }, checkState, priorComments] = await Promise.all([
+    fetchReviewRounds(owner, repo),
     fetchCheckState(owner, repo),
     fetchPriorReviewComments(owner, repo, [pullRequest.user?.login, owner].filter(Boolean)),
   ]);
 
-  const { findings, llm } = await buildReviewFindings(
+  const aiGate = resolveAiReviewGate({ env: process.env, pullRequest, owner, aiRoundsUsed });
+  const { findings: reviewFindings, llm } = await buildReviewFindings(
     files,
     (hints) =>
       runAiReview({
@@ -1849,13 +1960,15 @@ export async function runReview() {
         priorComments,
         io: { ...DISK_IO, readChangedFile: createChangedFileReader(owner, repo, pullRequest.head.sha) },
       }),
-    {
-      enabled: shouldRunAiReview(process.env, pullRequest.user?.login, owner),
-      disabledReason: isAiReviewEnabled()
-        ? 'AI review runs only on PRs authored by the repository owner.'
-        : undefined,
-    },
+    { enabled: aiGate.enabled, disabledReason: aiGate.reason },
   );
+
+  if (shouldConsumeExtraRoundLabel(aiGate, llm)) {
+    await removeExtraRoundLabel(owner, repo);
+  }
+
+  const pendingAiFinding = buildPendingAiFinding(aiGate, lastAiRoundBlocked);
+  const findings = pendingAiFinding ? [...reviewFindings, pendingAiFinding] : reviewFindings;
 
   const blockingFindings = findings.filter((finding) => finding.severity === 'blocking').length;
   const nonBlockingFindings = findings.length - blockingFindings;

@@ -3,8 +3,11 @@
 import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {
+    AI_REVIEW_BLOCKING_MARKER,
+    AI_REVIEW_ROUND_MARKER,
     assertRequiredEnv,
     githubRequest,
+    isCompletedLlmReview,
     paginate,
     parseRepository,
     PR_NUMBER,
@@ -199,6 +202,7 @@ function buildLlmSection(llm) {
     const cost = typeof llm.cost_usd === 'number' ? `, est. cost $${llm.cost_usd.toFixed(2)}` : '';
     const route = llm.tier ? ` Routed to ${llm.tier}: ${llm.route_reason}` : '';
     lines.push('', `_Reviewed by ${llm.engine} / ${llm.model} (${llm.model_version}, ${level})${duration}${cost}.${route}_`);
+    lines.push('', AI_REVIEW_ROUND_MARKER);
     return lines;
 }
 
@@ -223,6 +227,8 @@ function buildReviewBody(result, options = {}) {
         } else {
             summaryLines.push('Automated review complete.');
         }
+    } else if (result.verdict === 'wait') {
+        summaryLines.push('Automated review complete with no blocking findings; waiting for required checks.');
     }
 
     if (options.usedRequestChangesFallback) {
@@ -250,6 +256,9 @@ function buildReviewBody(result, options = {}) {
     }
 
     summaryLines.push(...buildLlmSection(result.llm));
+    if (isCompletedLlmReview(result.llm) && result.llm.blocking) {
+        summaryLines.push(AI_REVIEW_BLOCKING_MARKER);
+    }
     summaryLines.push('', result.marker);
     return summaryLines.join('\n');
 }
@@ -337,6 +346,12 @@ export async function publishReviewResult(result, submitReview, options = {}) {
 
             await submitReview('COMMENT', buildReviewBody(result, {...options, usedApprovalFallback: true}));
         }
+        return;
+    }
+
+    // A completed AI round must leave a review carrying its round marker, or review-pr.mjs would not count it.
+    if (result.verdict === 'wait' && isCompletedLlmReview(result.llm)) {
+        await submitReview('COMMENT', buildReviewBody(result, options));
     }
 }
 
@@ -345,6 +360,18 @@ async function main() {
 
     const result = await loadReviewResult();
     const {owner, repo} = parseRepository(REPOSITORY);
+    if (result.verdict === 'skip') {
+        console.log(`Automated review skipped: ${result.skip_reason}`);
+        return;
+    }
+
+    // The review takes a minute or more; the PR may have been merged or closed meanwhile.
+    const pullRequest = await githubRequest(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}`);
+    if (pullRequest.state !== 'open') {
+        console.log(`Automated review not published: PR is ${pullRequest.state}.`);
+        return;
+    }
+
     let inlineCommentsPublished = true;
 
     await dismissPreviousReviews(owner, repo, result.marker);

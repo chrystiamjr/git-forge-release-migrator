@@ -6,11 +6,14 @@ Use this flow when asked to address inline review comments on an open PR.
 
 `scripts/review-pr.mjs` runs two layers after Quality Checks:
 
-- **Hard rules** (secrets, contract invariants, EN/PT-BR docs sync, layer imports): deterministic `[blocking]`.
+- **Hard rules** (secrets, contract invariants, EN/PT-BR docs sync, layer imports): deterministic. Secrets are
+  `[critical]`, the other blocking rules `[important]`, and their notes `[suggestion]`.
 - **AI review** (`scripts/ai-review.mjs`, prompt in `scripts/ai-review-prompt.md`): reads the patch plus the full
-  post-change file, `AGENTS.md`, and the matching `.github/instructions/*`. `[critical]` and `[important]` block;
-  `[suggestion]` and `[question]` do not. Fuzzy heuristics (long method, `setState`, test gaps, …) are sent as hints
-  that the model confirms or dismisses.
+  post-change file, `AGENTS.md`, and the matching `.github/instructions/*`. Fuzzy heuristics (long method, `setState`,
+  test gaps, …) are sent as hints that the model confirms or dismisses; posted without the model, they are
+  `[suggestion]`.
+
+Only `[critical]`, `[bug]`, and `[important]` block a merge. `[suggestion]` and `[question]` are plain comments.
 
 The AI layer is opt-in and owner-only: set repo variable `AI_REVIEW_ENABLED=true`; it then runs only on PRs authored
 and triggered by the repository owner. PR content is untrusted prompt input, so the gate limits prompt-injection exposure and
@@ -35,6 +38,14 @@ Each run sends the bot's earlier inline comments, with replies from the PR autho
 model. It drops concerns the code fixed or a reply answered, and re-raises the rest at the same anchor so unresolved
 blocking findings still block. As a deterministic backstop, the publisher skips a finding with the same path, tier, and
 symbol within 30 lines of an existing bot comment.
+
+Each PR gets at most `AI_REVIEW_MAX_ROUNDS` AI rounds (default 3); later pushes get the deterministic rules only.
+To buy one more round, add the `ai-review` label and re-run the Automated PR Review workflow; the bot removes the label
+after using it. Draft PRs get no AI round until they are marked ready for review. While AI is deferred (draft or
+limit), a last AI round that found blocking issues keeps the PR blocked with `llm_review_pending` until another AI round
+verifies the fixes. Every completed AI round leaves a review carrying its round marker, a COMMENT when checks are still
+pending, and only reviews written by the bot identity (`REVIEW_BOT_LOGIN`, resolved by the workflow) count. A run that finds the PR merged or
+closed, before reviewing or before publishing, posts nothing.
 
 ## 1. Fetch inline comments
 
