@@ -29,6 +29,28 @@ Claude runs headless with all tools disabled, from an empty directory, without G
 environment. The review body records the engine, model, and resolved model version. If the engine fails, the review
 fails closed with `llm_review_unavailable`; re-run the workflow.
 
+### Optional source verification
+
+`AI_REVIEW_VERIFICATION_MODE` defaults to `off`. `shadow` records a candidate verification result in
+the analysis artifact while preserving baseline publication; `enforce` publishes only substantiated
+AI findings. Deterministic rules are never filtered. The verifier uses Claude Code `2.1.296`,
+Sonnet/medium and subscription OAuth in a temporary home with only Read/Grep/Glob tools. It reads a
+data-only snapshot of the exact PR head, including unchanged callers and tests. Links, executable
+permissions and Claude configuration are not restored from the archive. Source citations must match
+real lines before a claim is accepted. This validates cited text, not the model's reasoning by itself.
+
+One pass covers findings, prior assessments and test requirements, with a three-minute deadline
+including setup. It remains part of the same AI round. Live PR/head guards run before and during the
+pass and before publication. Verifier failure publishes no new AI claims, adds no readiness blocker,
+and cannot clear existing AI blockers. It produces a counted COMMENT rather than a clean approval
+when no blocker remains. Initial detector failure retains the existing fail-closed behavior.
+Rejected/inconclusive candidates remain in the artifact, not repeated inline comments.
+
+The [benchmark and rollout procedure](review-benchmark/README.md) requires confirmed labels and five
+real PRs in shadow before human promotion to `enforce`. Effortless has a separate pinned, isolated
+experiment adapter; it is not installed in production. Its initial static compatibility check failed.
+The existing model router remains active. Roll back verification independently by setting its mode to `off`.
+
 Unless `CLAUDE_MODEL` is set, the claude engine routes each PR by tier (`scripts/ai-review-triage-prompt.md`):
 docs-only PRs (`website/**`, `README.md`) go straight to `light`; otherwise a Haiku call at effort `low` reads the
 patches and picks `light` (haiku, `low`), `standard` (sonnet, `medium`), or `deep` (opus, `medium`). If triage fails,

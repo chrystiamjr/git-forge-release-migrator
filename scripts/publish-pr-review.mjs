@@ -120,6 +120,10 @@ function buildLlmSection(llm) {
     }
 
     const lines = [];
+    if (llm.verification) {
+        lines.push('', `**Verification:** ${llm.verification.status} (${llm.verification.mode}).`
+            + (llm.verification.status !== 'complete' ? ' Candidate verification unavailable; this is not a clean AI approval.' : ''));
+    }
 
     if (llm.verdict_reasoning) {
         lines.push('', `**Verdict:** ${llm.verdict_reasoning}`);
@@ -179,7 +183,8 @@ function buildReviewBody(result, options = {}) {
                 'Automated review completed with no blocking findings. GitHub rejected a formal approval for this PR identity, so this automated review was published as a comment instead.',
             );
         } else {
-            summaryLines.push('Automated review complete.');
+            summaryLines.push(result.llm?.verification?.mode === 'enforce' && result.llm.verification.status !== 'complete'
+                ? 'Deterministic checks completed; AI verification is incomplete.' : 'Automated review complete.');
         }
     } else if (result.verdict === 'wait') {
         summaryLines.push('Automated review complete with no blocking findings; waiting for required checks.');
@@ -225,6 +230,11 @@ async function loadReviewResult() {
 }
 
 export async function publishReviewResult(result, submitReview, options = {}) {
+    if (result.verdict !== 'request_changes' && result.llm?.verification?.mode === 'enforce'
+        && result.llm.verification.status !== 'complete') {
+        await submitReview('COMMENT', buildReviewBody(result, options));
+        return true;
+    }
     if (result.verdict === 'request_changes') {
         try {
             await submitReview('REQUEST_CHANGES', buildReviewBody(result, options));

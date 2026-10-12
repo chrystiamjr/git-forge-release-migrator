@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { reconcileFindings } from './review-history.mjs';
+import { verificationMode, verifyReview } from './review-verification.mjs';
 import { spawn } from 'node:child_process';
 import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -671,8 +672,10 @@ export async function runAiReview({
   fetchImpl = fetch,
   sleep = defaultSleep,
   runCommand = runClaudeCli,
+  verificationRunner,
 }) {
   const engineName = env.AI_REVIEW_ENGINE || DEFAULT_ENGINE;
+  const mode = verificationMode(env);
   const engine = ENGINES[engineName];
   if (!engine) {
     throw new Error(`Unknown AI_REVIEW_ENGINE "${engineName}". Use one of: ${Object.keys(ENGINES).join(', ')}.`);
@@ -696,7 +699,7 @@ export async function runAiReview({
   const settings = await engine.settings({ env, context, pr, runCommand });
   const systemInstruction = await readFile(PROMPT_PATH, 'utf8');
   await assertCurrent();
-  const { review, modelVersion, costUsd } = await engine.review({
+  const { review: detectedReview, modelVersion, costUsd } = await engine.review({
     env,
     settings,
     systemInstruction,
@@ -706,7 +709,13 @@ export async function runAiReview({
     runCommand,
   });
 
-  const findings = reconcileFindings(normalizeFindings(review, files), review.prior_assessments, priorComments);
+  const { review, verification } = await verifyReview({ review: detectedReview, pr, priorComments, mode,
+    env, assertCurrent, ...(verificationRunner ? { run: verificationRunner } : {}) });
+  const activeHistory = mode === 'enforce'
+    ? priorComments.filter((prior) => !['fixed', 'answered'].includes(prior.state)
+      || review.findings?.some((finding) => finding.previous_finding_id === prior.finding_id)
+      || review.prior_assessments?.some((assessment) => assessment.finding_id === prior.finding_id)) : priorComments;
+  const findings = reconcileFindings(normalizeFindings(review, files), review.prior_assessments, activeHistory);
   // An assertion about test implementation requires source the reviewer actually received.
   const reviewedPaths = new Set(context.files.filter((file) => !file.truncated && file.content !== null).map((file) => file.path));
   const testRequirements = (review.test_requirements || []).map((item) => ({ ...item,
@@ -716,10 +725,11 @@ export async function runAiReview({
     findings,
     llm: {
       engine: engineName,
+      ...(verification ? { verification } : {}),
       ...settings,
       model_version: modelVersion,
       duration_seconds: (Date.now() - startedAt) / 1000,
-      cost_usd: sumCosts(costUsd, settings.triage_cost_usd),
+      cost_usd: sumCosts(costUsd, settings.triage_cost_usd, verification?.cost_usd),
       // Whether the AI's own findings block, as opposed to deterministic rules; drives the round's blocking marker.
       blocking: findings.some((finding) => finding.severity === 'blocking'),
       tests_needed: review.tests_needed ?? [],

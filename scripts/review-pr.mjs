@@ -1922,7 +1922,8 @@ export async function runReview() {
       return runAiReview({
         files,
         hints,
-        pr: { title: pullRequest.title, body: pullRequest.body },
+        pr: { title: pullRequest.title, body: pullRequest.body, repository: REPOSITORY,
+          head_sha: pullRequest.head.sha, base_sha: pullRequest.base.sha },
         priorComments: history.comments,
         priorRequirements: checklist?.metadata?.requirements || [],
         assertCurrent: () => assertReviewCurrent(REPOSITORY, PR_NUMBER, pullRequest.head.sha),
@@ -1934,8 +1935,12 @@ export async function runReview() {
 
   await assertReviewCurrent(REPOSITORY, PR_NUMBER, pullRequest.head.sha);
 
-  const pendingAiFinding = buildPendingAiFinding(aiGate, lastAiRoundBlocked);
+  const verificationIncomplete = llm?.verification?.mode === 'enforce' && llm.verification.status !== 'complete';
+  const pendingAiFinding = buildPendingAiFinding(verificationIncomplete
+    ? { aiDeferred: true, reason: 'Verification incomplete; existing AI blockers require reassessment.' } : aiGate,
+  lastAiRoundBlocked);
   const findings = pendingAiFinding ? [...reviewFindings, pendingAiFinding] : reviewFindings;
+  if (pendingAiFinding && verificationIncomplete) llm.blocking = true;
 
   const blockingFindings = findings.filter((finding) => finding.severity === 'blocking').length;
   const nonBlockingFindings = findings.length - blockingFindings;

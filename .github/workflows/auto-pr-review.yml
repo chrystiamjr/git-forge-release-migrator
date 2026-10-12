@@ -112,14 +112,15 @@ jobs:
             echo 'enabled=true' >> "$GITHUB_OUTPUT"
           fi
       - name: Install Claude Code CLI
-        if: steps.ai.outputs.enabled == 'true' && (vars.AI_REVIEW_ENGINE == '' || vars.AI_REVIEW_ENGINE == 'claude')
-        run: npm install --global @anthropic-ai/claude-code@2.1.282
+        if: steps.ai.outputs.enabled == 'true' && (vars.AI_REVIEW_ENGINE == '' || vars.AI_REVIEW_ENGINE == 'claude' || (vars.AI_REVIEW_VERIFICATION_MODE != '' && vars.AI_REVIEW_VERIFICATION_MODE != 'off'))
+        run: npm install --global @anthropic-ai/claude-code@2.1.296
       - name: Run automated review analysis
         if: steps.guard.outputs.eligible == 'true'
         env:
           AI_REVIEW_ENABLED: ${{ steps.ai.outputs.enabled }}
           AI_REVIEW_ENGINE: ${{ vars.AI_REVIEW_ENGINE }}
           AI_REVIEW_MAX_ROUNDS: ${{ vars.AI_REVIEW_MAX_ROUNDS }}
+          AI_REVIEW_VERIFICATION_MODE: ${{ vars.AI_REVIEW_VERIFICATION_MODE }}
           CLAUDE_CODE_OAUTH_TOKEN: ${{ steps.ai.outputs.enabled == 'true' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
           CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL }}
           CLAUDE_EFFORT: ${{ vars.CLAUDE_EFFORT }}
