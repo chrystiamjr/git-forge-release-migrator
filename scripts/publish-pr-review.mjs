@@ -120,8 +120,12 @@ function buildLlmSection(llm) {
 
     const lines = [];
     if (llm.verification) {
-        lines.push('', `**Verification:** ${llm.verification.status} (${llm.verification.mode}).`
-            + (llm.verification.status !== 'complete' ? ' Candidate verification unavailable; this is not a clean AI approval.' : ''));
+        lines.push('', `**Verification:** ${llm.verification.status} (${llm.verification.mode}).`);
+        if (llm.verification.status !== 'complete') {
+            lines.push(llm.verification.mode === 'enforce'
+                ? 'Candidate verification unavailable; this is not a clean AI approval.'
+                : 'Shadow verification unavailable; the baseline verdict is unchanged. This run does not count as a complete shadow observation.');
+        }
     }
 
     if (llm.verdict_reasoning) {
@@ -264,17 +268,8 @@ export async function publishReviewResult(result, submitReview, options = {}) {
     return false;
 }
 
-export async function publishResult(result, {
-    repository = REPOSITORY, number = PR_NUMBER, botLogin = process.env.REVIEW_BOT_LOGIN,
-    request = githubRequest, evidenceLoader = collectReviewEvidence,
-} = {}) {
-    if (result.verdict === 'skip') return;
-    if (!botLogin) throw new Error('Verified review bot identity required');
+async function publishChecklist(result, { repository, number, botLogin, request, evidenceLoader }) {
     const head = result.head_sha;
-    if (!head) throw new Error('Refusing to publish an analysis without a reviewed head');
-    await assertReviewCurrent(repository, number, head, request);
-    const write = guardedRequest(repository, number, head, request);
-    const base = `/repos/${repository}/pulls/${number}`;
     let evidence;
     try { evidence = await evidenceLoader(repository, number, head, request); }
     catch (error) {
@@ -289,28 +284,35 @@ export async function publishResult(result, {
         console.warn(`Test checklist unavailable: ${error.message}`);
         result.checklist_warning = true;
     }
-    const comments = (await paginate(`${base}/comments`, request)).filter((comment) => comment.user?.login === botLogin);
-    const reviews = await paginate(`${base}/reviews`, request);
-    if (result.publication_key && reviews.some((review) => review.user?.login === botLogin &&
-        review.body?.includes(`<!-- gfrm-review-run:${result.publication_key} -->`))) return;
-    const previousReviews = reviews.filter((review) =>
-        review.user?.login === botLogin && review.body?.includes(result.marker) && ['CHANGES_REQUESTED', 'APPROVED'].includes(review.state));
-    const findings = Array.isArray(result.findings) ? result.findings : [];
-    const { unpublishedFindings, alreadyPublishedFindings } = partitionPublishedFindings(findings, comments, result.marker);
-    let inlineCommentsPublished = true;
-    for (const finding of unpublishedFindings.filter(isInlineFinding)) {
+}
+
+async function postInlineFindings(findings, marker, { base, head, write }) {
+    for (const finding of findings.filter(isInlineFinding)) {
         try {
-            await write(`${base}/comments`, { method: 'POST', body: JSON.stringify({
-                body: formatInlineComment(finding, result.marker), commit_id: head,
-                path: finding.path, line: finding.line, side: 'RIGHT',
-            }) });
+            await write(`${base}/comments`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    body: formatInlineComment(finding, marker), commit_id: head,
+                    path: finding.path, line: finding.line, side: 'RIGHT',
+                }),
+            });
         } catch (error) {
             if (!isInlineCommentPermissionError(error)) throw error;
-            inlineCommentsPublished = false;
-            break;
+            return false;
         }
     }
-    for (const assessment of result.llm?.prior_assessments || []) {
+    return true;
+}
+
+async function replyToAssessments(result, comments, findings, { base, head, write }) {
+    const assessments = [...(result.llm?.prior_assessments || [])];
+    // A published linked finding also reopens its stored state; omission in the next round must not erase it.
+    for (const finding of findings) {
+        if (finding.previous_finding_id && !assessments.some((item) => item.finding_id === finding.previous_finding_id)) {
+            assessments.push({ finding_id: finding.previous_finding_id, state: 'applicable', reason: finding.message });
+        }
+    }
+    for (const assessment of assessments) {
         const prior = result.prior_comments?.find((item) => item.finding_id === assessment.finding_id);
         if (!prior) continue;
         const threadComments = comments.filter((comment) => comment.id === prior.comment_id || comment.in_reply_to_id === prior.comment_id);
@@ -320,18 +322,56 @@ export async function publishResult(result, {
         const tier = finding?.tier || prior.tier;
         if (previous.state === assessment.state && previous.tier === tier) continue;
         const state = { finding_id: prior.finding_id, tier, message: assessment.reason };
-        await write(`${base}/comments/${prior.comment_id}/replies`, { method: 'POST', body: JSON.stringify({
-            body: `${findingMarker(state, assessment.state)}\n${assessment.state}: ${assessment.reason}\n\nVerified against \`${head}\`.`,
-        }) });
+        await write(`${base}/comments/${prior.comment_id}/replies`, {
+            method: 'POST',
+            body: JSON.stringify({
+                body: `${findingMarker(state, assessment.state)}\n${assessment.state}: ${assessment.reason}\n\nVerified against \`${head}\`.`,
+            }),
+        });
     }
+}
+
+async function dismissSuperseded(reviews, { base, write }) {
+    for (const review of reviews) {
+        try {
+            await write(`${base}/reviews/${review.id}/dismissals`, {
+                method: 'PUT', body: JSON.stringify({ message: 'Superseded by new automated review run.' }),
+            });
+        } catch (error) {
+            if (error instanceof ReviewStopped) throw error;
+            console.warn(`Could not dismiss review ${review.id}`);
+        }
+    }
+}
+
+export async function publishResult(result, {
+    repository = REPOSITORY, number = PR_NUMBER, botLogin = process.env.REVIEW_BOT_LOGIN,
+    request = githubRequest, evidenceLoader = collectReviewEvidence,
+} = {}) {
+    if (result.verdict === 'skip') return;
+    if (!botLogin) throw new Error('Verified review bot identity required');
+    const head = result.head_sha;
+    if (!head) throw new Error('Refusing to publish an analysis without a reviewed head');
+    await assertReviewCurrent(repository, number, head, request);
+    const write = guardedRequest(repository, number, head, request);
+    const base = `/repos/${repository}/pulls/${number}`;
+    const publication = { base, head, write };
+    await publishChecklist(result, { repository, number, botLogin, request, evidenceLoader });
+    const comments = (await paginate(`${base}/comments`, request)).filter((comment) => comment.user?.login === botLogin);
+    const reviews = await paginate(`${base}/reviews`, request);
+    if (result.publication_key && reviews.some((review) => review.user?.login === botLogin &&
+        review.body?.includes(`<!-- gfrm-review-run:${result.publication_key} -->`))) return;
+    const previousReviews = reviews.filter((review) =>
+        review.user?.login === botLogin && review.body?.includes(result.marker) && ['CHANGES_REQUESTED', 'APPROVED'].includes(review.state));
+    const findings = Array.isArray(result.findings) ? result.findings : [];
+    const { unpublishedFindings, alreadyPublishedFindings } = partitionPublishedFindings(findings, comments, result.marker);
+    const inlineCommentsPublished = await postInlineFindings(unpublishedFindings, result.marker, publication);
+    await replyToAssessments(result, comments, findings, publication);
     const published = await publishReviewResult(result, (event, body) => write(`${base}/reviews`, {
         method: 'POST', body: JSON.stringify({ event, body, commit_id: head }),
     }), { inlineCommentsPublished, summarizedFindings: alreadyPublishedFindings });
     // Replace the verdict before dismissing its predecessor; cancellation must not erase the only blocker.
-    for (const review of published ? previousReviews : []) {
-        try { await write(`${base}/reviews/${review.id}/dismissals`, { method: 'PUT', body: JSON.stringify({ message: 'Superseded by new automated review run.' }) }); }
-        catch (error) { if (error instanceof ReviewStopped) throw error; console.warn(`Could not dismiss review ${review.id}`); }
-    }
+    if (published) await dismissSuperseded(previousReviews, publication);
     if (result.consume_extra_round_label) {
         await write(`/repos/${repository}/issues/${number}/labels/ai-review`, { method: 'DELETE' });
     }

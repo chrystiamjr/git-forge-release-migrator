@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fetchReviewHistory, findingMarker, findingId, reconcileFindings } from './review-history.mjs';
+import { fetchReviewHistory, findingMarker, findingMetadata, findingId, reconcileFindings } from './review-history.mjs';
 import { guardedRequest, cancelReviewRuns, ReviewStopped } from './review-lifecycle.mjs';
 import { checklistMetadata, renderChecklist, updateChecklist, scenarioStatus, mergeRequirements } from './review-checklist.mjs';
 import { evidenceFromRun, collectReviewEvidence } from './review-evidence.mjs';
@@ -28,6 +28,29 @@ test('identity survives severity changes and contradictory assessments fail clos
   assert.equal(reconcileFindings([finding], [], [prior])[0].finding_id, prior.finding_id);
   assert.throws(() => reconcileFindings([finding], [{ finding_id: prior.finding_id, state: 'answered', reason: 'No issue.' }], [prior]), /Contradictory/);
   assert.notEqual(findingId({ ...finding, message: 'Different cause' }), findingId({ ...finding, message: 'Another cause' }));
+});
+
+test('bot-closed findings stay closed on omission but explicit regressions reopen them', () => {
+  for (const state of ['fixed', 'answered']) {
+    const closed = { ...prior, state };
+    assert.deepEqual(reconcileFindings([], [], [closed]), []);
+    for (const assessment of ['applicable', 'uncertain']) {
+      assert.equal(reconcileFindings([], [{ finding_id: prior.finding_id, state: assessment,
+        reason: 'Current retry path needs reassessment.' }], [closed])[0].severity, 'blocking');
+    }
+    const regression = { ...concern, previous_finding_id: prior.finding_id };
+    assert.equal(reconcileFindings([regression], [], [closed])[0].finding_id, prior.finding_id);
+  }
+});
+
+test('finding metadata safely hides HTML delimiters and round-trips exact messages', () => {
+  const message = 'Check <!-- auto-pr-review --> and <details> with a newline\n"quoted".';
+  const body = findingMarker({ ...concern, message });
+  assert.equal(body.indexOf('-->'), body.length - 3);
+  assert.equal(body.indexOf('<', 1), -1);
+  assert.equal(findingMetadata(body).message, message);
+  // Existing unescaped markers remain readable.
+  assert.equal(findingMetadata('<!-- gfrm-finding:{"id":"legacy","message":"old --> text"} -->').id, 'legacy');
 });
 
 test('history paginates threads and replies, validates bot authorship, and retains resolution metadata', async () => {
@@ -227,6 +250,22 @@ test('material assessment transition produces one thread reply across retries', 
   assert.equal(f.state.comments.filter((comment) => comment.in_reply_to_id === 10).length, 1);
 });
 
+test('a linked regression persists its reopened state even without a separate assessment', async () => {
+  const f = fixture();
+  f.state.comments.push({ id: 10, body: `${marker}\n${findingMarker(concern, 'fixed')}`, user: { login: 'review[bot]' } });
+  const result = { head_sha: head, verdict: 'request_changes', marker,
+    findings: [{ ...concern, previous_finding_id: concern.finding_id }],
+    prior_comments: [{ ...prior, state: 'fixed' }], llm: { prior_assessments: [] } };
+  const options = { repository: 'o/r', number: 1, botLogin: 'review[bot]', request: f.request, evidenceLoader: async () => ({ head }) };
+  await publishResult(result, options);
+  await publishResult(result, options);
+  const replies = f.state.comments.filter((comment) => comment.in_reply_to_id === 10);
+  assert.equal(replies.length, 1);
+  const metadata = findingMetadata(replies[0].body);
+  assert.equal(metadata.state, 'applicable');
+  assert.equal(reconcileFindings([], [], [{ ...prior, state: metadata.state }])[0].severity, 'blocking');
+});
+
 test('close cancellation affects only incomplete review runs bound to this PR', async () => {
   const cancelled = [];
   await cancelReviewRuns('o/r', 1, async (path, options = {}) => {
@@ -239,6 +278,38 @@ test('close cancellation affects only incomplete review runs bound to this PR', 
     ] : [] };
   });
   assert.deepEqual(cancelled, ['/repos/o/r/actions/runs/1/cancel', '/repos/o/r/actions/runs/2/cancel']);
+});
+
+test('cancellation snapshots paginated active states before writes can shift their pages', async () => {
+  const statuses = ['queued', 'in_progress', 'requested', 'waiting', 'pending'];
+  const active = Array.from({ length: 101 }, (_, id) => ({ id, status: 'queued', display_title: 'PR review #1' }));
+  const cancelled = [];
+  const reads = [];
+  await cancelReviewRuns('o/r', 1, async (path, options = {}) => {
+    if (options.method) {
+      const id = Number(path.split('/').at(-2));
+      cancelled.push(id);
+      const index = active.findIndex((run) => run.id === id);
+      if (index >= 0) active.splice(index, 1);
+      return;
+    }
+    const url = new URL(`https://example.test${path}`);
+    const status = url.searchParams.get('status');
+    assert.ok(statuses.includes(status), 'Never scan completed workflow history');
+    reads.push([url.pathname, status]);
+    if (!path.includes('auto-pr-review')) return { workflow_runs: [] };
+    if (status === 'queued') {
+      const offset = (Number(url.searchParams.get('page')) - 1) * 100;
+      return { workflow_runs: active.slice(offset, offset + 100) };
+    }
+    // A queued run transitions during the scan: cancellation must remain deduplicated.
+    return { workflow_runs: [{ id: 0, status, display_title: 'PR review #1' },
+      { id: 101 + statuses.indexOf(status), status, display_title: 'PR review #1' }] };
+  });
+  assert.equal(cancelled.length, 105);
+  assert.equal(new Set(cancelled).size, 105);
+  assert.equal(active.length, 0);
+  assert.equal(reads.length, 11);
 });
 
 test('CI evidence combines partial success and canonical visual evidence without promoting delegated acceptance', () => {

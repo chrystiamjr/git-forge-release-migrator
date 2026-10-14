@@ -1883,7 +1883,7 @@ export async function buildReviewFindings(
   }
 }
 
-export async function runReview() {
+export async function runReview({ aiReviewer = runAiReview } = {}) {
   assertRequiredEnv();
 
   const { owner, repo } = parseRepository(REPOSITORY);
@@ -1913,7 +1913,7 @@ export async function runReview() {
     files,
     (hints) => {
       if (history.error) throw new Error(`Cannot verify prior review history: ${history.error}`);
-      return runAiReview({
+      return aiReviewer({
         files,
         hints,
         pr: { title: pullRequest.title, body: pullRequest.body, repository: REPOSITORY,

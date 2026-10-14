@@ -62,10 +62,13 @@ stored in hidden comment metadata, keep the same concern attached to its origina
 wording, severity, line or filename changes. Existing comments use their GitHub comment IDs for compatibility.
 Two different causes in one symbol remain separate findings; proximity alone never suppresses a finding.
 
-The model assesses every prior finding against current code. Unchanged findings keep blocking without another
+The model assesses prior findings against current code. Outstanding findings keep blocking without another
 inline comment; review summaries link to their discussions. A change of assessment or severity gets one reply
-in the original thread. Resolved threads and claims of a fix are not proof; omitted/uncertain assessments retain
-previous blockers. History failures cannot silently clear them. Replies are reconsidered on the next push or
+in the original thread. Resolved threads and human claims of a fix are not proof; omitted/uncertain assessments
+retain outstanding blockers. A verified bot assessment of `fixed` or `answered` survives an omitted reassessment
+in every mode. An explicit `applicable`/`uncertain` assessment or a new linked finding can reopen it; enforce mode
+still requires verifier support for new assessments/findings. History failures cannot silently clear outstanding
+blockers. Replies are reconsidered on the next push or
 manual review rerun, without triggering an extra AI call immediately.
 
 Reusable lessons belong in `.github/instructions/review-lessons.instructions.md`. Promote an accepted finding
@@ -98,6 +101,9 @@ current comment, edit only the verified bot's copy, and skip identical updates. 
 checkmarks. Only evidence relevant to listed scenarios is retained in comment metadata, not the full test inventory.
 The shared writer group uses `queue: max` so pending lifecycle/evidence jobs cannot replace a queued publisher
 ([GitHub concurrency rules](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)).
+Changes to those workflows also trigger **Review Queue Validation** on the PR: three harmless matrix jobs share
+an isolated queue. All three must finish successfully before accepting the scheduler evidence; this exercises
+GitHub's parser and queue without running privileged review code from the PR or accessing secrets.
 Process and translation checks come from the bound validation report, not legacy CI step names.
 
 If setup, analysis, or artifact transfer leaves no valid result, trusted recovery creates a blocking verdict bound
@@ -109,6 +115,8 @@ cancelled workflows do not recover or publish, and closed or superseded PRs are 
 Eligibility is checked before AI tooling setup and again before model calls and publication. Closing or merging
 a PR triggers a small cancellation job for queued/running review workflows. Every publication, dismissal,
 checklist edit and label change also checks live PR state and the reviewed head. Stale or closed work is skipped.
+Cancellation queries only active statuses (`queued`, `in_progress`, `requested`, `waiting`, `pending`) and collects
+matching run IDs before cancelling them, so mutations do not shift the remaining pages. Completed history is not scanned.
 Already-in-flight API calls cannot be recalled; cancellation and write guards prevent further work once closure
 is observed. New verdicts are published before older bot verdicts are dismissed.
 

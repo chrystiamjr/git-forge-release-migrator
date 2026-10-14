@@ -177,6 +177,29 @@ test('integration: shadow keeps baseline publication; successful verification ca
   assert.deepEqual(result.findings, []);
 });
 
+test('bot-closed history behaves consistently across verification modes', async () => {
+  const empty = { ...review, findings: [] };
+  for (const mode of ['off', 'shadow', 'enforce']) {
+    for (const state of ['fixed', 'answered']) {
+      const prior = { finding_id: 'old', tier: 'bug', path: 'a.dart', state };
+      const result = await integrated(mode, goodRun, empty, [prior]);
+      assert.deepEqual(result.findings, [], `${mode}/${state}`);
+    }
+    const pending = await integrated(mode, goodRun, empty, [{ finding_id: 'old', tier: 'bug', state: 'applicable' }]);
+    assert.equal(pending.findings[0].severity, 'blocking', mode);
+  }
+});
+
+test('incomplete shadow verification preserves baseline approval with accurate wording', async () => {
+  const submitted = [];
+  await publishReviewResult({ verdict: 'approve', findings: [], marker: '<!-- auto-pr-review -->',
+    llm: { verification: { mode: 'shadow', status: 'incomplete' } } },
+  async (event, body) => submitted.push({ event, body }));
+  assert.equal(submitted[0].event, 'APPROVE');
+  assert.match(submitted[0].body, /baseline verdict is unchanged/);
+  assert.doesNotMatch(submitted[0].body, /not a clean AI approval/);
+});
+
 test('incomplete verification publishes a counted comment, never a formal approval', async () => {
   const result = await integrated('enforce', async () => { throw new Error('timeout'); });
   const submitted = [];

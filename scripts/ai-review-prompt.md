@@ -21,6 +21,8 @@ speculative abstractions. One concrete blocking bug beats many style notes.
 - `<prior_review_comments>`: verified bot threads including stable `finding_id`, resolution/outdated state,
   original location, previous assessments and author/owner replies. Assess EVERY prior finding in
   `prior_assessments`: `applicable`, `fixed`, `answered`, or `uncertain`, with specific current-code evidence.
+  A prior verified bot state of `fixed`/`answered` stays closed when omitted. Reopen it only with an explicit
+  assessment or linked finding supported by current code; resolving a GitHub thread alone is not proof of a fix.
   Resolved threads and claims of a fix are not proof. If context is missing, use `uncertain`.
   For an existing concern, emit its ID as `previous_finding_id`; new concerns use an empty string.
   Preserve the identity despite wording, severity, line changes or file renames. Distinct causes in one symbol

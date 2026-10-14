@@ -686,7 +686,7 @@ export async function runAiReview({
   const context = await buildReviewContext(files, io);
   if (context.files.length === 0 && context.omittedFiles.length === 0) {
     return {
-      findings: reconcileFindings([], [], priorComments.filter((item) => !['fixed', 'answered'].includes(item.state))),
+      findings: reconcileFindings([], [], priorComments),
       llm: {
         engine: engineName,
         skipped: 'No reviewable files (only generated, lock, binary, or removed files changed).',
@@ -711,11 +711,7 @@ export async function runAiReview({
 
   const { review, verification } = await verifyReview({ review: detectedReview, pr, priorComments, mode,
     env, assertCurrent, ...(verificationRunner ? { run: verificationRunner } : {}) });
-  const activeHistory = mode === 'enforce'
-    ? priorComments.filter((prior) => !['fixed', 'answered'].includes(prior.state)
-      || review.findings?.some((finding) => finding.previous_finding_id === prior.finding_id)
-      || review.prior_assessments?.some((assessment) => assessment.finding_id === prior.finding_id)) : priorComments;
-  const findings = reconcileFindings(normalizeFindings(review, files), review.prior_assessments, activeHistory);
+  const findings = reconcileFindings(normalizeFindings(review, files), review.prior_assessments, priorComments);
   // An assertion about test implementation requires source the reviewer actually received.
   const reviewedPaths = new Set(context.files.filter((file) => !file.truncated && file.content !== null).map((file) => file.path));
   const testRequirements = (review.test_requirements || []).map((item) => ({ ...item,

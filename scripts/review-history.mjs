@@ -16,7 +16,9 @@ export function findingMetadata(body) {
 }
 
 export function findingMarker(finding, state = 'applicable') {
-  return `<!-- ${FINDING_MARKER}:${JSON.stringify({ id: findingId(finding), state, tier: finding.tier, message: finding.message })} -->`;
+  const metadata = JSON.stringify({ id: findingId(finding), state, tier: finding.tier, message: finding.message })
+    .replaceAll('<', '\\u003c').replaceAll('>', '\\u003e');
+  return `<!-- ${FINDING_MARKER}:${metadata} -->`;
 }
 
 export function priorFinding(comment) {
@@ -103,7 +105,9 @@ export function reconcileFindings(findings, assessments, history) {
     const decision = decisions.get(prior.finding_id);
     if (decision && ['fixed', 'answered'].includes(decision.state)) continue;
     if (result.some((finding) => finding.finding_id === prior.finding_id)) continue;
-    // Omitted/uncertain assessments cannot silently clear a previous blocker, including a resolved thread.
+    // Verified bot closure survives omission; a new finding or explicit assessment can reopen it.
+    if (!decision && ['fixed', 'answered'].includes(prior.state)) continue;
+    // Omitted/uncertain assessments cannot silently clear an outstanding blocker, even on resolved threads.
     if (BLOCKING.has(prior.tier)) result.push({
       finding_id: prior.finding_id, rule: 'prior_finding_pending', tier: prior.tier,
       severity: 'blocking', path: prior.path, line: prior.line, inline: false,
