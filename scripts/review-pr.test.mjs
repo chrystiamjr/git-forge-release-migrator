@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { reconcileFindings } from './review-history.mjs';
 
 import {
   buildContractDocsFindings,
@@ -1222,6 +1223,19 @@ test('buildReviewFindings skips the LLM and posts hints when AI review is disabl
     [{ rule: 'set_state_in_riverpod_project', tier: 'suggestion', severity: 'note' }],
   );
   assert.match(llm.skipped, /AI_REVIEW_ENABLED=true/);
+});
+
+test('an unknown history ID produces an actionable blocker instead of a detached duplicate', async () => {
+  const { findings, llm } = await buildReviewFindings([], async () => ({
+    findings: reconcileFindings([{ previous_finding_id: 'mistyped-id', tier: 'bug', message: 'Old concern' }], [],
+      [{ finding_id: 'known-id', tier: 'bug', state: 'applicable' }]),
+    llm: {},
+  }), { enabled: true });
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, 'llm_review_unavailable');
+  assert.equal(findings[0].severity, 'blocking');
+  assert.match(findings[0].message, /unknown history.*Re-run/);
+  assert.match(llm.error, /unknown history/);
 });
 
 test('buildHardFindings blocks only as critical or important, with secrets as critical', () => {

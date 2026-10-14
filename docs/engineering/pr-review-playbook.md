@@ -41,10 +41,11 @@ real lines before a claim is accepted. This validates cited text, not the model'
 
 One pass covers findings, prior assessments and test requirements, with a three-minute deadline
 including setup. It remains part of the same AI round. Live PR/head guards run before and during the
-pass and before publication. Verifier failure publishes no new AI claims, adds no readiness blocker,
+pass and before publication. In `enforce` mode, verifier failure publishes no new AI claims, adds no readiness blocker,
 and cannot clear existing AI blockers. It produces a counted COMMENT rather than a clean approval
-when no blocker remains. Initial detector failure retains the existing fail-closed behavior.
-Rejected/inconclusive candidates remain in the artifact, not repeated inline comments.
+when no blocker remains. In `shadow` mode, verifier failure leaves the baseline findings and verdict unchanged
+and does not qualify as a complete shadow observation. Initial detector failure retains the existing fail-closed
+behavior. In enforce mode, rejected/inconclusive candidates remain in the artifact rather than new inline comments.
 
 The [benchmark and rollout procedure](review-benchmark/README.md) requires confirmed labels and five
 real PRs in shadow before human promotion to `enforce`. Effortless has a separate pinned, isolated
@@ -70,6 +71,12 @@ in every mode. An explicit `applicable`/`uncertain` assessment or a new linked f
 still requires verifier support for new assessments/findings. History failures cannot silently clear outstanding
 blockers. Replies are reconsidered on the next push or
 manual review rerun, without triggering an extra AI call immediately.
+
+Unknown finding IDs, duplicate assessments, and contradictory finding/assessment pairs invalidate the AI result.
+The production caller publishes a blocking `llm_review_unavailable` finding containing the reason and rerun
+instruction; deterministic checks and hints remain. This is intentional: silently relabeling an unknown ID as a
+new concern can duplicate a discussion or detach it from its history. Failed rounds do not consume a completed
+AI-round allowance. Re-run after correcting the cause rather than treating an invalid result as an approval.
 
 Reusable lessons belong in `.github/instructions/review-lessons.instructions.md`. Promote an accepted finding
 or corrected false positive through a normal documentation PR with maintainer review and merge. Each entry
