@@ -44,6 +44,7 @@ jobs:
     concurrency:
       group: review-publish-${{ github.repository }}-${{ needs.eligibility.outputs.number }}
       cancel-in-progress: false
+      queue: max
     permissions:
       contents: read
       pull-requests: write
@@ -70,7 +71,7 @@ jobs:
 
   analysis:
     needs: [eligibility, evidence]
-    if: needs.eligibility.outputs.eligible == 'true'
+    if: always() && !cancelled() && needs.eligibility.outputs.eligible == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -128,6 +129,9 @@ jobs:
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           GEMINI_THINKING_LEVEL: ${{ vars.GEMINI_THINKING_LEVEL }}
         run: node scripts/review-pr.mjs
+      - name: Ensure a head-bound result after analysis or setup failure
+        if: always() && !cancelled() && steps.guard.outputs.eligible == 'true'
+        run: node scripts/review-result.mjs
       - name: Retain head-bound analysis result
         if: always() && !cancelled() && steps.guard.outputs.eligible == 'true'
         uses: actions/upload-artifact@v4
@@ -145,6 +149,7 @@ jobs:
     concurrency:
       group: review-publish-${{ github.repository }}-${{ needs.eligibility.outputs.number }}
       cancel-in-progress: false
+      queue: max
     permissions:
       contents: read
       pull-requests: write
@@ -175,6 +180,7 @@ jobs:
         run: node scripts/review-event.mjs guard
       - uses: actions/download-artifact@v4
         if: steps.guard.outputs.eligible == 'true'
+        continue-on-error: true
         with:
           name: automated-review-result
           path: ${{ runner.temp }}/review-result

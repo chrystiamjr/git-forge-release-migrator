@@ -84,6 +84,8 @@ link to the checklist instead of repeating a "Tests needed" section.
 The checklist uses existing validation scope rules. Passing rows link to the CI run/job; failed, cancelled,
 skipped, missing, or delegated evidence stays unchecked with its status. Native/live acceptance remains separate
 and CI delegation is not a pass. This comment is informational and does not introduce a new merge gate.
+Checklist or evidence API failures are logged and cannot suppress analysis or verdict publication. When evidence
+cannot be collected, test rows stay pending and the review reports that the checklist may be incomplete.
 
 Validation reports include PR head/base, tested revision, workflow run/attempt, and named test results. The reader
 requires the current PR revision and latest CI attempt; a synthetic merge commit must have the current head and
@@ -94,6 +96,13 @@ requirements can be withdrawn with a stated reason; failures to review do not re
 The lifecycle, evidence, and publication jobs share a per-PR publication concurrency group. Writers re-read the
 current comment, edit only the verified bot's copy, and skip identical updates. New heads invalidate previous
 checkmarks. Only evidence relevant to listed scenarios is retained in comment metadata, not the full test inventory.
+The shared writer group uses `queue: max` so pending lifecycle/evidence jobs cannot replace a queued publisher
+([GitHub concurrency rules](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)).
+Process and translation checks come from the bound validation report, not legacy CI step names.
+
+If setup, analysis, or artifact transfer leaves no valid result, trusted recovery creates a blocking verdict bound
+to the triggering PR/head after checking live state. Existing valid results (including explicit skips) are retained;
+cancelled workflows do not recover or publish, and closed or superseded PRs are skipped.
 
 ### Closure and stale results
 

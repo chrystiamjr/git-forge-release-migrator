@@ -44,13 +44,6 @@ export function evidenceFromRun(run, jobs, report, head, base) {
       reason: job.conclusion === 'success' && !validReport ? 'Waiting for evidence bound to the current head and base' : undefined,
       url: job.html_url,
     };
-    if (job.name !== 'test') continue;
-    for (const step of job.steps || []) {
-      const key = { 'Check translations parity': 'translation-parity', 'Test process and review helpers': 'process-tests' }[step.name];
-      if (key && !evidence.checks[key]) evidence.checks[key] = {
-        status: step.conclusion === 'success' ? 'passed' : step.conclusion || 'pending', url: job.html_url,
-      };
-    }
   }
   return evidence;
 }

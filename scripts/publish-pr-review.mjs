@@ -4,7 +4,7 @@ import { findingId, findingMarker, findingMetadata, priorFinding } from './revie
 import { assertReviewCurrent, guardedRequest, ReviewStopped } from './review-lifecycle.mjs';
 import { updateChecklist } from './review-checklist.mjs';
 import { collectReviewEvidence } from './review-evidence.mjs';
-import {readFile} from 'node:fs/promises';
+import { ensureReviewResult } from './review-result.mjs';
 import {fileURLToPath} from 'node:url';
 import {
     AI_REVIEW_BLOCKING_MARKER,
@@ -16,7 +16,6 @@ import {
     parseRepository,
     PR_NUMBER,
     REPOSITORY,
-    REVIEW_RESULT_PATH,
 } from './github-api.mjs';
 
 export function isSelfReviewRequestChangesError(error) {
@@ -215,6 +214,7 @@ function buildReviewBody(result, options = {}) {
     }
 
     if (result.checklist_url) summaryLines.push('', `[Required tests](${result.checklist_url})`);
+    if (result.checklist_warning) summaryLines.push('', 'Required-test evidence unavailable; the checklist may be incomplete. This does not change the review verdict.');
     summaryLines.push(...buildLlmSection(result.llm));
     if (isCompletedLlmReview(result.llm) && result.llm.blocking) {
         summaryLines.push(AI_REVIEW_BLOCKING_MARKER);
@@ -222,11 +222,6 @@ function buildReviewBody(result, options = {}) {
     if (result.publication_key) summaryLines.push('', `<!-- gfrm-review-run:${result.publication_key} -->`);
     summaryLines.push('', result.marker);
     return summaryLines.join('\n');
-}
-
-async function loadReviewResult() {
-    const raw = await readFile(REVIEW_RESULT_PATH, 'utf8');
-    return JSON.parse(raw);
 }
 
 export async function publishReviewResult(result, submitReview, options = {}) {
@@ -280,8 +275,20 @@ export async function publishResult(result, {
     await assertReviewCurrent(repository, number, head, request);
     const write = guardedRequest(repository, number, head, request);
     const base = `/repos/${repository}/pulls/${number}`;
-    const evidence = await evidenceLoader(repository, number, head, request);
-    result.checklist_url = await updateChecklist({ repository, number, head, botLogin, llm: result.llm, evidence, request });
+    let evidence;
+    try { evidence = await evidenceLoader(repository, number, head, request); }
+    catch (error) {
+        if (error instanceof ReviewStopped) throw error;
+        console.warn(`Test evidence unavailable: ${error.message}`);
+        result.checklist_warning = true;
+        evidence = { head, checks: {}, tests: [] };
+    }
+    try { result.checklist_url = await updateChecklist({ repository, number, head, botLogin, llm: result.llm, evidence, request }); }
+    catch (error) {
+        if (error instanceof ReviewStopped) throw error;
+        console.warn(`Test checklist unavailable: ${error.message}`);
+        result.checklist_warning = true;
+    }
     const comments = (await paginate(`${base}/comments`, request)).filter((comment) => comment.user?.login === botLogin);
     const reviews = await paginate(`${base}/reviews`, request);
     if (result.publication_key && reviews.some((review) => review.user?.login === botLogin &&
@@ -332,7 +339,7 @@ export async function publishResult(result, {
 
 async function main() {
     assertRequiredEnv();
-    try { await publishResult(await loadReviewResult()); }
+    try { await publishResult(await ensureReviewResult()); }
     catch (error) { if (error instanceof ReviewStopped) console.log(error.message); else throw error; }
 }
 

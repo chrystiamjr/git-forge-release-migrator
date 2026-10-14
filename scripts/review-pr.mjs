@@ -19,8 +19,9 @@ import { fetchReviewHistory } from './review-history.mjs';
 import { assertReviewCurrent, ReviewStopped } from './review-lifecycle.mjs';
 import { readChecklist } from './review-checklist.mjs';
 import { BLOCKING_TIERS, DISK_IO, runAiReview } from './ai-review.mjs';
+import { AUTO_REVIEW_MARKER, buildFallbackResult } from './review-result.mjs';
+export { buildFallbackResult } from './review-result.mjs';
 
-const AUTO_REVIEW_MARKER = '<!-- auto-pr-review -->';
 const DEFAULT_AI_REVIEW_MAX_ROUNDS = 3;
 // Lets the owner buy one more AI round after the limit; only users with write access can add labels.
 const AI_REVIEW_EXTRA_ROUND_LABEL = 'ai-review';
@@ -1695,18 +1696,6 @@ async function fetchCheckState(owner, repo) {
   };
 }
 
-export function buildFallbackResult(errorMessage, prNumber = PR_NUMBER) {
-  return {
-    pr_number: prNumber,
-    verdict: 'request_changes',
-    blocking_findings: 1,
-    non_blocking_findings: 0,
-    findings: [],
-    error: errorMessage,
-    marker: AUTO_REVIEW_MARKER,
-  };
-}
-
 async function persistResult(result) {
   await writeFile(REVIEW_RESULT_PATH, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
 }
@@ -1903,6 +1892,7 @@ export async function runReview() {
   if (pullRequest.state !== 'open' || pullRequest.merged || (process.env.REVIEW_EXPECTED_HEAD && process.env.REVIEW_EXPECTED_HEAD !== pullRequest.head.sha)) {
     return { pr_number: PR_NUMBER, verdict: 'skip', skip_reason: 'PR closed, merged, or triggering revision is stale.', findings: [], marker: AUTO_REVIEW_MARKER };
   }
+  if (!process.env.REVIEW_BOT_LOGIN) throw new Error('Verified review bot identity required');
 
   const files = await paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/files`);
 
@@ -1911,7 +1901,11 @@ export async function runReview() {
     fetchCheckState(owner, repo),
     fetchReviewHistory(owner, repo, PR_NUMBER, process.env.REVIEW_BOT_LOGIN, [pullRequest.user?.login, owner].filter(Boolean))
       .then((comments) => ({ comments })).catch((error) => ({ error: error.message, comments: [] })),
-    readChecklist(REPOSITORY, PR_NUMBER, process.env.REVIEW_BOT_LOGIN),
+    readChecklist(REPOSITORY, PR_NUMBER, process.env.REVIEW_BOT_LOGIN).catch((error) => {
+      if (error instanceof ReviewStopped) throw error;
+      console.warn(`Prior test checklist unavailable: ${error.message}`);
+      return null;
+    }),
   ]);
 
   const aiGate = resolveAiReviewGate({ env: process.env, pullRequest, owner, aiRoundsUsed });

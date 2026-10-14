@@ -146,6 +146,65 @@ test('closure between checklist and inline publication stops all remaining write
   assert.equal(f.state.reviews.length, 0);
 });
 
+test('checklist and evidence outages do not prevent a blocking review', async () => {
+  for (const failure of ['duplicate', 'read', 'write', 'evidence']) {
+    const f = fixture();
+    if (failure === 'evidence') await updateChecklist({ repository: 'o/r', number: 1, head,
+      botLogin: 'review[bot]', request: f.request,
+      evidence: { head, checks: { 'dart-tests': { status: 'passed' } } },
+    });
+    if (failure === 'duplicate') f.state.issues = [1, 2].map((id) => ({
+      id, body: '<!-- gfrm-required-tests -->', user: { login: 'review[bot]' },
+    }));
+    const request = async (path, options = {}) => {
+      if (path.includes('/issues/') && ((failure === 'read' && !options.method) ||
+          (failure === 'write' && options.method))) throw new Error('Checklist API unavailable');
+      return f.request(path, options);
+    };
+    const result = { head_sha: head, verdict: 'request_changes', marker, findings: [concern] };
+    await publishResult(result, { repository: 'o/r', number: 1, botLogin: 'review[bot]', request,
+      evidenceLoader: async () => {
+        if (failure === 'evidence') throw new Error('Actions API unavailable');
+        return { head };
+      } });
+    assert.equal(f.state.reviews[0].state, 'CHANGES_REQUESTED', failure);
+    assert.equal(f.state.comments.length, 1, failure);
+    assert.match(f.state.reviews[0].body, /Required-test evidence unavailable/, failure);
+    if (failure === 'evidence') {
+      assert.equal(f.state.issues.length, 1);
+      assert.doesNotMatch(f.state.issues[0].body, /\[x\]/);
+    }
+  }
+});
+
+test('optional checklist failures never swallow a stop signal or bypass identity', async () => {
+  for (const failure of ['evidence-stop', 'checklist-stop', 'identity', 'closure']) {
+    const f = fixture();
+    const request = async (path, options = {}) => {
+      if (path.includes('/issues/')) throw new ReviewStopped('PR changed');
+      return f.request(path, options);
+    };
+    await assert.rejects(publishResult({ head_sha: head, verdict: 'request_changes', marker, findings: [concern] }, {
+      repository: 'o/r', number: 1, botLogin: failure === 'identity' ? '' : 'review[bot]', request,
+      evidenceLoader: async () => {
+        if (failure === 'evidence-stop') throw new ReviewStopped('PR changed');
+        if (failure === 'closure') { f.state.pull.state = 'closed'; throw new Error('Evidence unavailable'); }
+        return { head };
+      },
+    }), failure === 'identity' ? /identity/ : ReviewStopped);
+    assert.equal(f.state.writes.length, 0);
+  }
+});
+
+test('legacy CI step names cannot certify checks without a bound validation report', () => {
+  const run = { id: 1, run_attempt: 1 };
+  const jobs = [{ name: 'test', steps: [
+    { name: 'Check translations parity', conclusion: 'success' },
+    { name: 'Test process and review helpers', conclusion: 'success' },
+  ] }];
+  assert.deepEqual(evidenceFromRun(run, jobs, null, head, base).checks, {});
+});
+
 test('publication of an already-closed or stale result never gathers CI evidence', async () => {
   for (const change of [{ state: 'closed' }, { head: { sha: 'new' } }]) {
     const f = fixture(); Object.assign(f.state.pull, change);
