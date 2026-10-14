@@ -1,8 +1,11 @@
 # Headless review experiment
 
 The verifier and experiment harness are implemented with production verification **off by default**.
-No benchmark success or live rollout is claimed. The initial Effortless compatibility check failed;
-see [compatibility.json](compatibility.json). No global plugin installation was made.
+The maintainer accepted the 12-case current-arm pilot on 2026-10-14; its preliminary quality gate
+passed. See [pilot results](pilot-results-2026-10-14.json) for per-case adjudication, hashes and limits,
+and [shadow rollout](shadow-rollout.md) for the five-PR observation stage. No live rollout acceptance
+is claimed. The initial Effortless compatibility check failed; see [compatibility.json](compatibility.json).
+No global plugin installation was made.
 The maintainer accepted all 12 proposed labels on 2026-10-12; their confirmations are recorded in the corpus.
 
 ## 1. Confirm labels
@@ -44,6 +47,23 @@ outputs are cached by immutable head and prompt fingerprint and reused for verif
 contains detector and filtered findings, exact versions, usage, durations and incomplete results.
 Reports are exclusive-create: choose a fresh output directory for a repeat rather than overwrite evidence.
 
+The command prints the report path and verification status. Incomplete verification exits with code 1;
+its reason and any invalid decisions are retained for diagnosis, never treated as accepted findings.
+To retry verification without paying for the same detector again, reuse its exact cached input:
+
+```bash
+node scripts/review-benchmark.mjs run --case case-01 --arm current \
+  --out /tmp/gfrm-review-benchmark-retry --detector-cache /tmp/gfrm-review-benchmark
+```
+
+An explicit cache reuse request fails if the matching cache is absent; it never silently reruns detection.
+The verifier must return every candidate ID, including test requirements. Each source quote must be
+an exact substring beginning on the cited line; it may start within that line, after indentation or code.
+If the line is wrong, validation corrects it only when the unchanged quote occurs exactly once in the
+same frozen file. The report records `citation_corrections` with the candidate ID, path, reported line
+and corrected line. A correct line stays unchanged even when the quote appears elsewhere. Missing or
+ambiguous matches still fail verification; whitespace and quoted text are never repaired.
+
 When plugin compatibility is resolved, compare `--arm effortless-effort` and `--arm effortless-model`
 using the same corpus and output directory. Effort-only holds the baseline's model constant; model
 routing starts at Opus and may move down. The original Haiku router is not layered onto a plugin call.
@@ -53,6 +73,7 @@ The detector has no tools; only verification receives read-only snapshot tools.
 Human adjudication maps each report's findings to the case's labeled concern. Set its
 `adjudication.confirmed_by`, `baseline_detected`, `candidate_detected` and supporting finding IDs.
 Inspect other findings too: the 12 concern labels cannot exhaustively measure every possible bug.
+Accepting the corpus labels does not fill this report-level adjudication: model results must be inspected.
 
 ```bash
 node scripts/review-benchmark.mjs score --arm current --out /tmp/gfrm-review-benchmark
@@ -63,6 +84,10 @@ baseline real bugs and no new false positives on clean controls. Missing/incompl
 trials stay pending. An Effortless report's main-loop usage must not be presented as total usage:
 upstream proof logs omit judge token usage. Routing savings remain unproven until complete accounting
 or a separately reviewed paired latency comparison is available. Repeat marginal differences.
+
+The score includes `scored_cases` and `pending_details` explaining missing reports, incomplete
+verification and missing result adjudication separately. Zero metrics with zero scored cases mean
+no quality measurements are available, not that the benchmark passed.
 
 ## 4. Observe five real PRs
 

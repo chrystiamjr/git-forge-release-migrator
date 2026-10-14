@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
+import { access, mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -67,9 +67,14 @@ async function benchmarkContext(item) {
   } finally { await rm(root, { recursive: true, force: true }); }
 }
 
-export async function runBenchmarkCase(item, arm, directory, env = process.env) {
+export async function runBenchmarkCase(item, arm, directory, env = process.env, detectorCache) {
   if (!ROUTING_ARMS.includes(arm)) throw new Error('Unknown routing arm');
   if (arm !== 'current') await assertPluginCompatibility();
+  const reportPath = join(directory, `${item.id}-${arm}.json`);
+  try {
+    await access(reportPath);
+    throw new Error('Report already exists; use a new --out directory and --detector-cache to reuse paid detection');
+  } catch (error) { if (error.code !== 'ENOENT') throw error; }
   const { files, context, input } = await benchmarkContext(item);
   const pr = { repository: item.repository, head_sha: item.head_sha, base_sha: item.base_sha };
   const started = Date.now();
@@ -84,9 +89,16 @@ export async function runBenchmarkCase(item, arm, directory, env = process.env) 
       total_cost_usd: result.cost_usd, modelUsage: result.model_usage }) };
   };
   const corpusKey = createHash('sha256').update(input + await readFile(PROMPT, 'utf8') + REVIEW_CLI_VERSION).digest('hex');
-  const cache = join(directory, `detector-${item.head_sha}-${corpusKey}.json`);
+  const cacheName = `detector-${item.head_sha}-${corpusKey}.json`;
+  const cache = join(directory, cacheName);
   let baseline;
   try { baseline = JSON.parse(await readFile(cache, 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  if (!baseline && detectorCache) {
+    // An explicit reuse request never silently spends quota if the exact input fingerprint is absent.
+    baseline = JSON.parse(await readFile(join(resolve(detectorCache), cacheName), 'utf8'));
+    if (!baseline?.detected?.review || !baseline.settings) throw new Error('Invalid detector cache');
+    await writeFile(cache, JSON.stringify(baseline, null, 2) + '\n', { flag: 'wx' });
+  }
   if (!baseline) {
     const settings = await routeClaudeReview({ context, pr: { title: `PR #${item.pr}`, body: '' }, runCommand });
     const detected = await callClaudeCode({ ...settings, systemInstruction: await readFile(PROMPT, 'utf8'),
@@ -113,13 +125,14 @@ export async function runBenchmarkCase(item, arm, directory, env = process.env) 
     // Human maps returned findings to the labeled concern; no wording-based automatic truth matching.
     adjudication: { confirmed_by: null, baseline_detected: null, candidate_detected: null,
       baseline_finding_ids: [], candidate_finding_ids: [] } };
-  await writeFile(join(directory, `${item.id}-${arm}.json`), JSON.stringify(report, null, 2) + '\n', { flag: 'wx' });
+  await writeFile(reportPath, JSON.stringify(report, null, 2) + '\n', { flag: 'wx' });
   return report;
 }
 
 export function scoreBenchmark(corpus, reports) {
   validateCorpus(corpus);
   const pending = [];
+  const pendingDetails = [];
   let falsePositives = 0, suppressed = 0, missedBugs = 0, newFalsePositives = 0, baselineBugs = 0;
   const ids = new Set();
   for (const item of corpus.cases) {
@@ -127,11 +140,16 @@ export function scoreBenchmark(corpus, reports) {
     const report = matches[0];
     const label = item.confirmed_label;
     const judged = report?.adjudication;
-    if (matches.length !== 1 || report.head_sha !== item.head_sha || report.base_sha !== item.base_sha
-        || report.verification?.status !== 'complete' || !judged?.confirmed_by?.trim()
-        || typeof judged.baseline_detected !== 'boolean' || typeof judged.candidate_detected !== 'boolean') {
-      pending.push(item.id); continue;
+    const reasons = [];
+    if (!report) reasons.push('Report missing: run this case before scoring');
+    else {
+      if (matches.length !== 1) reasons.push('Duplicate reports');
+      if (report.head_sha !== item.head_sha || report.base_sha !== item.base_sha) reasons.push('Report revision differs from the corpus');
+      if (report.verification?.status !== 'complete') reasons.push(`Verification incomplete: ${report.verification?.reason || report.reason || 'no complete result'}`);
+      if (!judged?.confirmed_by?.trim() || typeof judged.baseline_detected !== 'boolean'
+          || typeof judged.candidate_detected !== 'boolean') reasons.push('Result adjudication pending: corpus label approval does not adjudicate model output');
     }
+    if (reasons.length) { pending.push(item.id); pendingDetails.push({ case_id: item.id, reasons }); continue; }
     ids.add(report.arm);
     if (label === 'real_bug' && judged.baseline_detected) {
       baselineBugs += 1;
@@ -144,8 +162,9 @@ export function scoreBenchmark(corpus, reports) {
   }
   return { status: pending.length || ids.size !== 1 ? 'pending'
     : falsePositives > 0 && baselineBugs > 0 && suppressed / falsePositives >= 0.5 && !missedBugs && !newFalsePositives ? 'passed' : 'failed',
-  pending, false_positives: falsePositives, suppressed, missed_bugs: missedBugs, new_false_positives: newFalsePositives,
-  routing_usage_gate: reports.every((report) => report.arm === 'current' || report.trial?.usage_complete === true)
+  pending, pending_details: pendingDetails, scored_cases: corpus.cases.length - pending.length,
+  false_positives: falsePositives, suppressed, missed_bugs: missedBugs, new_false_positives: newFalsePositives,
+  routing_usage_gate: !reports.length ? 'pending benchmark reports' : reports.every((report) => report.arm === 'current' || report.trial?.usage_complete === true)
     ? 'requires paired latency/usage comparison and repeated marginal results' : 'pending complete judge usage',
   rollout: 'Requires five real PRs in shadow and human evidence review; never automatically enables enforcement.' };
 }
@@ -174,7 +193,13 @@ async function main() {
     if (!process.env.CLAUDE_CODE_OAUTH_TOKEN) throw new Error('Subscription OAuth token unavailable');
     const item = corpus.cases.find((entry) => entry.id === value('--case'));
     if (!item) throw new Error('--case must name one confirmed case');
-    try { await runBenchmarkCase(item, arm, out); } catch (error) {
+    try {
+      const report = await runBenchmarkCase(item, arm, out, process.env, value('--detector-cache'));
+      console.log(JSON.stringify({ case_id: item.id, report: join(out, `${item.id}-${arm}.json`),
+        verification: report.verification.status, reason: report.verification.reason,
+        adjudication: 'pending' }, null, 2));
+      if (report.verification.status !== 'complete') process.exitCode = 1;
+    } catch (error) {
       await writeFile(join(out, `${item.id}-${arm}-failure.json`), JSON.stringify({
         case_id: item.id, arm, head_sha: item.head_sha, base_sha: item.base_sha,
         status: 'incomplete', reason: error.message, cli_version: REVIEW_CLI_VERSION,
@@ -184,7 +209,11 @@ async function main() {
     }
   } else if (command === 'score') {
     const reports = await Promise.all(corpus.cases.map((item) => readFile(join(out, `${item.id}-${arm}.json`), 'utf8')
-      .then(JSON.parse).catch((error) => { if (error.code === 'ENOENT') return null; throw error; })));
+      .then(JSON.parse).catch(async (error) => {
+        if (error.code !== 'ENOENT') throw error;
+        try { return JSON.parse(await readFile(join(out, `${item.id}-${arm}-failure.json`), 'utf8')); }
+        catch (failure) { if (failure.code === 'ENOENT') return null; throw failure; }
+      })));
     console.log(JSON.stringify(scoreBenchmark(corpus, reports.filter(Boolean)), null, 2));
   } else throw new Error('Use check, run --case case-01, or score; --arm current|effortless-effort|effortless-model');
 }

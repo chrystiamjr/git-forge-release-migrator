@@ -1,0 +1,246 @@
+{
+  "schema_version": 1,
+  "arm": "current",
+  "accepted_on": "2026-10-14",
+  "confirmed_by": "chrystiamjr",
+  "score": {
+    "status": "passed",
+    "pending": [],
+    "pending_details": [],
+    "scored_cases": 12,
+    "false_positives": 2,
+    "suppressed": 2,
+    "missed_bugs": 0,
+    "new_false_positives": 0,
+    "routing_usage_gate": "requires paired latency/usage comparison and repeated marginal results",
+    "rollout": "Requires five real PRs in shadow and human evidence review; never automatically enables enforcement."
+  },
+  "known_bug_summary": {
+    "total": 4,
+    "detected_and_retained": [
+      "case-07",
+      "case-08",
+      "case-10"
+    ],
+    "missed_by_detector": [
+      "case-09"
+    ]
+  },
+  "limitations": [
+    "Cases 01 and 02 are correlated false-positive examples.",
+    "Eleven prior accepted reports were reused byte-for-byte, not rerun under the corrected validator.",
+    "missed_bugs counts bugs lost relative to detector output; case-09 was missed by both stages.",
+    "Effortless compatibility and paired routing usage/latency evaluation remain pending."
+  ],
+  "verifier_revision": {
+    "base_commit": "083e0d063c2fb052509ab2bf047d6ff1ac97709d",
+    "uncommitted_code_sha256": {
+      "scripts/review-verification.mjs": "a1d5c68d99d89ae27eefb6a0d2e4ef567646fe2a118ce012c12c2c055eab75d9",
+      "scripts/review-verification.test.mjs": "aad8423e94d187a92d747f948e5e6ec88c8edd3f0248664a3a9089c447def40c",
+      "scripts/review-runner.mjs": "68f5fb5c9fd63e906aa87c11b951cf377b9dfff7368748c61d152bedc2857634",
+      "scripts/review-benchmark.mjs": "43407666d7e9ee4f7deb960834007bcca608b7d378443b826d06b3bb4eacacb2",
+      "docs/engineering/review-benchmark/cases.json": "37ca69d80c44c59cc1f2b5991319228cd713ed670a1862da522b506146bb73f5"
+    },
+    "scope": "Case 02 used the corrected validator; 11 accepted earlier reports were preserved unchanged."
+  },
+  "raw_evidence_directory": ".local/review-benchmark/2026-10-14-current",
+  "raw_evidence_committed": false,
+  "cases": [
+    {
+      "case_id": "case-01",
+      "label": "false_positive",
+      "head_sha": "3ae1cf5d23ba01c14840ca23b87a0fe9b6a3e5a8",
+      "base_sha": "240f3d8dc7e8971bb25593caf0a092b865d2b8ec",
+      "report_sha256": "9b70934d55c2ab9676701fab07415165c132ff22ad72c6cadc318bd6e0e70a62",
+      "verification_status": "complete",
+      "verification_duration_seconds": 39.469,
+      "confirmed_by": "chrystiamjr",
+      "baseline_detected": true,
+      "candidate_detected": false,
+      "baseline_finding_ids": [
+        "findings:0"
+      ],
+      "candidate_finding_ids": [],
+      "reused_prior_accepted_report": true
+    },
+    {
+      "case_id": "case-02",
+      "label": "false_positive",
+      "head_sha": "88f68317854208f89ba4d09fe8c918aa8713d61b",
+      "base_sha": "240f3d8dc7e8971bb25593caf0a092b865d2b8ec",
+      "report_sha256": "53f91a487708ece356f0d4552dc9ab633e1d4eb17b804bbd254dd804bd442e86",
+      "verification_status": "complete",
+      "verification_duration_seconds": 40.914,
+      "confirmed_by": "chrystiamjr",
+      "baseline_detected": true,
+      "candidate_detected": false,
+      "baseline_finding_ids": [
+        "findings:0"
+      ],
+      "candidate_finding_ids": [],
+      "reused_prior_accepted_report": false
+    },
+    {
+      "case_id": "case-03",
+      "label": "false_positive",
+      "head_sha": "88f68317854208f89ba4d09fe8c918aa8713d61b",
+      "base_sha": "240f3d8dc7e8971bb25593caf0a092b865d2b8ec",
+      "report_sha256": "66e9328bc569e7607495959091e5f5bddb7aeb4abcec22caa8706339398502d6",
+      "verification_status": "complete",
+      "verification_duration_seconds": 30.185,
+      "confirmed_by": "chrystiamjr",
+      "baseline_detected": false,
+      "candidate_detected": false,
+      "baseline_finding_ids": [],
+      "candidate_finding_ids": [],
+      "reused_prior_accepted_report": true
+    },
+    {
+      "case_id": "case-04",
+      "label": "false_positive",
+      "head_sha": "3ae1cf5d23ba01c14840ca23b87a0fe9b6a3e5a8",
+      "base_sha": "240f3d8dc7e8971bb25593caf0a092b865d2b8ec",
+      "report_sha256": "bcefdd87f08830bdf0eebf94a486e4e5c3a2d406be45cc87db3b8161dacb82a8",
+      "verification_status": "complete",
+      "verification_duration_seconds": 33.639,
+      "confirmed_by": "chrystiamjr",
+      "baseline_detected": false,
+      "candidate_detected": false,
+      "baseline_finding_ids": [],
+      "candidate_finding_ids": [],
+      "reused_prior_accepted_report": true
+    },
+    {
+      "case_id": "case-05",
+      "label": "false_positive",
+      "head_sha": "88f68317854208f89ba4d09fe8c918aa8713d61b",
+      "base_sha": "240f3d8dc7e8971bb25593caf0a092b865d2b8ec",
+      "report_sha256": "d5a3aa9d589f2cc810ed34caafa09d6b5772380bcca376ed2c1d6239df382618",
+      "verification_status": "complete",
+      "verification_duration_seconds": 31.361,
+      "confirmed_by": "chrystiamjr",
+      "baseline_detected": false,
+      "candidate_detected": false,
+      "baseline_finding_ids": [],
+      "candidate_finding_ids": [],
+      "reused_prior_accepted_report": true
+    },
+    {
+      "case_id": "case-06",
+      "label": "false_positive",
+      "head_sha": "3cd2ace6abbb80190daef2a272cf8c0f3fdccfa7",
+      "base_sha": "4bc5db7ba135f30d285509a90dc83653e50bb5ae",
+      "report_sha256": "dd798d72955e712697b373e80029dc02ea61f7eb87f611ecdaddcddd8973f5c3",
+      "verification_status": "complete",
+      "verification_duration_seconds": 19.017,
+      "confirmed_by": "chrystiamjr",
+      "baseline_detected": false,
+      "candidate_detected": false,
+      "baseline_finding_ids": [],
+      "candidate_finding_ids": [],
+      "reused_prior_accepted_report": true
+    },
+    {
+      "case_id": "case-07",
+      "label": "real_bug",
+      "head_sha": "7a86db245dbf9311914575288ccb73680ddfaac9",
+      "base_sha": "05265fd6fe5951c1eaeb2cf4df1c37e6d0ecd036",
+      "report_sha256": "4685f154f5b61fb04311a5ee7e103b04aa05657b1ffcad5d90e1d3c7feaad953",
+      "verification_status": "complete",
+      "verification_duration_seconds": 33.38,
+      "confirmed_by": "chrystiamjr",
+      "baseline_detected": true,
+      "candidate_detected": true,
+      "baseline_finding_ids": [
+        "findings:0"
+      ],
+      "candidate_finding_ids": [
+        "findings:0"
+      ],
+      "reused_prior_accepted_report": true
+    },
+    {
+      "case_id": "case-08",
+      "label": "real_bug",
+      "head_sha": "9a63b5052f25ecad80b6ed4bc963433d06d8650e",
+      "base_sha": "2d97a59e6c414a99f061c7429f18bd51ee162577",
+      "report_sha256": "14e2f6e07f3be90cd57d7ea194573777ae2d270d855a9713e886b2f593f3147e",
+      "verification_status": "complete",
+      "verification_duration_seconds": 27.462,
+      "confirmed_by": "chrystiamjr",
+      "baseline_detected": true,
+      "candidate_detected": true,
+      "baseline_finding_ids": [
+        "findings:0"
+      ],
+      "candidate_finding_ids": [
+        "findings:0"
+      ],
+      "reused_prior_accepted_report": true
+    },
+    {
+      "case_id": "case-09",
+      "label": "real_bug",
+      "head_sha": "f38f4a5bfc6efaf32287785b704ebcaa687ab531",
+      "base_sha": "2d97a59e6c414a99f061c7429f18bd51ee162577",
+      "report_sha256": "4afc5c39bf1eb8cebf5e6d9cad4ceb72f33bfb242279836ce7c8fb3fdee8f40a",
+      "verification_status": "complete",
+      "verification_duration_seconds": 28.121,
+      "confirmed_by": "chrystiamjr",
+      "baseline_detected": false,
+      "candidate_detected": false,
+      "baseline_finding_ids": [],
+      "candidate_finding_ids": [],
+      "reused_prior_accepted_report": true
+    },
+    {
+      "case_id": "case-10",
+      "label": "real_bug",
+      "head_sha": "6d54a7416be25481b61b01cd18b8e1bc261230e4",
+      "base_sha": "4bc5db7ba135f30d285509a90dc83653e50bb5ae",
+      "report_sha256": "1921a4ba35bbacfad5b450796f4b587b565e94226211e47ea5b180b31894a8cc",
+      "verification_status": "complete",
+      "verification_duration_seconds": 28.368,
+      "confirmed_by": "chrystiamjr",
+      "baseline_detected": true,
+      "candidate_detected": true,
+      "baseline_finding_ids": [
+        "findings:0"
+      ],
+      "candidate_finding_ids": [
+        "findings:0"
+      ],
+      "reused_prior_accepted_report": true
+    },
+    {
+      "case_id": "case-11",
+      "label": "clean",
+      "head_sha": "972d972ce111a25e1783c8ffa80fbee0ac28eca3",
+      "base_sha": "05265fd6fe5951c1eaeb2cf4df1c37e6d0ecd036",
+      "report_sha256": "7d3098e16d14d6e30eda91930003045becc1a5b8172561efdb673fd6817b98b1",
+      "verification_status": "complete",
+      "verification_duration_seconds": 30.082,
+      "confirmed_by": "chrystiamjr",
+      "baseline_detected": false,
+      "candidate_detected": false,
+      "baseline_finding_ids": [],
+      "candidate_finding_ids": [],
+      "reused_prior_accepted_report": true
+    },
+    {
+      "case_id": "case-12",
+      "label": "clean",
+      "head_sha": "972d972ce111a25e1783c8ffa80fbee0ac28eca3",
+      "base_sha": "2d97a59e6c414a99f061c7429f18bd51ee162577",
+      "report_sha256": "1d05b047c386401b451c4ec5271864fff25f0439ca117c95f34da2159a02fbfe",
+      "verification_status": "complete",
+      "verification_duration_seconds": 28.061,
+      "confirmed_by": "chrystiamjr",
+      "baseline_detected": false,
+      "candidate_detected": false,
+      "baseline_finding_ids": [],
+      "candidate_finding_ids": [],
+      "reused_prior_accepted_report": true
+    }
+  ]
+}

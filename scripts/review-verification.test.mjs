@@ -9,7 +9,7 @@ import { ReviewStopped } from './review-lifecycle.mjs';
 import { isolatedReview, subscriptionEnv, readOnlyArgs, boundedProcess } from './review-runner.mjs';
 import { validateDecisions, verificationCandidates, verifyReview, verificationMode } from './review-verification.mjs';
 import { parseEffortlessProof, buildRiskSummary, effortlessConfiguration, validateEffortlessPlugin } from './review-effortless.mjs';
-import { benchmarkPrompt, validateCorpus, scoreBenchmark } from './review-benchmark.mjs';
+import { benchmarkPrompt, validateCorpus, scoreBenchmark, runBenchmarkCase } from './review-benchmark.mjs';
 
 const finding = { tier: 'bug', path: 'a.dart', line: 1, symbol: 'run', message: 'bad', why: 'breaks', previous_finding_id: '' };
 const review = { findings: [finding], prior_assessments: [], test_requirements: [], design_notes: [], dismissed_hints: [] };
@@ -29,9 +29,100 @@ test('verifier validates real quotes, complete coverage and unique known IDs', a
   for (const output of [{ decisions: [] }, { decisions: [decision, decision] },
     { decisions: [{ ...decision, id: 'invented' }] }, { decisions: [{ ...decision, evidence: [] }] },
     { decisions: [{ ...decision, evidence: [{ path: '../secret', line: 1, quote: 'secret' }] }] },
-    { decisions: [{ ...decision, evidence: [{ path: 'a.dart', line: 2, quote: 'bad();' }] }] }]) {
+    { decisions: [{ ...decision, evidence: [{ path: 'a.dart', line: 0, quote: 'bad();' }] }] },
+    { decisions: [{ ...decision, evidence: [{ path: 'a.dart', line: 1.5, quote: 'bad();' }] }] }]) {
     await assert.rejects(validateDecisions(output, candidates, async () => 'bad();\n'));
   }
+});
+
+test('source citations accept exact fragments on the cited line and reject altered or absent text', async () => {
+  const candidates = verificationCandidates(review);
+  await validateDecisions({ decisions: [decision] }, candidates, async () => '    bad();\n');
+  const testName = { ...decision, evidence: [{ path: 'a.dart', line: 1, quote: 'retries 429 responses' }] };
+  await validateDecisions({ decisions: [testName] }, candidates, async () => "    test('retries 429 responses', () {\n");
+  const multiline = { ...decision, evidence: [{ path: 'a.dart', line: 1, quote: 'bad();\n  next();' }] };
+  await validateDecisions({ decisions: [multiline] }, candidates, async () => '    bad();\n  next();\n');
+  await assert.rejects(validateDecisions({ decisions: [multiline] }, candidates, async () => '    bad();\n    next();\n'));
+  await assert.rejects(validateDecisions({ decisions: [decision] }, candidates, async () => '    good();\n'), /findings:0.*a.dart:1/);
+});
+
+test('wrong lines relocate only unique exact quotes in the same file and record the original line', async () => {
+  for (const [source, reported, actual, quote] of [
+    ['good();\n    bad();\n', 1, 2, 'bad();'],
+    ['    bad();\n', 999, 1, 'bad();'],
+    ['good();\n    bad();\n  next();\n', 3, 2, 'bad();\n  next();'],
+  ]) {
+    const output = { decisions: [{ ...decision, evidence: [{ path: 'a.dart', line: reported, quote }] }] };
+    const original = structuredClone(output);
+    const result = await validateDecisions(output, verificationCandidates(review), async (path) => {
+      assert.equal(path, 'a.dart');
+      return source;
+    });
+    assert.deepEqual(result.decisions[0].evidence, [{ path: 'a.dart', line: actual, quote }]);
+    assert.deepEqual(result.citation_corrections, [{ id: 'findings:0', path: 'a.dart',
+      reported_line: reported, corrected_line: actual }]);
+    assert.deepEqual(output, original, 'Raw model evidence must remain unchanged');
+  }
+});
+
+test('wrong lines reject duplicate and overlapping matches while valid repeated quotes stay unchanged', async () => {
+  for (const [source, quote] of [['bad();\nbad();\n', 'bad();'], ['aaaa', 'aaa']]) {
+    const output = { decisions: [{ ...decision, evidence: [{ path: 'a.dart', line: 3, quote }] }] };
+    await assert.rejects(validateDecisions(output, verificationCandidates(review), async () => source), /findings:0.*a.dart:3/);
+  }
+  const output = { decisions: [{ ...decision, evidence: [{ path: 'a.dart', line: 2, quote: 'bad();' }] }] };
+  const result = await validateDecisions(output, verificationCandidates(review), async () => 'bad();\nbad();\n');
+  assert.deepEqual(result.decisions, output.decisions);
+  assert.deepEqual(result.citation_corrections, []);
+});
+
+test('corrected citations survive runner normalization without changing the raw response', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'gfrm-corrected-evidence-'));
+  try {
+    await mkdir(join(root, 'work/repo'), { recursive: true });
+    await writeFile(join(root, 'work/repo/a.dart'), 'good();\n    bad();\n');
+    for (const keyed of [false, true]) {
+      const { id, ...value } = structuredClone(decision);
+      const output = { decisions: keyed ? { [id]: value } : [{ id, ...value }] };
+      const original = structuredClone(output);
+      const result = await verifyReview({ review, mode: 'enforce', run: async ({ validate }) => {
+        await validate(output, { root });
+        return { output };
+      } });
+      assert.equal(result.verification.status, 'complete');
+      assert.equal(result.verification.decisions[0].evidence[0].line, 2);
+      assert.deepEqual(result.verification.citation_corrections, [{ id, path: 'a.dart', reported_line: 1, corrected_line: 2 }]);
+      assert.deepEqual(result.review.findings, [finding]);
+      assert.deepEqual(output, original);
+    }
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('a correction followed by invalid evidence retains raw diagnostics without accepting partial findings', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'gfrm-invalid-evidence-'));
+  try {
+    await mkdir(join(root, 'work/repo'), { recursive: true });
+    await writeFile(join(root, 'work/repo/a.dart'), 'good();\n    bad();\n');
+    const mixed = { ...decision, evidence: [...decision.evidence, { path: 'a.dart', line: 2, quote: 'different();' }] };
+    const result = await verifyReview({ review, mode: 'enforce', run: async ({ validate }) => {
+      await validate({ decisions: [mixed] }, { root });
+      assert.fail('Invalid evidence must stop verification');
+    } });
+    assert.equal(result.verification.status, 'incomplete');
+    assert.deepEqual(result.verification.received_decisions, [mixed]);
+    assert.deepEqual(result.verification.decisions, []);
+    assert.deepEqual(result.review.findings, []);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('benchmark rerun preserves existing report and stops before network or model work', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'gfrm-existing-report-'));
+  try {
+    const path = join(directory, 'case-01-current.json');
+    await writeFile(path, 'original evidence');
+    await assert.rejects(runBenchmarkCase({ id: 'case-01' }, 'current', directory, {}), /Report already exists/);
+    assert.equal(await readFile(path, 'utf8'), 'original evidence');
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
 test('shadow keeps baseline while enforce suppresses rejected and inconclusive claims', async () => {
@@ -192,7 +283,26 @@ test('benchmark gates require labels, complete trials and preserve baseline real
   assert.equal(scoreBenchmark(corpus, reports).status, 'failed');
   assert.equal(scoreBenchmark(corpus, reports.slice(1)).status, 'pending');
   reports[0].verification.status = 'incomplete';
-  assert.equal(scoreBenchmark(corpus, reports).status, 'pending');
+  reports[0].verification.reason = 'Verifier must assess every candidate';
+  const incomplete = scoreBenchmark(corpus, reports.slice(0, 1));
+  assert.equal(incomplete.status, 'pending');
+  assert.match(incomplete.pending_details[0].reasons.join(' '), /Verifier must assess every candidate/);
+  assert.match(incomplete.pending_details[1].reasons.join(' '), /Report missing/);
+  assert.equal(incomplete.scored_cases, 0);
+});
+
+test('verifier wire schema requires each finding and test-requirement decision', async () => {
+  const detected = { ...review, test_requirements: [{ id: 'required-test' }] };
+  const result = await verifyReview({ review: detected, mode: 'enforce', run: async ({ schema }) => {
+    assert.equal(schema.properties.decisions.type, 'object');
+    assert.deepEqual(schema.properties.decisions.required, ['findings:0', 'test_requirements:0']);
+    return { output: { decisions: {
+      'findings:0': { decision: 'rejected', reason: 'Unchanged adapter handles it', evidence: [] },
+      'test_requirements:0': { decision: 'inconclusive', reason: 'Not inspected', evidence: [] },
+    } } };
+  } });
+  assert.equal(result.verification.status, 'complete');
+  assert.deepEqual(result.review.findings, []);
 });
 
 test('snapshot extractor excludes links and configuration and rejects traversal', async () => {
