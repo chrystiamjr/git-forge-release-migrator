@@ -1230,7 +1230,7 @@ test('buildHardFindings blocks only as critical or important, with secrets as cr
       filename: 'README.md',
       status: 'modified',
       changes: 2,
-      patch: '@@ -1,1 +1,1 @@\n+export GH_TOKEN=ghp_example12345678901234567890',
+      patch: `@@ -1,1 +1,1 @@\n+export GH_TOKEN=${['gh', 'p_', 'a'.repeat(27)].join('')}`,
     }),
     buildPatchedFile({ filename: 'website/docs/intro.md', patch: '@@ -1,1 +1,1 @@\n+Updated intro' }),
   ]);
