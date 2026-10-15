@@ -14,8 +14,10 @@ The GUI reuses shared Dart runtime contracts from `../dart_cli` instead of
 shelling out to the CLI binary.
 
 Run Progress renders current controller state and live snapshots, including phase, lifecycle,
-tag/release counters, and item outcomes. Wizard start is still disabled; runtime actions go
-through `DesktopRunController`. See [runtime events](https://gfrm.envolvosystems.com.br/docs/configuration/runtime-events).
+tag/release counters, and item outcomes. Results displays final outcomes, failure details, reported artifact paths,
+and the runtime-provided resume command. Wizard start and GUI retry/artifact-opening actions remain unavailable;
+runtime actions go through `DesktopRunController`.
+See [runtime events](https://gfrm.envolvosystems.com.br/docs/configuration/runtime-events).
 
 ## Quick Start
 

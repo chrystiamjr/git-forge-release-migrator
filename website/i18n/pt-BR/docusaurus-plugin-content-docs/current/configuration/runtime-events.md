@@ -62,7 +62,27 @@ mapeado a partir do `RunState` compartilhado. Não interpreta saída de terminal
 Sem execução, exibe estado vazio; uma falha do stream exibe aviso de atualização e mantém o snapshot atual.
 
 Iniciar migração pelo wizard ainda está indisponível. Esta tela observa execuções iniciadas pelo controller desktop
-tipado; ações de retry/cancelamento e a tela Results são trabalhos separados.
+tipado; ações de retry/cancelamento são trabalhos separados.
+
+## Migration Results no desktop
+
+A tela desktop **Results** lê o mesmo snapshot atual e stream. Antes do fim de uma execução, exibe um estado vazio
+ou em andamento. Quando o lifecycle é `completed` ou `failed`, mostra o lifecycle final, o resultado de conclusão
+quando informado, o total de tags e tags com falha, além dos contadores separados de resultados de tags/releases.
+Lifecycle concluído não significa sucesso: uma execução com `partial_failure` mantém esse resultado visível.
+Os detalhes de falha incluem código, fase e mensagem informados, inclusive falhas anteriores à geração de artefatos.
+Entradas de tags/releases com falha também mostram a identificação e a mensagem informada, mesmo quando uma falha
+parcial não tem uma exceção no nível da execução.
+
+Os caminhos de `summary.json`, `failed-tags.txt` e `migration-log.jsonl` aparecem apenas quando informados pelo
+runtime. A tela exibe caminhos selecionáveis sem abrir arquivos nem verificar se ainda existem.
+A orientação de retry aparece apenas quando o snapshot final fornece um comando de resume não vazio; a contagem
+de falhas sozinha não cria um comando. Você pode selecionar esse comando para usá-lo no terminal. Executar retries
+e abrir artefatos pela GUI continuam sendo trabalhos separados.
+
+Entrar em Results após a conclusão mostra o snapshot atual sem aguardar outro evento. Erros do stream exibem um
+aviso e preservam os resultados atuais; iniciar uma nova execução substitui os resultados anteriores pelo estado
+pendente. Esta tela não lê saída de terminal nem reconstrói resultados a partir dos arquivos de artefatos.
 
 ## Famílias de eventos
 

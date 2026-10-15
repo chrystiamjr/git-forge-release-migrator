@@ -1,4 +1,6 @@
 final class DesktopRunProgressItem {
+  static const String _failedStatus = 'failed';
+
   const DesktopRunProgressItem({
     required this.kind,
     required this.tag,
@@ -12,4 +14,6 @@ final class DesktopRunProgressItem {
   final String status;
   final String message;
   final int? assetCount;
+
+  bool get isFailed => status == _failedStatus;
 }
