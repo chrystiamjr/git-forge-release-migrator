@@ -25,7 +25,7 @@ jobs:
       number: ${{ steps.guard.outputs.number }}
       head: ${{ steps.guard.outputs.head }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
@@ -52,7 +52,7 @@ jobs:
     env:
       PR_NUMBER: ${{ needs.eligibility.outputs.number }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
@@ -81,7 +81,7 @@ jobs:
       PR_NUMBER: ${{ needs.eligibility.outputs.number }}
       REVIEW_EXPECTED_HEAD: ${{ needs.eligibility.outputs.head }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
@@ -159,7 +159,7 @@ jobs:
       PR_NUMBER: ${{ needs.eligibility.outputs.number }}
       REVIEW_EXPECTED_HEAD: ${{ needs.eligibility.outputs.head }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
