@@ -46,10 +46,32 @@ test('base movement, mislabeled reports, stale attempts and unrelated merge pare
     const evidence = await collectReviewEvidence('o/r', 1, head, f.request, async () => f.report);
     assert.equal(evidence.checks['gui-goldens'].status, 'pending');
     assert.equal(evidence.tests.length, 0);
-    assert.match(evidence.reason, /current PR head and target branch/);
     const body = renderChecklist({ head, files: [], requirements: [], evidence });
-    assert.match(body, /Refresh the PR and run Quality Checks again/);
+    assert.match(body, change.attempt === 0 ? /another run or attempt/ : /Update the PR branch/);
     assert.doesNotMatch(body, /\[x\]/);
+  }
+});
+
+test('report failures explain their cause without recommending a branch update for artifact problems', async (t) => {
+  t.mock.method(console, 'warn', () => {});
+  const cases = [
+    { load: async () => null, reason: /No validation report is available/ },
+    { load: async () => { throw new Error('Artifact access failed'); }, reason: /could not be loaded/ },
+    { patch: { ci_run_id: 999 }, reason: /another run or attempt/ },
+    { patch: { ci_run_attempt: 0 }, reason: /another run or attempt/ },
+    { patch: { head_sha: 'invalid' }, reason: /invalid tested revision/ },
+    { patch: { schema_version: 99 }, reason: /unsupported format/ },
+    { patch: { baseline: true }, reason: /unsupported format/ },
+  ];
+  for (const scenario of cases) {
+    const f = fixture();
+    const report = { ...f.report, ...scenario.patch };
+    const evidence = await collectReviewEvidence('o/r', 1, head, f.request, scenario.load || (async () => report));
+    assert.equal(evidence.checks['gui-goldens'].status, 'pending');
+    assert.equal(evidence.tests.length, 0);
+    assert.match(evidence.reason, scenario.reason);
+    assert.equal(evidence.checks['gui-goldens'].reason, evidence.reason);
+    assert.doesNotMatch(evidence.reason, /Refresh the PR|Update the PR branch/);
   }
 });
 
