@@ -1,0 +1,13 @@
+{
+  "checked_at": "2026-10-12",
+  "cli_version": "2.1.296",
+  "plugin_repository": "HeyCubit/effortless",
+  "plugin_revision": "e553b18e9f5e8ce3533f3ce9c666e7e8bc9234f9",
+  "plugin_version": "1.71.0",
+  "static_validation": "failed",
+  "exit_code": 1,
+  "reason": "hooks/register.tsx references effortless.updateCheck, which is absent from the manifest types PluginState contract",
+  "live_subscription_compatibility": "not_run",
+  "model_comparisons": "not_run",
+  "decision": "Keep current routing. Do not activate this plugin revision. Recheck an explicitly reviewed upstream revision before any model trial."
+}

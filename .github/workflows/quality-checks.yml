@@ -2,6 +2,8 @@ name: Quality Checks
 
 on:
   pull_request:
+    # ready_for_review re-runs checks, and through them the AI review that drafts skip.
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read

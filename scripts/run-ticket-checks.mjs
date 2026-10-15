@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { parseTestEvidence } from './test-result-evidence.mjs';
 import { realpathSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -63,11 +64,22 @@ export async function main(args = process.argv.slice(2)) {
   }
   const report = {
     schema_version: 1, ticket: options.ticket || null, head_sha: head, base_sha: base, baseline: !!options.baselineOnly,
+    pr_head_sha: process.env.CI_PR_HEAD_SHA || head, pr_base_sha: process.env.CI_PR_BASE_SHA || base,
+    ci_run_id: process.env.GITHUB_RUN_ID || null, ci_run_attempt: Number(process.env.GITHUB_RUN_ATTEMPT || 0), tests: [],
     coverage_scope: 'lib-excluding-generated-v1', created_at: new Date().toISOString(), scope, checks: [], coverage: {},
   };
   async function check(name, command, args, directory = cwd) {
+    const suite = { 'dart-tests': 'dart', 'gui-coverage-tests': 'gui', 'process-tests': 'process', 'website-tests': 'website' }[name];
+    if (suite === 'dart') {
+      command = 'node'; args = [fileURLToPath(new URL('./run-dart.js', import.meta.url)), 'test', '--reporter=json'];
+      directory = join(cwd, 'dart_cli');
+    } else if (suite === 'gui' || suite === 'website') args = [...args, '--reporter=json'];
+    else if (suite === 'process') {
+      command = 'node'; args = ['--test', `--test-reporter=${fileURLToPath(new URL('./node-test-evidence-reporter.mjs', import.meta.url))}`, 'scripts/*.test.mjs'];
+    }
     const result = run(command, args, directory);
     const output = redactLog(result.output);
+    if (suite) report.tests.push(...parseTestEvidence(output, suite, cwd));
     const log = `${name}.log`;
     await writeFile(join(out, log), output);
     report.checks.push({ name, status: result.exit === 0 ? 'passed' : 'failed', exit_code: result.exit, log, sha256: createHash('sha256').update(output).digest('hex') });
@@ -95,6 +107,8 @@ export async function main(args = process.argv.slice(2)) {
     await check('diff', 'git', ['diff', '--check', `${base}...${head}`]);
     await check('dart-lint', 'yarn', ['lint:dart']);
     await check('dart-tests', 'yarn', ['test:dart']);
+    await check('process-tests', 'yarn', ['test:process']);
+    await check('translation-parity', 'node', ['scripts/check-translations.mjs']);
   }
   if (await check('dart-coverage-tests', 'yarn', ['coverage:dart'])) await coverage('dart', scope.dart);
   if (scope.gui) {
@@ -106,11 +120,9 @@ export async function main(args = process.argv.slice(2)) {
     else await check('gui-goldens', 'yarn', ['test:flutter:visual']);
   }
   if (scope.docs) {
-    await check('translation-parity', 'node', ['scripts/check-translations.mjs']);
     await check('docs-build', 'yarn', ['docs:build']);
     if (files.some((path) => /^website\/src\//.test(path))) await check('website-tests', 'yarn', ['test:website']);
   }
-  if (scope.tooling) await check('process-tests', 'yarn', ['test:process']);
   for (const kind of requiredEvidence(scope)) {
     let evidence;
     try { evidence = JSON.parse(await readFile(join(options['evidence-dir'] || '', `${kind}.json`), 'utf8')); } catch { /* Missing evidence remains pending. */ }

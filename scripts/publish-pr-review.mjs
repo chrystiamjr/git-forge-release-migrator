@@ -1,15 +1,21 @@
 #!/usr/bin/env node
 
-import {readFile} from 'node:fs/promises';
+import { findingId, findingMarker, findingMetadata, priorFinding } from './review-history.mjs';
+import { assertReviewCurrent, guardedRequest, ReviewStopped } from './review-lifecycle.mjs';
+import { updateChecklist } from './review-checklist.mjs';
+import { collectReviewEvidence } from './review-evidence.mjs';
+import { ensureReviewResult } from './review-result.mjs';
 import {fileURLToPath} from 'node:url';
 import {
+    AI_REVIEW_BLOCKING_MARKER,
+    AI_REVIEW_ROUND_MARKER,
     assertRequiredEnv,
     githubRequest,
+    isCompletedLlmReview,
     paginate,
     parseRepository,
     PR_NUMBER,
     REPOSITORY,
-    REVIEW_RESULT_PATH,
 } from './github-api.mjs';
 
 export function isSelfReviewRequestChangesError(error) {
@@ -44,7 +50,7 @@ function findingLabel(finding) {
 }
 
 function formatInlineComment(finding, marker) {
-    const lines = [marker, `[${findingLabel(finding)}] ${finding.message}`];
+    const lines = [marker, `[${findingLabel(finding)}] ${finding.message}`, findingMarker(finding)];
 
     if (finding.symbol) {
         lines.push('', `Symbol: \`${finding.symbol}\``);
@@ -57,77 +63,29 @@ function formatInlineComment(finding, marker) {
     return lines.join('\n');
 }
 
-function inlineCommentSignature(path, line, body) {
-    return `${path ?? ''}\0${line ?? ''}\0${body ?? ''}`;
-}
-
 export function filterAlreadyPublishedFindings(findings, comments, marker) {
     return partitionPublishedFindings(findings, comments, marker).unpublishedFindings;
 }
 
-function commentLabel(body) {
-    return String(body).split('\n')[1]?.match(/^\[([a-z_]+)\]/)?.[1] ?? null;
-}
-
-function commentSymbol(body) {
-    return String(body).match(/^Symbol: `([^`]+)`$/m)?.[1] ?? null;
-}
-
-// LLM wording changes between runs, so tiered findings match an existing comment by path + line + tier;
-// deterministic findings keep exact-text matching.
-function findingSignature(finding, marker) {
-    const body = finding.tier ? `tier:${finding.tier}` : formatInlineComment(finding, marker);
-    return inlineCommentSignature(finding.path, finding.line, body);
-}
-
-// The model also re-anchors the same concern a few lines away between runs: same path, tier, and symbol nearby
-// counts as already published.
-const NEARBY_LINE_WINDOW = 30;
-
-function isNearbyTieredComment(finding, comment) {
-    return (
-        Boolean(finding.tier && finding.symbol) &&
-        typeof comment.line === 'number' &&
-        comment.path === finding.path &&
-        comment.tier === finding.tier &&
-        comment.symbol === finding.symbol &&
-        Math.abs(comment.line - finding.line) <= NEARBY_LINE_WINDOW
-    );
-}
-
 export function partitionPublishedFindings(findings, comments, marker) {
-    const existingCommentSignatures = new Set();
-    const tieredComments = [];
-
-    for (const comment of comments) {
-        if (!String(comment.body || '').includes(marker)) {
-            continue;
-        }
-
-        existingCommentSignatures.add(inlineCommentSignature(comment.path, comment.line, comment.body));
-        const label = commentLabel(comment.body);
-        if (label) {
-            existingCommentSignatures.add(inlineCommentSignature(comment.path, comment.line, `tier:${label}`));
-            tieredComments.push({path: comment.path, line: comment.line, tier: label, symbol: commentSymbol(comment.body)});
-        }
-    }
-
+    const byId = new Map(comments.filter((comment) => !comment.in_reply_to_id && String(comment.body || '').includes(marker))
+        .map((comment) => [priorFinding(comment).finding_id, comment]));
     const unpublishedFindings = [];
     const alreadyPublishedFindings = [];
-
+    const seen = new Set();
     for (const finding of findings) {
-        const isAlreadyPublished =
-            existingCommentSignatures.has(findingSignature(finding, marker)) ||
-            tieredComments.some((comment) => isNearbyTieredComment(finding, comment));
-
-        if (isAlreadyPublished) {
-            alreadyPublishedFindings.push(finding);
-        } else {
-            unpublishedFindings.push(finding);
-        }
+        const id = findingId(finding);
+        if (seen.has(id)) continue;
+        seen.add(id);
+        const existing = byId.get(id);
+        // Exact legacy text is safe; location/severity alone cannot identify a concern.
+        const legacy = existing || comments.find((comment) => !comment.in_reply_to_id &&
+            String(comment.body || '').includes(marker) && comment.path === finding.path &&
+            String(comment.body).split('\n')[1] === `[${findingLabel(finding)}] ${finding.message}`);
+        if (legacy) alreadyPublishedFindings.push(legacy.html_url ? { ...finding, existing_url: legacy.html_url } : finding);
+        else unpublishedFindings.push(finding);
     }
-
-    return {unpublishedFindings, alreadyPublishedFindings};
+    return { unpublishedFindings, alreadyPublishedFindings };
 }
 
 function formatFindingSummary(finding) {
@@ -161,6 +119,14 @@ function buildLlmSection(llm) {
     }
 
     const lines = [];
+    if (llm.verification) {
+        lines.push('', `**Verification:** ${llm.verification.status} (${llm.verification.mode}).`);
+        if (llm.verification.status !== 'complete') {
+            lines.push(llm.verification.mode === 'enforce'
+                ? 'Candidate verification unavailable; this is not a clean AI approval.'
+                : 'Shadow verification unavailable; the baseline verdict is unchanged. This run does not count as a complete shadow observation.');
+        }
+    }
 
     if (llm.verdict_reasoning) {
         lines.push('', `**Verdict:** ${llm.verdict_reasoning}`);
@@ -171,9 +137,7 @@ function buildLlmSection(llm) {
         lines.push('', `Reviewed with partial context (size budget): ${partialContext.map((path) => `\`${path}\``).join(', ')}.`);
     }
 
-    // Secondary detail stays collapsed so the inline comments remain the main read.
-    const testsNeeded = Array.isArray(llm.tests_needed) ? llm.tests_needed : [];
-    lines.push(...buildDetails('Tests needed', testsNeeded.map((test) => `- ${test}`)));
+    // Required tests live in the single persistent checklist.
 
     const designNotes = Array.isArray(llm.design_notes) ? llm.design_notes : [];
     lines.push(
@@ -199,6 +163,7 @@ function buildLlmSection(llm) {
     const cost = typeof llm.cost_usd === 'number' ? `, est. cost $${llm.cost_usd.toFixed(2)}` : '';
     const route = llm.tier ? ` Routed to ${llm.tier}: ${llm.route_reason}` : '';
     lines.push('', `_Reviewed by ${llm.engine} / ${llm.model} (${llm.model_version}, ${level})${duration}${cost}.${route}_`);
+    lines.push('', AI_REVIEW_ROUND_MARKER);
     return lines;
 }
 
@@ -221,8 +186,11 @@ function buildReviewBody(result, options = {}) {
                 'Automated review completed with no blocking findings. GitHub rejected a formal approval for this PR identity, so this automated review was published as a comment instead.',
             );
         } else {
-            summaryLines.push('Automated review complete.');
+            summaryLines.push(result.llm?.verification?.mode === 'enforce' && result.llm.verification.status !== 'complete'
+                ? 'Deterministic checks completed; AI verification is incomplete.' : 'Automated review complete.');
         }
+    } else if (result.verdict === 'wait') {
+        summaryLines.push('Automated review complete with no blocking findings; waiting for required checks.');
     }
 
     if (options.usedRequestChangesFallback) {
@@ -237,83 +205,35 @@ function buildReviewBody(result, options = {}) {
         if (summarizedFindings.length > 0) {
             summaryLines.push('');
             summaryLines.push(
-                'These findings matched existing automated inline comments and are repeated here so the review is self-contained:',
+                'Outstanding findings in existing threads:',
             );
-            summaryLines.push(...summarizedFindings.map((finding) => formatFindingSummary(finding)));
+            summaryLines.push(...summarizedFindings.map((finding) => finding.existing_url ? `- [${findingLabel(finding)}] [Existing discussion](${finding.existing_url})` : `- [${findingLabel(finding)}] Existing finding ${findingId(finding)}`));
         }
 
-        const summaryOnlyFindings = findings.filter((finding) => !isInlineFinding(finding));
+        const summaryOnlyFindings = findings.filter((finding) => !isInlineFinding(finding) && !summarizedFindings.some((prior) => findingId(prior) === findingId(finding)));
         if (summaryOnlyFindings.length > 0) {
             summaryLines.push('', 'Findings without an inline anchor in the diff:');
             summaryLines.push(...summaryOnlyFindings.map((finding) => formatFindingSummary(finding)));
         }
     }
 
+    if (result.checklist_url) summaryLines.push('', `[Required tests](${result.checklist_url})`);
+    if (result.checklist_warning) summaryLines.push('', 'Required-test evidence unavailable; the checklist may be incomplete. This does not change the review verdict.');
     summaryLines.push(...buildLlmSection(result.llm));
+    if (isCompletedLlmReview(result.llm) && result.llm.blocking) {
+        summaryLines.push(AI_REVIEW_BLOCKING_MARKER);
+    }
+    if (result.publication_key) summaryLines.push('', `<!-- gfrm-review-run:${result.publication_key} -->`);
     summaryLines.push('', result.marker);
     return summaryLines.join('\n');
 }
 
-async function dismissPreviousReviews(owner, repo, marker) {
-    const reviews = await paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/reviews`);
-    const dismissableReviews = reviews.filter(
-        (review) =>
-            String(review.body || '').includes(marker) &&
-            (review.state === 'CHANGES_REQUESTED' || review.state === 'APPROVED'),
-    );
-
-    for (const review of dismissableReviews) {
-        try {
-            await githubRequest(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/reviews/${review.id}/dismissals`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    message: 'Superseded by new automated review run.',
-                }),
-            });
-        } catch {
-            // Best-effort: dismiss may fail if token lacks permission or review was already dismissed.
-        }
-    }
-}
-
-async function postInlineFinding(owner, repo, headSha, finding, marker) {
-    await githubRequest(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/comments`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            body: formatInlineComment(finding, marker),
-            commit_id: headSha,
-            path: finding.path,
-            line: finding.line,
-            side: 'RIGHT',
-        }),
-    });
-}
-
-async function submitReview(owner, repo, event, body) {
-    await githubRequest(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/reviews`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            event,
-            body,
-        }),
-    });
-}
-
-async function loadReviewResult() {
-    const raw = await readFile(REVIEW_RESULT_PATH, 'utf8');
-    return JSON.parse(raw);
-}
-
 export async function publishReviewResult(result, submitReview, options = {}) {
+    if (result.verdict !== 'request_changes' && result.llm?.verification?.mode === 'enforce'
+        && result.llm.verification.status !== 'complete') {
+        await submitReview('COMMENT', buildReviewBody(result, options));
+        return true;
+    }
     if (result.verdict === 'request_changes') {
         try {
             await submitReview('REQUEST_CHANGES', buildReviewBody(result, options));
@@ -324,7 +244,7 @@ export async function publishReviewResult(result, submitReview, options = {}) {
 
             await submitReview('COMMENT', buildReviewBody(result, {...options, usedRequestChangesFallback: true}));
         }
-        return;
+        return true;
     }
 
     if (result.verdict === 'approve') {
@@ -337,56 +257,130 @@ export async function publishReviewResult(result, submitReview, options = {}) {
 
             await submitReview('COMMENT', buildReviewBody(result, {...options, usedApprovalFallback: true}));
         }
+        return true;
+    }
+
+    // A completed AI round must leave a review carrying its round marker, or review-pr.mjs would not count it.
+    if (result.verdict === 'wait' && isCompletedLlmReview(result.llm)) {
+        await submitReview('COMMENT', buildReviewBody(result, options));
+        return true;
+    }
+    return false;
+}
+
+async function publishChecklist(result, { repository, number, botLogin, request, evidenceLoader }) {
+    const head = result.head_sha;
+    let evidence;
+    try { evidence = await evidenceLoader(repository, number, head, request); }
+    catch (error) {
+        if (error instanceof ReviewStopped) throw error;
+        console.warn(`Test evidence unavailable: ${error.message}`);
+        result.checklist_warning = true;
+        evidence = { head, checks: {}, tests: [] };
+    }
+    try { result.checklist_url = await updateChecklist({ repository, number, head, botLogin, llm: result.llm, evidence, request }); }
+    catch (error) {
+        if (error instanceof ReviewStopped) throw error;
+        console.warn(`Test checklist unavailable: ${error.message}`);
+        result.checklist_warning = true;
+    }
+}
+
+async function postInlineFindings(findings, marker, { base, head, write }) {
+    for (const finding of findings.filter(isInlineFinding)) {
+        try {
+            await write(`${base}/comments`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    body: formatInlineComment(finding, marker), commit_id: head,
+                    path: finding.path, line: finding.line, side: 'RIGHT',
+                }),
+            });
+        } catch (error) {
+            if (!isInlineCommentPermissionError(error)) throw error;
+            return false;
+        }
+    }
+    return true;
+}
+
+async function replyToAssessments(result, comments, findings, { base, head, write }) {
+    const assessments = [...(result.llm?.prior_assessments || [])];
+    // A published linked finding also reopens its stored state; omission in the next round must not erase it.
+    for (const finding of findings) {
+        if (finding.previous_finding_id && !assessments.some((item) => item.finding_id === finding.previous_finding_id)) {
+            assessments.push({ finding_id: finding.previous_finding_id, state: 'applicable', reason: finding.message });
+        }
+    }
+    for (const assessment of assessments) {
+        const prior = result.prior_comments?.find((item) => item.finding_id === assessment.finding_id);
+        if (!prior) continue;
+        const threadComments = comments.filter((comment) => comment.id === prior.comment_id || comment.in_reply_to_id === prior.comment_id);
+        const latest = threadComments.filter((comment) => findingMetadata(comment.body)).at(-1);
+        const previous = findingMetadata(latest?.body) || { state: 'applicable', tier: prior.tier };
+        const finding = findings.find((item) => findingId(item) === prior.finding_id);
+        const tier = finding?.tier || prior.tier;
+        if (previous.state === assessment.state && previous.tier === tier) continue;
+        const state = { finding_id: prior.finding_id, tier, message: assessment.reason };
+        await write(`${base}/comments/${prior.comment_id}/replies`, {
+            method: 'POST',
+            body: JSON.stringify({
+                body: `${findingMarker(state, assessment.state)}\n${assessment.state}: ${assessment.reason}\n\nVerified against \`${head}\`.`,
+            }),
+        });
+    }
+}
+
+async function dismissSuperseded(reviews, { base, write }) {
+    for (const review of reviews) {
+        try {
+            await write(`${base}/reviews/${review.id}/dismissals`, {
+                method: 'PUT', body: JSON.stringify({ message: 'Superseded by new automated review run.' }),
+            });
+        } catch (error) {
+            if (error instanceof ReviewStopped) throw error;
+            console.warn(`Could not dismiss review ${review.id}`);
+        }
+    }
+}
+
+export async function publishResult(result, {
+    repository = REPOSITORY, number = PR_NUMBER, botLogin = process.env.REVIEW_BOT_LOGIN,
+    request = githubRequest, evidenceLoader = collectReviewEvidence,
+} = {}) {
+    if (result.verdict === 'skip') return;
+    if (!botLogin) throw new Error('Verified review bot identity required');
+    const head = result.head_sha;
+    if (!head) throw new Error('Refusing to publish an analysis without a reviewed head');
+    await assertReviewCurrent(repository, number, head, request);
+    const write = guardedRequest(repository, number, head, request);
+    const base = `/repos/${repository}/pulls/${number}`;
+    const publication = { base, head, write };
+    await publishChecklist(result, { repository, number, botLogin, request, evidenceLoader });
+    const comments = (await paginate(`${base}/comments`, request)).filter((comment) => comment.user?.login === botLogin);
+    const reviews = await paginate(`${base}/reviews`, request);
+    if (result.publication_key && reviews.some((review) => review.user?.login === botLogin &&
+        review.body?.includes(`<!-- gfrm-review-run:${result.publication_key} -->`))) return;
+    const previousReviews = reviews.filter((review) =>
+        review.user?.login === botLogin && review.body?.includes(result.marker) && ['CHANGES_REQUESTED', 'APPROVED'].includes(review.state));
+    const findings = Array.isArray(result.findings) ? result.findings : [];
+    const { unpublishedFindings, alreadyPublishedFindings } = partitionPublishedFindings(findings, comments, result.marker);
+    const inlineCommentsPublished = await postInlineFindings(unpublishedFindings, result.marker, publication);
+    await replyToAssessments(result, comments, findings, publication);
+    const published = await publishReviewResult(result, (event, body) => write(`${base}/reviews`, {
+        method: 'POST', body: JSON.stringify({ event, body, commit_id: head }),
+    }), { inlineCommentsPublished, summarizedFindings: alreadyPublishedFindings });
+    // Replace the verdict before dismissing its predecessor; cancellation must not erase the only blocker.
+    if (published) await dismissSuperseded(previousReviews, publication);
+    if (result.consume_extra_round_label) {
+        await write(`/repos/${repository}/issues/${number}/labels/ai-review`, { method: 'DELETE' });
     }
 }
 
 async function main() {
     assertRequiredEnv();
-
-    const result = await loadReviewResult();
-    const {owner, repo} = parseRepository(REPOSITORY);
-    let inlineCommentsPublished = true;
-
-    await dismissPreviousReviews(owner, repo, result.marker);
-    let existingComments = [];
-
-    try {
-        existingComments = await paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/comments`);
-    } catch (error) {
-        if (!isInlineCommentPermissionError(error)) {
-            throw error;
-        }
-
-        inlineCommentsPublished = false;
-    }
-
-    const findings = Array.isArray(result.findings) ? result.findings : [];
-    const {unpublishedFindings, alreadyPublishedFindings} = partitionPublishedFindings(
-        findings.filter(isInlineFinding),
-        existingComments,
-        result.marker,
-    );
-
-    if (inlineCommentsPublished) {
-        for (const finding of unpublishedFindings) {
-            try {
-                await postInlineFinding(owner, repo, result.head_sha, finding, result.marker);
-            } catch (error) {
-                if (!isInlineCommentPermissionError(error)) {
-                    throw error;
-                }
-
-                inlineCommentsPublished = false;
-                break;
-            }
-        }
-    }
-
-    await publishReviewResult(
-        result,
-        (event, body) => submitReview(owner, repo, event, body),
-        {inlineCommentsPublished, summarizedFindings: alreadyPublishedFindings},
-    );
+    try { await publishResult(await ensureReviewResult()); }
+    catch (error) { if (error instanceof ReviewStopped) console.log(error.message); else throw error; }
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) == process.argv[1]) {

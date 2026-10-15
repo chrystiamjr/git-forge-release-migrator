@@ -158,8 +158,8 @@ test('publishReviewResult includes deduped finding summary when inline comment a
     ['REQUEST_CHANGES'],
   );
   assert.match(calls[0].body, /summarized findings below/);
-  assert.match(calls[0].body, /existing automated inline comments/);
-  assert.match(calls[0].body, /gui\/lib\/src\/theme\/gfrm_colors\.dart:1/);
+  assert.match(calls[0].body, /Outstanding findings in existing threads/);
+  assert.doesNotMatch(calls[0].body, /Theme, color, or typography definitions changed/);
 });
 
 test('partitionPublishedFindings separates existing automated inline comments', () => {
@@ -279,6 +279,7 @@ test('publishReviewResult renders summary-only findings and LLM sections in the 
         effort: 'medium',
         duration_seconds: 61.4,
         cost_usd: 1.234,
+        blocking: true,
         tier: 'deep',
         route_reason: 'Touches resume semantics.',
         tests_needed: ['resume with empty checkpoint'],
@@ -304,13 +305,14 @@ test('publishReviewResult renders summary-only findings and LLM sections in the 
   assert.doesNotMatch(body, /Inline\. \(a\.dart:2\)/);
   assert.doesNotMatch(body, /###/);
   assert.match(body, /\*\*Verdict:\*\* Blocking bug in resume\./);
-  assert.match(body, /<summary>Tests needed \(1\)<\/summary>\n\n- resume with empty checkpoint\n\n<\/details>/);
+  assert.doesNotMatch(body, /Tests needed|resume with empty checkpoint/);
   assert.match(
     body,
     /<summary>Design notes \(2\)<\/summary>\n\n- \*\*duplication\*\* \(now\) `a\.dart:parse`: Same hunk parser as b\.dart\. → Share one helper\.\n- \*\*design\*\* \(later\) `c\.dart`: Engine knows provider\. → Inject adapter\./,
   );
   assert.match(body, /partial context \(size budget\): `big\.dart`/);
   assert.match(body, /<summary>Dismissed heuristic hints \(1\)<\/summary>\n\n- `long_method` in `a\.dart`: Generated table, not logic\./);
+  assert.match(body, /<!-- auto-pr-review:llm -->\n<!-- auto-pr-review:llm:blocking -->\n\n<!-- auto-pr-review -->$/);
   assert.match(body, /_Reviewed by claude \/ opus \(claude-opus-5-5, effort: medium\) in 61s, est\. cost \$1\.23\. Routed to deep: Touches resume semantics\._/);
   assert.ok(body.endsWith('<!-- auto-pr-review -->'));
 });
@@ -337,27 +339,14 @@ test('publishReviewResult reports an unavailable LLM review', async () => {
   assert.match(calls[0].body, /\*\*LLM review:\*\* unavailable \(Gemini API 503\)\./);
 });
 
-test('partitionPublishedFindings matches AI findings by path, line, and tier even when wording changes', () => {
+test('partitionPublishedFindings reuses explicit identity despite new wording, tier, and line', () => {
   const marker = '<!-- auto-pr-review -->';
-  const reworded = {
-    tier: 'important',
-    severity: 'blocking',
-    path: 'a.dart',
-    line: 7,
-    message: 'Resume skips the failed tag (new wording).',
-    why: 'Different why text.',
-  };
-  const differentTier = { ...reworded, tier: 'suggestion', severity: 'note' };
-  const differentLine = { ...reworded, line: 8 };
-
-  const { unpublishedFindings, alreadyPublishedFindings } = partitionPublishedFindings(
-    [reworded, differentTier, differentLine],
-    [{ path: 'a.dart', line: 7, body: `${marker}\n[important] Resume drops failed tags.\n\nWhy: old wording.` }],
-    marker,
-  );
-
-  assert.deepEqual(alreadyPublishedFindings, [reworded]);
-  assert.deepEqual(unpublishedFindings, [differentTier, differentLine]);
+  const reworded = { finding_id: 'legacy-7', tier: 'important', path: 'renamed.dart', line: 500, message: 'Reworded.' };
+  const other = { tier: 'important', path: 'renamed.dart', line: 500, message: 'Separate cause.' };
+  const result = partitionPublishedFindings([reworded, other], [{ id: 7, path: 'a.dart', line: null,
+    body: `${marker}\n[bug] Earlier issue.` }], marker);
+  assert.deepEqual(result.alreadyPublishedFindings, [reworded]);
+  assert.deepEqual(result.unpublishedFindings, [other]);
 });
 
 test('partitionPublishedFindings keeps exact-text matching for deterministic findings', () => {
@@ -391,26 +380,57 @@ test('publishReviewResult renders a skipped LLM review without a model footer', 
 
   assert.match(calls[0].body, /\*\*LLM review:\*\* skipped\. AI review disabled\./);
   assert.doesNotMatch(calls[0].body, /Reviewed by/);
+  assert.doesNotMatch(calls[0].body, /auto-pr-review:llm/);
 });
 
-test('partitionPublishedFindings treats the same tier and symbol re-anchored nearby as already published', () => {
+test('partitionPublishedFindings does not merge separate causes on the same nearby symbol', () => {
   const marker = '<!-- auto-pr-review -->';
-  const existing = {
-    path: 'http.dart',
-    line: 180,
-    body: `${marker}\n[question] Is validateStatus relaxed?\n\nSymbol: \`requestJson\`\n\nWhy: w`,
-  };
-  const reanchored = { tier: 'question', severity: 'note', path: 'http.dart', line: 157, symbol: 'requestJson', message: 'Reworded.' };
-  const otherSymbol = { ...reanchored, symbol: 'requestStatus' };
-  const farAway = { ...reanchored, line: 100 };
-  const otherTier = { ...reanchored, tier: 'important', severity: 'blocking' };
+  const existing = { id: 7, path: 'http.dart', line: 180,
+    body: `${marker}\n[question] Is validateStatus relaxed?\n\nSymbol: \`requestJson\`` };
+  const separate = { tier: 'question', severity: 'note', path: 'http.dart', line: 157,
+    symbol: 'requestJson', message: 'A different concern.' };
+  const result = partitionPublishedFindings([separate], [existing], marker);
+  assert.deepEqual(result.alreadyPublishedFindings, []);
+  assert.deepEqual(result.unpublishedFindings, [separate]);
+});
 
-  const { unpublishedFindings, alreadyPublishedFindings } = partitionPublishedFindings(
-    [reanchored, otherSymbol, farAway, otherTier],
-    [existing],
-    marker,
+test('publishReviewResult posts a marked COMMENT for a completed AI round while checks are pending', async () => {
+  const calls = [];
+  const llm = { engine: 'claude', model: 'sonnet', model_version: 'claude-sonnet-5-5', effort: 'medium', verdict_reasoning: 'Safe.' };
+  const record = async (event, body) => {
+    calls.push({ event, body });
+  };
+
+  await publishReviewResult({ verdict: 'wait', marker: '<!-- auto-pr-review -->', findings: [], llm }, record, {});
+  await publishReviewResult(
+    { verdict: 'wait', marker: '<!-- auto-pr-review -->', findings: [], llm: { skipped: 'AI review limit reached.' } },
+    record,
+    {},
   );
 
-  assert.deepEqual(alreadyPublishedFindings, [reanchored]);
-  assert.deepEqual(unpublishedFindings, [otherSymbol, farAway, otherTier]);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].event, 'COMMENT');
+  assert.match(calls[0].body, /^Automated review complete with no blocking findings; waiting for required checks\./);
+  assert.match(calls[0].body, /<!-- auto-pr-review:llm -->/);
+  assert.doesNotMatch(calls[0].body, /auto-pr-review:llm:blocking/);
+});
+
+test('publishReviewResult omits the AI blocking marker when only deterministic findings block', async () => {
+  const calls = [];
+
+  await publishReviewResult(
+    {
+      verdict: 'request_changes',
+      marker: '<!-- auto-pr-review -->',
+      findings: [{ rule: 'missing_pt_br_doc_sync', tier: 'important', severity: 'blocking', path: 'a.md', line: 1, message: 'm', inline: false }],
+      llm: { engine: 'claude', model: 'sonnet', model_version: 'claude-sonnet-5-5', effort: 'medium', blocking: false },
+    },
+    async (event, body) => {
+      calls.push({ event, body });
+    },
+    { inlineCommentsPublished: true, summarizedFindings: [] },
+  );
+
+  assert.match(calls[0].body, /<!-- auto-pr-review:llm -->/);
+  assert.doesNotMatch(calls[0].body, /auto-pr-review:llm:blocking/);
 });

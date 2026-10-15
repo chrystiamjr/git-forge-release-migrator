@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { reconcileFindings } from './review-history.mjs';
+import { verificationMode, verifyReview } from './review-verification.mjs';
 import { spawn } from 'node:child_process';
 import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -41,8 +43,9 @@ const MAX_INLINE_FINDINGS = 20;
 // One GitHub Contents API call per file; stay well under GitHub's secondary rate limit on concurrent requests.
 const MAX_CONCURRENT_FILE_READS = 8;
 
-const TIERS = ['critical', 'important', 'suggestion', 'question'];
-const BLOCKING_TIERS = new Set(['critical', 'important']);
+const TIERS = ['critical', 'bug', 'important', 'suggestion', 'question'];
+// Only these tiers block a merge; every other finding is posted as a plain comment.
+export const BLOCKING_TIERS = new Set(['critical', 'bug', 'important']);
 
 const AGENTS_PATH = 'AGENTS.md';
 const INSTRUCTIONS_DIR = '.github/instructions';
@@ -67,13 +70,15 @@ export const REVIEW_SCHEMA = {
         type: 'object',
         properties: {
           tier: { type: 'string', enum: TIERS },
+          previous_finding_id: { type: 'string' },
+          concern: { type: 'string' },
           path: { type: 'string' },
           line: { type: 'integer' },
           symbol: { type: 'string' },
           message: { type: 'string' },
           why: { type: 'string' },
         },
-        required: ['tier', 'path', 'line', 'symbol', 'message', 'why'],
+        required: ['tier', 'path', 'line', 'symbol', 'message', 'why', 'previous_finding_id', 'concern'],
       },
     },
     design_notes: {
@@ -103,9 +108,18 @@ export const REVIEW_SCHEMA = {
       },
     },
     tests_needed: { type: 'array', items: { type: 'string' } },
+    prior_assessments: { type: 'array', items: { type: 'object', properties: {
+      finding_id: { type: 'string' }, state: { type: 'string', enum: ['applicable', 'fixed', 'answered', 'uncertain'] },
+      reason: { type: 'string' },
+    }, required: ['finding_id', 'state', 'reason'] } },
+    test_requirements: { type: 'array', items: { type: 'object', properties: {
+      id: { type: 'string' }, description: { type: 'string' }, test_file: { type: 'string' },
+      test_name: { type: 'string' }, suite: { type: 'string', enum: ['dart', 'gui', 'process', 'website', 'manual'] },
+      applicable: { type: 'boolean' }, implementation_verified: { type: 'boolean' }, evidence: { type: 'string' },
+    }, required: ['id', 'description', 'test_file', 'test_name', 'suite', 'applicable', 'implementation_verified', 'evidence'] } },
     verdict_reasoning: { type: 'string' },
   },
-  required: ['findings', 'design_notes', 'dismissed_hints', 'tests_needed', 'verdict_reasoning'],
+  required: ['findings', 'design_notes', 'dismissed_hints', 'tests_needed', 'verdict_reasoning', 'prior_assessments', 'test_requirements'],
 };
 
 export const TRIAGE_SCHEMA = {
@@ -277,8 +291,7 @@ function formatHint(hint) {
 }
 
 function formatPriorComment(comment) {
-  const replies = comment.replies.map((reply) => `  reply from ${reply.author}: ${reply.body}`);
-  return [`- ${comment.path}:${comment.line ?? 'outdated'} ${comment.body}`, ...replies].join('\n');
+  return JSON.stringify({ ...comment, replies: comment.replies });
 }
 
 export function buildUserPrompt(context, hints, pr, priorComments = []) {
@@ -435,6 +448,8 @@ export function normalizeFindings(review, files) {
 
     findings.push({
       rule: `llm_${finding.tier}`,
+      previous_finding_id: finding.previous_finding_id || '',
+      concern: finding.concern || finding.message,
       severity: isBlocking ? 'blocking' : 'note',
       tier: finding.tier,
       path: finding.path,
@@ -650,13 +665,17 @@ export async function runAiReview({
   hints,
   pr,
   priorComments = [],
+  priorRequirements = [],
+  assertCurrent = async () => {},
   env = process.env,
   io = DISK_IO,
   fetchImpl = fetch,
   sleep = defaultSleep,
   runCommand = runClaudeCli,
+  verificationRunner,
 }) {
   const engineName = env.AI_REVIEW_ENGINE || DEFAULT_ENGINE;
+  const mode = verificationMode(env);
   const engine = ENGINES[engineName];
   if (!engine) {
     throw new Error(`Unknown AI_REVIEW_ENGINE "${engineName}". Use one of: ${Object.keys(ENGINES).join(', ')}.`);
@@ -667,7 +686,7 @@ export async function runAiReview({
   const context = await buildReviewContext(files, io);
   if (context.files.length === 0 && context.omittedFiles.length === 0) {
     return {
-      findings: [],
+      findings: reconcileFindings([], [], priorComments),
       llm: {
         engine: engineName,
         skipped: 'No reviewable files (only generated, lock, binary, or removed files changed).',
@@ -676,27 +695,42 @@ export async function runAiReview({
   }
 
   const startedAt = Date.now();
+  await assertCurrent();
   const settings = await engine.settings({ env, context, pr, runCommand });
   const systemInstruction = await readFile(PROMPT_PATH, 'utf8');
-  const { review, modelVersion, costUsd } = await engine.review({
+  await assertCurrent();
+  const { review: detectedReview, modelVersion, costUsd } = await engine.review({
     env,
     settings,
     systemInstruction,
-    userText: buildUserPrompt(context, hints, pr, priorComments),
+    userText: buildUserPrompt(context, hints, pr, priorComments) + `\n<prior_test_requirements>\n${JSON.stringify(priorRequirements)}\n</prior_test_requirements>`,
     fetchImpl,
     sleep,
     runCommand,
   });
 
+  const { review, verification } = await verifyReview({ review: detectedReview, pr, priorComments, mode,
+    env, assertCurrent, ...(verificationRunner ? { run: verificationRunner } : {}) });
+  const findings = reconcileFindings(normalizeFindings(review, files), review.prior_assessments, priorComments);
+  // An assertion about test implementation requires source the reviewer actually received.
+  const reviewedPaths = new Set(context.files.filter((file) => !file.truncated && file.content !== null).map((file) => file.path));
+  const testRequirements = (review.test_requirements || []).map((item) => ({ ...item,
+    implementation_verified: Boolean(item.implementation_verified && reviewedPaths.has(item.test_file)),
+  }));
   return {
-    findings: normalizeFindings(review, files),
+    findings,
     llm: {
       engine: engineName,
+      ...(verification ? { verification } : {}),
       ...settings,
       model_version: modelVersion,
       duration_seconds: (Date.now() - startedAt) / 1000,
-      cost_usd: sumCosts(costUsd, settings.triage_cost_usd),
+      cost_usd: sumCosts(costUsd, settings.triage_cost_usd, verification?.cost_usd),
+      // Whether the AI's own findings block, as opposed to deterministic rules; drives the round's blocking marker.
+      blocking: findings.some((finding) => finding.severity === 'blocking'),
       tests_needed: review.tests_needed ?? [],
+      test_requirements: testRequirements,
+      prior_assessments: review.prior_assessments ?? [],
       design_notes: review.design_notes ?? [],
       verdict_reasoning: review.verdict_reasoning ?? '',
       dismissed_hints: review.dismissed_hints ?? [],

@@ -1,0 +1,267 @@
+{
+  "schema_version": 1,
+  "confirmed_by": "chrystiamjr",
+  "cases": [
+    {
+      "id": "case-01",
+      "pr": 73,
+      "repository": "chrystiamjr/git-forge-release-migrator",
+      "base_sha": "240f3d8dc7e8971bb25593caf0a092b865d2b8ec",
+      "head_sha": "3ae1cf5d23ba01c14840ca23b87a0fe9b6a3e5a8",
+      "cutoff": "2026-10-09T18:57:22Z",
+      "proposed_label": "false_positive",
+      "confirmed_label": "false_positive",
+      "scope": "dart_cli/lib/src/core/http.dart",
+      "claim": "<!-- auto-pr-review -->\n[question] The fail-fast check and the 'HTTP <status>' message only run when Dio returns a non-2xx Response. If the DioAdapter instance keeps Dio's default validateStatus (reject codes >= 300), every 404/409/422 arrives as a DioException. That branch still retries every non-401/403 status and sets `lastError = exc.message`, which has no `HTTP 409`. requestJson doesn't pass its own validateStatus, and the new tests use a fake Dio that returns responses directly. Please confirm DioAdapter sets `validateStatus: (_) => true`. Otherwise, apply `_isRetryableStatus` and the status prefix in the DioException branch too.\n\nSymbol: `requestJson`\n\nWhy: If so, the claimed fail-fast and 409 'already exists' matching never happen against real forges.",
+      "evidence": [
+        "https://github.com/chrystiamjr/git-forge-release-migrator/pull/73#discussion_r4233557912",
+        "https://github.com/chrystiamjr/git-forge-release-migrator/blob/3ae1cf5d23ba01c14840ca23b87a0fe9b6a3e5a8/dart_cli/lib/src/core/adapters/dio_adapter.dart"
+      ],
+      "rationale": "DioAdapter already configures validateStatus to return true (line 12). The claimed production-default behavior does not apply.",
+      "adjudication_only_replies": [
+        {
+          "url": "https://github.com/chrystiamjr/git-forge-release-migrator/pull/73#discussion_r4235190766",
+          "body": "Disagreed: DioAdapter already sets `validateStatus: (_) => true` (dart_cli/lib/src/core/adapters/dio_adapter.dart:12), so 404/409/422 arrive as a Response and take the fail-fast path with the `HTTP <status>` message."
+        }
+      ]
+    },
+    {
+      "id": "case-02",
+      "pr": 73,
+      "repository": "chrystiamjr/git-forge-release-migrator",
+      "base_sha": "240f3d8dc7e8971bb25593caf0a092b865d2b8ec",
+      "head_sha": "88f68317854208f89ba4d09fe8c918aa8713d61b",
+      "cutoff": "2026-10-09T22:41:50Z",
+      "proposed_label": "false_positive",
+      "confirmed_label": "false_positive",
+      "scope": "dart_cli/lib/src/core/http.dart",
+      "claim": "<!-- auto-pr-review -->\n[question] The fail-fast branch only runs if Dio returns 4xx as a Response. `requestJson` doesn't set `validateStatus`; if DioAdapter keeps Dio's default (throw on 4xx), production 404/409/422 go through the `DioException` branch, which still retries and whose `lastError` (exc.message) lacks the status. Is validateStatus relaxed in DioAdapter? If not, apply `_isRetryableStatus` in the DioException branch too and include the status in the message.\n\nSymbol: `requestJson`\n\nWhy: If not, the stated 'fail on first try' and '409 check can now match' fixes don't happen in production; the new tests use a fake Dio that returns Responses and can't detect this.",
+      "evidence": [
+        "https://github.com/chrystiamjr/git-forge-release-migrator/pull/73#discussion_r4235146468",
+        "https://github.com/chrystiamjr/git-forge-release-migrator/blob/88f68317854208f89ba4d09fe8c918aa8713d61b/dart_cli/lib/src/core/adapters/dio_adapter.dart"
+      ],
+      "rationale": "Repeated validateStatus concern; unchanged DioAdapter already accepts non-2xx responses. Correlated with case 01.",
+      "adjudication_only_replies": [
+        {
+          "url": "https://github.com/chrystiamjr/git-forge-release-migrator/pull/73#discussion_r4235191001",
+          "body": "Disagreed: same question as the line-180 thread. DioAdapter sets `validateStatus: (_) => true` (dio_adapter.dart:12), so non-2xx responses never reach the DioException branch as status errors."
+        }
+      ]
+    },
+    {
+      "id": "case-03",
+      "pr": 73,
+      "repository": "chrystiamjr/git-forge-release-migrator",
+      "base_sha": "240f3d8dc7e8971bb25593caf0a092b865d2b8ec",
+      "head_sha": "88f68317854208f89ba4d09fe8c918aa8713d61b",
+      "cutoff": "2026-10-09T22:41:49Z",
+      "proposed_label": "false_positive",
+      "confirmed_label": "false_positive",
+      "scope": "dart_cli/lib/src/core/http.dart",
+      "claim": "<!-- auto-pr-review -->\n[question] The PR says the existing `409` 'already exists' check can now match because messages include the HTTP status. That check isn't in this diff. Which caller relies on it, and is there a test that drives it through the real requestJson path?\n\nSymbol: `requestJson`\n\nWhy: Re-run behaviour depends on this match: without it, already-existing tags may be counted as failures.",
+      "evidence": [
+        "https://github.com/chrystiamjr/git-forge-release-migrator/pull/73#discussion_r4235146333",
+        "https://github.com/chrystiamjr/git-forge-release-migrator/blob/88f68317854208f89ba4d09fe8c918aa8713d61b/dart_cli/lib/src/migrations/tag_phase.dart"
+      ],
+      "rationale": "TagPhase line 320 matches HTTP 409/already exists and falls back to checking the destination tag.",
+      "adjudication_only_replies": [
+        {
+          "url": "https://github.com/chrystiamjr/git-forge-release-migrator/pull/73#discussion_r4235191178",
+          "body": "Disagreed: the caller is tag_phase.dart:320, which matches `409` or `already exists` and otherwise falls back to `_targetTagExists`. http_test covers the `HTTP <status>` prefix that the match relies on."
+        }
+      ]
+    },
+    {
+      "id": "case-04",
+      "pr": 73,
+      "repository": "chrystiamjr/git-forge-release-migrator",
+      "base_sha": "240f3d8dc7e8971bb25593caf0a092b865d2b8ec",
+      "head_sha": "3ae1cf5d23ba01c14840ca23b87a0fe9b6a3e5a8",
+      "cutoff": "2026-10-09T18:57:24Z",
+      "proposed_label": "false_positive",
+      "confirmed_label": "false_positive",
+      "scope": "scripts/ai-review.mjs",
+      "claim": "<!-- auto-pr-review -->\n[suggestion] Timeouts are now retried. With a 180 s timeout per attempt, 4 attempts plus backoff can take about 12.2 minutes before failing closed. The catch also retries any thrown error, not only network or abort errors. Check that the workflow timeout covers this worst case, or cap retries for TimeoutError, and limit retries to TypeError and AbortError/TimeoutError.\n\nSymbol: `callGemini`\n\nWhy: If this runs longer than the job timeout, the job is killed instead of producing the llm_review_unavailable artifact, which bypasses the fail-closed path.",
+      "evidence": [
+        "https://github.com/chrystiamjr/git-forge-release-migrator/pull/73#discussion_r4233558142",
+        "https://github.com/chrystiamjr/git-forge-release-migrator/blob/3ae1cf5d23ba01c14840ca23b87a0fe9b6a3e5a8/.github/workflows/auto-pr-review.yml"
+      ],
+      "rationale": "The workflow has no short job timeout; the retry duration fits its default. Proposed label needs human confirmation for the broader retry-policy suggestion.",
+      "adjudication_only_replies": [
+        {
+          "url": "https://github.com/chrystiamjr/git-forge-release-migrator/pull/73#discussion_r4235191435",
+          "body": "Disagreed: the job sets no `timeout-minutes`, so GitHub's 360-minute default applies and the ~12-minute worst case fits. The catch wraps only `fetch()`, which throws network or abort/timeout errors, so in practice only those get retried."
+        }
+      ]
+    },
+    {
+      "id": "case-05",
+      "pr": 73,
+      "repository": "chrystiamjr/git-forge-release-migrator",
+      "base_sha": "240f3d8dc7e8971bb25593caf0a092b865d2b8ec",
+      "head_sha": "88f68317854208f89ba4d09fe8c918aa8713d61b",
+      "cutoff": "2026-10-09T22:41:51Z",
+      "proposed_label": "false_positive",
+      "confirmed_label": "false_positive",
+      "scope": "scripts/ai-review-triage-prompt.md",
+      "claim": "<!-- auto-pr-review -->\n[suggestion] Triage reads untrusted PR title, body and patches, and its choice lowers review depth. A crafted PR could push Haiku toward `light`. Consider a floor (never below `standard` when any file outside docs changes), or derive the tier from deterministic path rules first.\n\nWhy: The triage step can weaken the review gate; the owner-only gate limits but doesn't remove this.",
+      "evidence": [
+        "https://github.com/chrystiamjr/git-forge-release-migrator/pull/73#discussion_r4235146596",
+        "https://github.com/chrystiamjr/git-forge-release-migrator/blob/88f68317854208f89ba4d09fe8c918aa8713d61b/.github/workflows/auto-pr-review.yml"
+      ],
+      "rationale": "Owner explicitly accepted routing risk and rejected a standard-tier floor. This is an accepted-policy suggestion, not a disproven security property; confirm whether to count as nonactionable.",
+      "adjudication_only_replies": [
+        {
+          "url": "https://github.com/chrystiamjr/git-forge-release-migrator/pull/73#discussion_r4235191616",
+          "body": "Disagreed: AI review runs only on PRs authored and triggered by the repository owner, so pushing triage toward `light` would take the owner's own PR. A `standard` floor for non-docs changes would remove the cost saving routing exists for. The risk is documented in the PR description, and `CLAUDE_MODEL` pins a model if needed."
+        }
+      ]
+    },
+    {
+      "id": "case-06",
+      "pr": 73,
+      "repository": "chrystiamjr/git-forge-release-migrator",
+      "base_sha": "4bc5db7ba135f30d285509a90dc83653e50bb5ae",
+      "head_sha": "3cd2ace6abbb80190daef2a272cf8c0f3fdccfa7",
+      "cutoff": "2026-10-09T23:21:20Z",
+      "proposed_label": "false_positive",
+      "confirmed_label": "false_positive",
+      "scope": "dart_cli/lib/src/providers/github.dart",
+      "claim": "<!-- auto-pr-review -->\n[question] When the tag lookup fails (e.g. a draft release whose tag does not exist yet) and `target_commitish` is a branch name, this now rethrows `HttpRequestError` where it used to return a value. The tag phase is not in this diff: does it catch this and mark the tag failed, or does the exception abort the run before `summary.json` and the retry command are written?\n\nSymbol: `resolveCommitShaForMigration`\n\nWhy: If it aborts the run, the artifact-contract breakage this PR fixes for the release phase comes back in the tag phase for GitHub sources.",
+      "evidence": [
+        "https://github.com/chrystiamjr/git-forge-release-migrator/pull/73#discussion_r4235346217",
+        "https://github.com/chrystiamjr/git-forge-release-migrator/blob/3cd2ace6abbb80190daef2a272cf8c0f3fdccfa7/dart_cli/lib/src/migrations/tag_phase.dart"
+      ],
+      "rationale": "TagPhase _resolveCanonicalAndCommit catches non-authentication errors and returns an empty SHA; _handleMissingCommit records a failed tag.",
+      "adjudication_only_replies": []
+    },
+    {
+      "id": "case-07",
+      "pr": 74,
+      "repository": "chrystiamjr/git-forge-release-migrator",
+      "base_sha": "05265fd6fe5951c1eaeb2cf4df1c37e6d0ecd036",
+      "head_sha": "7a86db245dbf9311914575288ccb73680ddfaac9",
+      "cutoff": "2026-10-09T23:30:19Z",
+      "proposed_label": "real_bug",
+      "confirmed_label": "real_bug",
+      "scope": "scripts/review-pr.mjs",
+      "claim": "<!-- auto-pr-review -->\n[important] Once the cap is reached, the next push runs only the deterministic rules. If those find nothing and checks are green, the verdict is `approve`, and `publish-pr-review.mjs` dismisses the earlier AI `REQUEST_CHANGES` review (`dismissPreviousReviews`). Unresolved critical or important AI findings from the last AI round are therefore silently replaced by a bot approval, and the job passes. Fix: when the gate is closed by the round limit, never upgrade to `approve`. Either emit `wait` or a non-approving COMMENT, or keep `request_changes` while the latest AI round still has blocking findings. Alternatively, skip dismissing earlier AI reviews in that case.\n\nSymbol: `resolveAiReviewGate`\n\nWhy: Pushing past the cap turns blocking AI findings into an automatic approval. That silently weakens review gating, which the workflow rules forbid.",
+      "evidence": [
+        "https://github.com/chrystiamjr/git-forge-release-migrator/pull/74#discussion_r4235384530",
+        "https://github.com/chrystiamjr/git-forge-release-migrator/blob/7a86db245dbf9311914575288ccb73680ddfaac9/scripts/review-pr.mjs"
+      ],
+      "rationale": "The historical round-cap path can replace an earlier blocking AI verdict with approval; fixed in f38f4a5.",
+      "adjudication_only_replies": [
+        {
+          "url": "https://github.com/chrystiamjr/git-forge-release-migrator/pull/74#discussion_r4235418859",
+          "body": "Fixed \u2014 past the limit, if the last AI round found blocking issues, runReview adds a blocking `llm_review_round_limit` finding, so a deterministic-only run can no longer approve or clear it; only an extra AI round (label + re-run) can. Covered by `buildRoundLimitFinding` tests (f38f4a5)."
+        }
+      ]
+    },
+    {
+      "id": "case-08",
+      "pr": 74,
+      "repository": "chrystiamjr/git-forge-release-migrator",
+      "base_sha": "2d97a59e6c414a99f061c7429f18bd51ee162577",
+      "head_sha": "9a63b5052f25ecad80b6ed4bc963433d06d8650e",
+      "cutoff": "2026-10-10T01:31:11Z",
+      "proposed_label": "real_bug",
+      "confirmed_label": "real_bug",
+      "scope": "scripts/publish-pr-review.mjs",
+      "claim": "<!-- auto-pr-review -->\n[suggestion] `AI_REVIEW_BLOCKING_MARKER` is added whenever the overall verdict is `request_changes` and the LLM completed, even when only a deterministic hard finding (e.g. `missing_pt_br_doc_sync`) blocked and the AI found nothing blocking. After the round limit, `buildPendingAiFinding` then keeps the PR blocked with `llm_review_pending` ('The last AI review round found blocking issues\u2026') after the hard issue is fixed, so the only way out is a paid label round. Fix: have `runReview` record whether the LLM's own findings were blocking (e.g. `llm.blocking = true`) and add the marker only from that flag.\n\nSymbol: `buildReviewBody`\n\nWhy: This over-blocks: it wastes a paid AI round and shows a misleading reason, though it fails safe.",
+      "evidence": [
+        "https://github.com/chrystiamjr/git-forge-release-migrator/pull/74#discussion_r4235842693",
+        "https://github.com/chrystiamjr/git-forge-release-migrator/blob/9a63b5052f25ecad80b6ed4bc963433d06d8650e/scripts/publish-pr-review.mjs"
+      ],
+      "rationale": "The historical publisher tags deterministic-only blocking as AI blocking; fixed in 972d972.",
+      "adjudication_only_replies": [
+        {
+          "url": "https://github.com/chrystiamjr/git-forge-release-migrator/pull/74#discussion_r4236254093",
+          "body": "Fixed \u2014 runAiReview now records `llm.blocking` from the AI findings alone, and the publisher adds the blocking marker only from that flag, so a hard-rule block no longer marks the AI round as blocking. The completed-round check is shared from github-api.mjs (972d972)."
+        }
+      ]
+    },
+    {
+      "id": "case-09",
+      "pr": 74,
+      "repository": "chrystiamjr/git-forge-release-migrator",
+      "base_sha": "2d97a59e6c414a99f061c7429f18bd51ee162577",
+      "head_sha": "f38f4a5bfc6efaf32287785b704ebcaa687ab531",
+      "cutoff": "2026-10-09T23:43:18Z",
+      "proposed_label": "real_bug",
+      "confirmed_label": "real_bug",
+      "scope": "scripts/review-pr.mjs",
+      "claim": "<!-- auto-pr-review -->\n[suggestion] When the AI ran and the verdict is `wait` (no blocking findings, required checks not green), `publishReviewResult` posts nothing. The `auto-pr-review:llm` marker is therefore never written and the round is not counted. The extra-round label is still removed. Consider publishing a COMMENT review that carries the marker whenever the LLM ran, or only consume the label and count the round once a review was actually published.\n\nSymbol: `runReview`\n\nWhy: Paid AI rounds can go uncounted, so the cap undercounts. The label can also be used up without leaving any visible review.",
+      "evidence": [
+        "https://github.com/chrystiamjr/git-forge-release-migrator/pull/74#discussion_r4235442802",
+        "https://github.com/chrystiamjr/git-forge-release-migrator/blob/f38f4a5bfc6efaf32287785b704ebcaa687ab531/scripts/publish-pr-review.mjs"
+      ],
+      "rationale": "An AI round ending in wait produces no marked review, undercounting paid rounds; fixed in 9a63b50.",
+      "adjudication_only_replies": [
+        {
+          "url": "https://github.com/chrystiamjr/git-forge-release-migrator/pull/74#discussion_r4235829497",
+          "body": "Fixed \u2014 publishReviewResult now posts a COMMENT review with the round marker whenever an AI round completed and the verdict is `wait`, so every paid round is counted and the label is never used up without a visible review (9a63b50)."
+        }
+      ]
+    },
+    {
+      "id": "case-10",
+      "pr": 73,
+      "repository": "chrystiamjr/git-forge-release-migrator",
+      "base_sha": "4bc5db7ba135f30d285509a90dc83653e50bb5ae",
+      "head_sha": "6d54a7416be25481b61b01cd18b8e1bc261230e4",
+      "cutoff": "2026-10-09T22:55:07Z",
+      "proposed_label": "real_bug",
+      "confirmed_label": "real_bug",
+      "scope": "scripts/review-pr.mjs",
+      "claim": "<!-- auto-pr-review -->\n[important] Replies from every user are sent to the model, and the prompt tells it to drop concerns that replies explain away. On a public repo anyone can reply to a bot comment, so this lets non-owner text past the owner-only gate in a form the model is told to act on. Keep only replies from the PR author or repository owner, and add a test for that filter.\n\nSymbol: `buildPriorReviewComments`\n\nWhy: PR content is untrusted prompt input; the owner-only gate exists to limit prompt-injection exposure.",
+      "evidence": [
+        "https://github.com/chrystiamjr/git-forge-release-migrator/pull/73#discussion_r4235225249",
+        "https://github.com/chrystiamjr/git-forge-release-migrator/blob/6d54a7416be25481b61b01cd18b8e1bc261230e4/scripts/review-pr.mjs"
+      ],
+      "rationale": "Untrusted third-party replies were sent into review context as evidence; fixed in f0ab17a.",
+      "adjudication_only_replies": [
+        {
+          "url": "https://github.com/chrystiamjr/git-forge-release-migrator/pull/73#discussion_r4235257556",
+          "body": "Fixed \u2014 `buildPriorReviewComments` keeps only replies from the PR author and repository owner, and the test covers a stranger reply being dropped (f0ab17a)."
+        }
+      ]
+    },
+    {
+      "id": "case-11",
+      "pr": 74,
+      "repository": "chrystiamjr/git-forge-release-migrator",
+      "base_sha": "05265fd6fe5951c1eaeb2cf4df1c37e6d0ecd036",
+      "head_sha": "972d972ce111a25e1783c8ffa80fbee0ac28eca3",
+      "cutoff": null,
+      "proposed_label": "clean",
+      "confirmed_label": "clean",
+      "scope": "scripts/review-pr.mjs",
+      "claim": "<!-- auto-pr-review -->\n[important] Once the cap is reached, the next push runs only the deterministic rules. If those find nothing and checks are green, the verdict is `approve`, and `publish-pr-review.mjs` dismisses the earlier AI `REQUEST_CHANGES` review (`dismissPreviousReviews`). Unresolved critical or important AI findings from the last AI round are therefore silently replaced by a bot approval, and the job passes. Fix: when the gate is closed by the round limit, never upgrade to `approve`. Either emit `wait` or a non-approving COMMENT, or keep `request_changes` while the latest AI round still has blocking findings. Alternatively, skip dismissing earlier AI reviews in that case.\n\nSymbol: `resolveAiReviewGate`\n\nWhy: Pushing past the cap turns blocking AI findings into an automatic approval. That silently weakens review gating, which the workflow rules forbid.",
+      "evidence": [
+        "https://github.com/chrystiamjr/git-forge-release-migrator/blob/972d972ce111a25e1783c8ffa80fbee0ac28eca3/scripts/review-pr.mjs"
+      ],
+      "rationale": "Post-fix control for the specified concern only, not a claim that the entire PR has no bugs.",
+      "adjudication_only_replies": []
+    },
+    {
+      "id": "case-12",
+      "pr": 74,
+      "repository": "chrystiamjr/git-forge-release-migrator",
+      "base_sha": "2d97a59e6c414a99f061c7429f18bd51ee162577",
+      "head_sha": "972d972ce111a25e1783c8ffa80fbee0ac28eca3",
+      "cutoff": null,
+      "proposed_label": "clean",
+      "confirmed_label": "clean",
+      "scope": "scripts/publish-pr-review.mjs",
+      "claim": "<!-- auto-pr-review -->\n[suggestion] `AI_REVIEW_BLOCKING_MARKER` is added whenever the overall verdict is `request_changes` and the LLM completed, even when only a deterministic hard finding (e.g. `missing_pt_br_doc_sync`) blocked and the AI found nothing blocking. After the round limit, `buildPendingAiFinding` then keeps the PR blocked with `llm_review_pending` ('The last AI review round found blocking issues\u2026') after the hard issue is fixed, so the only way out is a paid label round. Fix: have `runReview` record whether the LLM's own findings were blocking (e.g. `llm.blocking = true`) and add the marker only from that flag.\n\nSymbol: `buildReviewBody`\n\nWhy: This over-blocks: it wastes a paid AI round and shows a misleading reason, though it fails safe.",
+      "evidence": [
+        "https://github.com/chrystiamjr/git-forge-release-migrator/blob/972d972ce111a25e1783c8ffa80fbee0ac28eca3/scripts/publish-pr-review.mjs"
+      ],
+      "rationale": "Post-fix control for the specified concern only, not a claim that the entire PR has no bugs.",
+      "adjudication_only_replies": []
+    }
+  ],
+  "confirmed_at": "2026-10-12",
+  "confirmation": "Maintainer explicitly accepted proposed labels in the implementation session."
+}

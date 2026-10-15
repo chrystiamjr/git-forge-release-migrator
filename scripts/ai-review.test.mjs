@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { ReviewStopped } from './review-lifecycle.mjs';
 
 import {
   buildClaudeChildEnv,
@@ -166,6 +167,7 @@ test('normalizeFindings maps tiers, drops non-blocking unknown paths, and flags 
     {
       findings: [
         { tier: 'critical', path: 'a.dart', line: 2, symbol: 'run', message: 'bug', why: 'breaks' },
+        { tier: 'bug', path: 'a.dart', line: 1, symbol: 'run', message: 'wrong result', why: 'w' },
         { tier: 'important', path: 'a.dart', line: 50, symbol: '', message: 'outside', why: 'w' },
         { tier: 'suggestion', path: 'a.dart', line: 3, symbol: '', message: 'nit', why: 'w' },
         { tier: 'question', path: 'not-in-pr.dart', line: 1, symbol: '', message: 'ghost', why: 'w' },
@@ -178,6 +180,7 @@ test('normalizeFindings maps tiers, drops non-blocking unknown paths, and flags 
     findings.map(({ rule, severity, line, inline }) => ({ rule, severity, line, inline })),
     [
       { rule: 'llm_critical', severity: 'blocking', line: 2, inline: true },
+      { rule: 'llm_bug', severity: 'blocking', line: 1, inline: true },
       { rule: 'llm_important', severity: 'blocking', line: 50, inline: false },
       { rule: 'llm_suggestion', severity: 'note', line: 3, inline: true },
     ],
@@ -556,6 +559,7 @@ test('runAiReview sends the same review payload through the claude engine', asyn
 
   assert.match(input, /<changed_file path="a.dart" status="added">/);
   assert.equal(result.findings[0].rule, 'llm_critical');
+  assert.equal(result.llm.blocking, true);
   assert.equal(result.llm.engine, 'claude');
   assert.equal(result.llm.model, 'opus');
   assert.equal(result.llm.effort, 'medium');
@@ -730,6 +734,7 @@ test('runAiReview passes design notes through to llm metadata', async () => {
   });
 
   assert.deepEqual(result.llm.design_notes, [note]);
+  assert.equal(result.llm.blocking, false);
 });
 
 test('buildClaudeChildEnv strips repository and other-engine credentials but keeps Claude auth', () => {
@@ -764,9 +769,42 @@ test('buildUserPrompt lists prior review comments with their replies', () => {
     { path: 'b.dart', line: null, body: '[suggestion] Old concern.', replies: [] },
   ]);
 
-  assert.match(
-    prompt,
-    /<prior_review_comments>\n- a\.dart:180 \[question\] Is validateStatus relaxed\?\n  reply from owner: Disagreed: yes\.\n- b\.dart:outdated \[suggestion\] Old concern\.\n<\/prior_review_comments>/,
-  );
+  const entries = prompt.match(/<prior_review_comments>\n([\s\S]*)\n<\/prior_review_comments>/)[1].split('\n').map(JSON.parse);
+  assert.equal(entries[0].replies[0].body, 'Disagreed: yes.');
+  assert.equal(entries[1].line, null);
   assert.doesNotMatch(buildUserPrompt({ guidance: [], files: [], omittedFiles: [] }, [], {}), /prior_review_comments/);
+});
+
+test('live-state guards prevent model calls before routing and after routing', async () => {
+  for (const stopAt of [1, 2]) {
+    let guards = 0;
+    await assert.rejects(runAiReview({
+      files: [{ filename: 'a.dart', status: 'added', patch: '@@ -0,0 +1 @@\n+x' }],
+      hints: [], pr: {}, env: { AI_REVIEW_ENGINE: 'gemini', GEMINI_API_KEY: 'k' },
+      io: buildIo({ 'a.dart': 'x' }),
+      assertCurrent: async () => { if (++guards === stopAt) throw new ReviewStopped('closed'); },
+      fetchImpl: async () => assert.fail('No model call after closure'),
+    }), ReviewStopped);
+  }
+});
+
+test('generated-only changes cannot clear outstanding prior blockers', async () => {
+  const result = await runAiReview({
+    files: [{ filename: 'a.g.dart', status: 'modified' }], hints: [], pr: {},
+    priorComments: [{ finding_id: 'legacy-1', tier: 'bug', path: 'a.dart', state: 'applicable' }],
+    env: { AI_REVIEW_ENGINE: 'gemini', GEMINI_API_KEY: 'k' }, io: buildIo(),
+    fetchImpl: async () => assert.fail('Generated-only changes need no model'),
+  });
+  assert.equal(result.findings[0].severity, 'blocking');
+});
+
+test('a claimed test implementation must be present in the reviewed source', async () => {
+  const result = await runAiReview({
+    files: [{ filename: 'a.dart', status: 'added', patch: '@@ -0,0 +1 @@\n+x' }], hints: [], pr: {},
+    env: { AI_REVIEW_ENGINE: 'gemini', GEMINI_API_KEY: 'k' }, io: buildIo({ 'a.dart': 'x' }),
+    fetchImpl: async () => buildGeminiResponse({ ...EMPTY_REVIEW, test_requirements: [
+      { id: 'test', suite: 'dart', test_file: 'missing_test.dart', implementation_verified: true },
+    ] }),
+  });
+  assert.equal(result.llm.test_requirements[0].implementation_verified, false);
 });

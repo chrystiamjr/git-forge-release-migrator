@@ -70,12 +70,12 @@ Flag when you see:
 
 ## Quality Gate Alignment
 
-The quality-check composite action runs these in order:
-1. Translation parity
-2. Reviewer script tests (`yarn test:reviewer`)
-3. Dart lint (120 char lines)
-4. Flutter lint and analysis
-5. Flutter unit tests
-6. Dart test coverage (80% threshold)
+The quality-check composite action sets up Node, prepares a comparable report for the immutable base, and runs
+`yarn verify:ticket --ci-core` against that base. The verifier owns secret/diff checks, Dart lint/tests/coverage,
+process and reviewer tests (`yarn test:process`), translation parity, and scope-dependent GUI validation.
+It uploads sanitized validation reports and coverage artifacts even on failure; translation parity and reviewer
+tests are not separate composite-action steps.
 
-Any workflow change must not break or bypass this sequence. If adding a new gate, insert it in the appropriate position.
+Quality Checks also runs canonical GUI visual tests on macOS. Its `ticket-validation` job requires both core and
+visual jobs to succeed. Changes to review concurrency additionally run Review Queue Validation, an isolated,
+unprivileged three-writer smoke test. Preserve these gates and their revision-bound evidence when changing workflows.

@@ -1,0 +1,58 @@
+name: PR Review Lifecycle
+run-name: 'PR review #${{ github.event.pull_request.number }}'
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review, closed]
+
+permissions:
+  contents: read
+
+jobs:
+  checklist:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: review-publish-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+      queue: max
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      # Metadata only: never check out or execute the PR head in this privileged workflow.
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+      - uses: ./.github/actions/review-auth
+        id: auth
+        with:
+          app-id: ${{ secrets.REVIEW_BOT_APP_ID }}
+          app-key: ${{ secrets.REVIEW_BOT_APP_PRIVATE_KEY }}
+          bot-token: ${{ secrets.GH_REVIEW_BOT_TOKEN }}
+          fallback-token: ${{ secrets.GH_TOKEN }}
+      - if: steps.auth.outputs.configured == 'true'
+        run: node scripts/review-event.mjs checklist
+
+  cancel:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/review-event.mjs close

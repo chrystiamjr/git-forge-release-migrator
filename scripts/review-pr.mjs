@@ -3,6 +3,8 @@
 import { writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import {
+  AI_REVIEW_BLOCKING_MARKER,
+  AI_REVIEW_ROUND_MARKER,
   REVIEW_RESULT_PATH,
   REPOSITORY,
   PR_NUMBER,
@@ -10,11 +12,19 @@ import {
   parseRepository,
   githubRequest,
   githubGraphql,
+  isCompletedLlmReview,
   paginate,
 } from './github-api.mjs';
-import { DISK_IO, runAiReview } from './ai-review.mjs';
+import { fetchReviewHistory } from './review-history.mjs';
+import { assertReviewCurrent, ReviewStopped } from './review-lifecycle.mjs';
+import { readChecklist } from './review-checklist.mjs';
+import { BLOCKING_TIERS, DISK_IO, runAiReview } from './ai-review.mjs';
+import { AUTO_REVIEW_MARKER, buildFallbackResult } from './review-result.mjs';
+export { buildFallbackResult } from './review-result.mjs';
 
-const AUTO_REVIEW_MARKER = '<!-- auto-pr-review -->';
+const DEFAULT_AI_REVIEW_MAX_ROUNDS = 3;
+// Lets the owner buy one more AI round after the limit; only users with write access can add labels.
+const AI_REVIEW_EXTRA_ROUND_LABEL = 'ai-review';
 const RUN_ID = process.env.GITHUB_RUN_ID || '';
 
 const SECRET_PATTERNS = [
@@ -1481,12 +1491,28 @@ export function buildGuiBoundaryFindings(files) {
   return findings;
 }
 
-async function fetchReviewRound(owner, repo) {
+async function fetchReviewRounds(owner, repo) {
   const reviews = await paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/reviews`);
 
-  return (
-    reviews.filter((review) => String(review.body || '').includes(AUTO_REVIEW_MARKER)).length + 1
+  const aiReviews = selectAiReviews(reviews, process.env.REVIEW_BOT_LOGIN);
+  return {
+    reviewRound: reviews.filter((review) => String(review.body || '').includes(AUTO_REVIEW_MARKER)).length + 1,
+    aiRoundsUsed: aiReviews.length,
+    lastAiRoundBlocked: isBlockingReview(aiReviews.at(-1)),
+  };
+}
+
+// Anyone can submit a review on a public repo, so only the bot's own reviews count; without a known bot login
+// (local runs) every marked review counts.
+export function selectAiReviews(reviews, botLogin) {
+  return reviews.filter(
+    (review) =>
+      String(review.body || '').includes(AI_REVIEW_ROUND_MARKER) && (!botLogin || review.user?.login === botLogin),
   );
+}
+
+export function isBlockingReview(review) {
+  return String(review?.body ?? '').includes(AI_REVIEW_BLOCKING_MARKER);
 }
 
 export function selectRequiredContexts(baseRefName, branchProtectionRules, { branchProtectionAvailable = true } = {}) {
@@ -1670,31 +1696,34 @@ async function fetchCheckState(owner, repo) {
   };
 }
 
-export function buildFallbackResult(errorMessage, prNumber = PR_NUMBER) {
-  return {
-    pr_number: prNumber,
-    verdict: 'request_changes',
-    blocking_findings: 1,
-    non_blocking_findings: 0,
-    findings: [],
-    error: errorMessage,
-    marker: AUTO_REVIEW_MARKER,
-  };
-}
-
 async function persistResult(result) {
   await writeFile(REVIEW_RESULT_PATH, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
 }
 
 async function handleFatalError(error) {
   try {
-    await persistResult(buildFallbackResult(error.message));
+    const result = buildFallbackResult(error.message);
+    result.head_sha = process.env.REVIEW_EXPECTED_HEAD;
+    await persistResult(result);
   } catch {}
 
   console.error(error);
 }
 
 // Exact invariants: cheap, never hallucinate, always post and block on their own.
+function withTier(finding, tier) {
+  return { ...finding, tier, severity: BLOCKING_TIERS.has(tier) ? 'blocking' : 'note' };
+}
+
+// Leaked secrets are critical; the other hard rules block as important, and their notes stay suggestions.
+function hardFindingTier(finding) {
+  if (finding.rule.startsWith('secret_')) {
+    return 'critical';
+  }
+
+  return finding.severity === 'blocking' ? 'important' : 'suggestion';
+}
+
 export function buildHardFindings(files) {
   return [
     ...buildMissingPatchFindings(files),
@@ -1704,10 +1733,11 @@ export function buildHardFindings(files) {
     ...buildGuiBoundaryFindings(files),
     ...buildDocsSyncFindings(files),
     ...buildContractDocsFindings(files),
-  ];
+  ].map((finding) => withTier(finding, hardFindingTier(finding)));
 }
 
-// Fuzzy heuristics: passed to the LLM reviewer as hints to confirm or dismiss.
+// Fuzzy heuristics: passed to the LLM reviewer as hints to confirm or dismiss. Posted without the LLM, they are
+// unconfirmed, so they never block.
 export function buildHintFindings(files) {
   return [
     ...buildRawExceptionFindings(files),
@@ -1722,7 +1752,7 @@ export function buildHintFindings(files) {
     ...buildTargetedCoverageFindings(files),
     ...buildFlutterTestFindings(files),
     ...buildFlutterTargetedCoverageFindings(files),
-  ];
+  ].map((finding) => withTier(finding, 'suggestion'));
 }
 
 function compareFindings(left, right) {
@@ -1745,38 +1775,6 @@ export function createChangedFileReader(owner, repo, headSha, request = githubRe
   };
 }
 
-const PRIOR_COMMENT_MAX_LENGTH = 600;
-
-function truncateComment(body) {
-  const text = String(body ?? '').trim();
-  return text.length > PRIOR_COMMENT_MAX_LENGTH ? `${text.slice(0, PRIOR_COMMENT_MAX_LENGTH)}…` : text;
-}
-
-// Earlier bot comments and their replies, so the model does not raise the same concern again on another line.
-// Only replies from trusted authors pass: anyone can reply on a public repo, and the model acts on replies.
-export function buildPriorReviewComments(comments, trustedAuthors, marker = AUTO_REVIEW_MARKER) {
-  const botComments = comments.filter((comment) => !comment.in_reply_to_id && String(comment.body ?? '').includes(marker));
-
-  return botComments.map((comment) => ({
-    path: comment.path,
-    line: comment.line ?? null,
-    body: truncateComment(String(comment.body).replace(marker, '')),
-    replies: comments
-      .filter((reply) => reply.in_reply_to_id === comment.id && trustedAuthors.includes(reply.user?.login))
-      .map((reply) => ({ author: reply.user?.login ?? 'unknown', body: truncateComment(reply.body) })),
-  }));
-}
-
-async function fetchPriorReviewComments(owner, repo, trustedAuthors) {
-  try {
-    return buildPriorReviewComments(await paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/comments`), trustedAuthors);
-  } catch (error) {
-    // Best-effort context: without it the review still runs, it may just repeat an earlier comment.
-    console.error(`[review-pr] Could not load earlier review comments: ${error.message}`);
-    return [];
-  }
-}
-
 // Opt-in so the workflow on the default branch keeps working until the secret and variable are configured.
 export function isAiReviewEnabled(env = process.env) {
   return String(env.AI_REVIEW_ENABLED ?? '').trim().toLowerCase() === 'true';
@@ -1785,6 +1783,65 @@ export function isAiReviewEnabled(env = process.env) {
 // The workflow gate checks who triggered the run; this also checks who wrote the PR content the model reads.
 export function shouldRunAiReview(env, prAuthor, repositoryOwner) {
   return isAiReviewEnabled(env) && Boolean(prAuthor) && prAuthor === repositoryOwner;
+}
+
+function parseMaxRounds(value) {
+  const rounds = Number.parseInt(String(value ?? ''), 10);
+  return Number.isInteger(rounds) && rounds >= 0 ? rounds : DEFAULT_AI_REVIEW_MAX_ROUNDS;
+}
+
+// Each AI round costs real quota, so a PR gets a fixed number of them; drafts get none until marked ready.
+export function resolveAiReviewGate({ env, pullRequest, owner, aiRoundsUsed }) {
+  if (!isAiReviewEnabled(env)) {
+    return { enabled: false };
+  }
+
+  if (!shouldRunAiReview(env, pullRequest.user?.login, owner)) {
+    return { enabled: false, reason: 'AI review runs only on PRs authored by the repository owner.' };
+  }
+
+  if (pullRequest.draft) {
+    return { enabled: false, aiDeferred: true, reason: 'Draft PR: AI review runs once it is marked ready for review.' };
+  }
+
+  const maxRounds = parseMaxRounds(env.AI_REVIEW_MAX_ROUNDS);
+  if (aiRoundsUsed < maxRounds) {
+    return { enabled: true, usesExtraRoundLabel: false };
+  }
+
+  const labels = (pullRequest.labels ?? []).map((label) => label.name);
+  if (labels.includes(AI_REVIEW_EXTRA_ROUND_LABEL)) {
+    return { enabled: true, usesExtraRoundLabel: true };
+  }
+
+  return {
+    enabled: false,
+    aiDeferred: true,
+    reason: `AI review limit reached (${aiRoundsUsed} of ${maxRounds} rounds). Add the \`${AI_REVIEW_EXTRA_ROUND_LABEL}\` label and re-run the Automated PR Review workflow for one more round.`,
+  };
+}
+
+// Deterministic rules cannot clear AI findings: while AI is deferred (draft or round limit), a last AI round that
+// blocked keeps blocking until another AI round verifies the fixes.
+export function buildPendingAiFinding(gate, lastAiRoundBlocked) {
+  if (!gate.aiDeferred || !lastAiRoundBlocked) {
+    return null;
+  }
+
+  return {
+    rule: 'llm_review_pending',
+    tier: 'important',
+    severity: 'blocking',
+    path: null,
+    line: null,
+    inline: false,
+    message: `The last AI review round found blocking issues and this run had no AI round. ${gate.reason}`,
+  };
+}
+
+// The label buys exactly one AI round: keep it when the round was skipped or the engine failed.
+export function shouldConsumeExtraRoundLabel(gate, llm) {
+  return Boolean(gate.usesExtraRoundLabel && isCompletedLlmReview(llm));
 }
 
 export async function buildReviewFindings(
@@ -1807,9 +1864,11 @@ export async function buildReviewFindings(
     return { findings: [...hardFindings, ...llmFindings].sort(compareFindings), llm };
   } catch (error) {
     // Fail closed: without the LLM review, fall back to posting the hints and block until a rerun succeeds.
+    if (error instanceof ReviewStopped) throw error;
     console.error(`[review-pr] LLM review unavailable: ${error.message}`);
     const unavailableFinding = {
       rule: 'llm_review_unavailable',
+      tier: 'important',
       severity: 'blocking',
       path: null,
       line: null,
@@ -1824,38 +1883,58 @@ export async function buildReviewFindings(
   }
 }
 
-export async function runReview() {
+export async function runReview({ aiReviewer = runAiReview } = {}) {
   assertRequiredEnv();
 
   const { owner, repo } = parseRepository(REPOSITORY);
-  const [pullRequest, files] = await Promise.all([
-    githubRequest(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}`),
-    paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/files`),
-  ]);
+  const pullRequest = await githubRequest(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}`);
+  // A run queued before the merge or close must not review or comment afterwards.
+  if (pullRequest.state !== 'open' || pullRequest.merged || (process.env.REVIEW_EXPECTED_HEAD && process.env.REVIEW_EXPECTED_HEAD !== pullRequest.head.sha)) {
+    return { pr_number: PR_NUMBER, verdict: 'skip', skip_reason: 'PR closed, merged, or triggering revision is stale.', findings: [], marker: AUTO_REVIEW_MARKER };
+  }
+  if (!process.env.REVIEW_BOT_LOGIN) throw new Error('Verified review bot identity required');
 
-  const [reviewRound, checkState, priorComments] = await Promise.all([
-    fetchReviewRound(owner, repo),
+  const files = await paginate(`/repos/${owner}/${repo}/pulls/${PR_NUMBER}/files`);
+
+  const [{ reviewRound, aiRoundsUsed, lastAiRoundBlocked }, checkState, history, checklist] = await Promise.all([
+    fetchReviewRounds(owner, repo),
     fetchCheckState(owner, repo),
-    fetchPriorReviewComments(owner, repo, [pullRequest.user?.login, owner].filter(Boolean)),
+    fetchReviewHistory(owner, repo, PR_NUMBER, process.env.REVIEW_BOT_LOGIN, [pullRequest.user?.login, owner].filter(Boolean))
+      .then((comments) => ({ comments })).catch((error) => ({ error: error.message, comments: [] })),
+    readChecklist(REPOSITORY, PR_NUMBER, process.env.REVIEW_BOT_LOGIN).catch((error) => {
+      if (error instanceof ReviewStopped) throw error;
+      console.warn(`Prior test checklist unavailable: ${error.message}`);
+      return null;
+    }),
   ]);
 
-  const { findings, llm } = await buildReviewFindings(
+  const aiGate = resolveAiReviewGate({ env: process.env, pullRequest, owner, aiRoundsUsed });
+  const { findings: reviewFindings, llm } = await buildReviewFindings(
     files,
-    (hints) =>
-      runAiReview({
+    (hints) => {
+      if (history.error) throw new Error(`Cannot verify prior review history: ${history.error}`);
+      return aiReviewer({
         files,
         hints,
-        pr: { title: pullRequest.title, body: pullRequest.body },
-        priorComments,
+        pr: { title: pullRequest.title, body: pullRequest.body, repository: REPOSITORY,
+          head_sha: pullRequest.head.sha, base_sha: pullRequest.base.sha },
+        priorComments: history.comments,
+        priorRequirements: checklist?.metadata?.requirements || [],
+        assertCurrent: () => assertReviewCurrent(REPOSITORY, PR_NUMBER, pullRequest.head.sha),
         io: { ...DISK_IO, readChangedFile: createChangedFileReader(owner, repo, pullRequest.head.sha) },
-      }),
-    {
-      enabled: shouldRunAiReview(process.env, pullRequest.user?.login, owner),
-      disabledReason: isAiReviewEnabled()
-        ? 'AI review runs only on PRs authored by the repository owner.'
-        : undefined,
+      });
     },
+    { enabled: aiGate.enabled, disabledReason: aiGate.reason },
   );
+
+  await assertReviewCurrent(REPOSITORY, PR_NUMBER, pullRequest.head.sha);
+
+  const verificationIncomplete = llm?.verification?.mode === 'enforce' && llm.verification.status !== 'complete';
+  const pendingAiFinding = buildPendingAiFinding(verificationIncomplete
+    ? { aiDeferred: true, reason: 'Verification incomplete; existing AI blockers require reassessment.' } : aiGate,
+  lastAiRoundBlocked);
+  const findings = pendingAiFinding ? [...reviewFindings, pendingAiFinding] : reviewFindings;
+  if (pendingAiFinding && verificationIncomplete) llm.blocking = true;
 
   const blockingFindings = findings.filter((finding) => finding.severity === 'blocking').length;
   const nonBlockingFindings = findings.length - blockingFindings;
@@ -1866,6 +1945,9 @@ export async function runReview() {
     head_sha: pullRequest.head.sha || checkState.head_sha,
     head_ref: pullRequest.head.ref,
     review_round: reviewRound,
+    publication_key: `${RUN_ID}:${process.env.GITHUB_RUN_ATTEMPT || '1'}:${pullRequest.head.sha}`,
+    consume_extra_round_label: shouldConsumeExtraRoundLabel(aiGate, llm),
+    prior_comments: history.comments,
     blocking_findings: blockingFindings,
     non_blocking_findings: nonBlockingFindings,
     checks_green: checkState.checks_green,
@@ -1880,9 +1962,13 @@ export async function runReview() {
 }
 
 export async function main() {
-  const result = await runReview();
+  let result;
+  try { result = await runReview(); } catch (error) {
+    if (!(error instanceof ReviewStopped)) throw error;
+    result = { pr_number: PR_NUMBER, verdict: 'skip', skip_reason: error.message, findings: [], marker: AUTO_REVIEW_MARKER };
+  }
   await persistResult(result);
-  console.log(JSON.stringify(result, null, 2));
+  console.log(`Review ${result.verdict}; ${result.blocking_findings || 0} blocking findings.`);
 }
 
 const isExecutedDirectly = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];

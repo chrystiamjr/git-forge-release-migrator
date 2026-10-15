@@ -1,0 +1,30 @@
+name: Review Queue Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - .github/workflows/auto-pr-review.yml
+      - .github/workflows/pr-review-lifecycle.yml
+      - .github/workflows/review-queue-validation.yml
+
+# Exercise GitHub's queue parser/scheduler before default-branch review workflows are merged.
+# No checkout, repository writes, or secrets: these jobs only occupy an isolated test queue.
+permissions: {}
+
+jobs:
+  writer:
+    name: Queued writer ${{ matrix.writer }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    strategy:
+      fail-fast: false
+      matrix:
+        writer: [1, 2, 3]
+    concurrency:
+      group: review-queue-validation-${{ github.run_id }}-${{ github.run_attempt }}
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - name: Hold the writer slot while the other jobs queue
+        run: sleep 5
