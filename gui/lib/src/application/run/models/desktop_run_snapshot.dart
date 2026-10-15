@@ -7,6 +7,10 @@ import 'package:gfrm_gui/src/application/run/models/desktop_run_progress_item.da
 const Object _desktopRunSnapshotUnset = Object();
 
 final class DesktopRunSnapshot {
+  static const String _idleLifecycle = 'idle';
+  static const String _completedLifecycle = 'completed';
+  static const String _failedLifecycle = 'failed';
+
   const DesktopRunSnapshot({
     required this.sessionId,
     required this.runId,
@@ -30,7 +34,7 @@ final class DesktopRunSnapshot {
 
   const DesktopRunSnapshot.initial({this.sessionId = ''})
     : runId = '',
-      lifecycle = 'idle',
+      lifecycle = _idleLifecycle,
       activePhase = 'idle',
       preflight = const DesktopPreflightSummary.initial(),
       artifacts = const DesktopArtifactsSummary.initial(),
@@ -66,8 +70,12 @@ final class DesktopRunSnapshot {
   final Duration elapsedTime;
   final Duration? estimatedRemainingTime;
 
+  bool get isIdle => lifecycle == _idleLifecycle;
+  bool get isCompleted => lifecycle == _completedLifecycle;
+  bool get isTerminal => isCompleted || lifecycle == _failedLifecycle;
+
   double get progressPercent {
-    if (lifecycle == 'completed' || completionStatus.isNotEmpty) {
+    if (isCompleted || completionStatus.isNotEmpty) {
       return 1.0;
     }
     if (totalTags <= 0) {

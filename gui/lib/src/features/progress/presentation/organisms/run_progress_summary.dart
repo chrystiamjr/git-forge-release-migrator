@@ -24,7 +24,7 @@ class RunProgressSummary extends StatelessWidget {
         SizedBox(height: GfrmAppTheme.unit.s4),
         GfrmRunCounts(label: 'Releases', counts: snapshot.releaseCounts, keyPrefix: 'run-progress'),
         SizedBox(height: GfrmAppTheme.unit.s6),
-        if (snapshot.sessionId.isEmpty && snapshot.runId.isEmpty && snapshot.lifecycle == 'idle')
+        if (snapshot.sessionId.isEmpty && snapshot.runId.isEmpty && snapshot.isIdle)
           const GfrmEmptyState(title: 'No active run', description: 'Run progress appears when a migration starts.')
         else if (snapshot.progressItems.isEmpty)
           const Text('Waiting for item updates.')

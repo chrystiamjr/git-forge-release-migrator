@@ -15,13 +15,13 @@ class MigrationResultsSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (snapshot.lifecycle == 'idle') {
+    if (snapshot.isIdle) {
       return const GfrmEmptyState(
         title: 'No results to display',
         description: 'Migration summaries and artifact paths will appear here after a run finishes.',
       );
     }
-    if (snapshot.lifecycle != 'completed' && snapshot.lifecycle != 'failed') {
+    if (!snapshot.isTerminal) {
       return const GfrmEmptyState(
         title: 'Migration in progress',
         description: 'Results will appear when this run finishes. Follow the current run on the Progress screen.',
@@ -30,7 +30,7 @@ class MigrationResultsSummary extends StatelessWidget {
 
     final DesktopRunFailureSummary? failure = snapshot.latestFailure;
     final List<DesktopRunProgressItem> failedItems = snapshot.progressItems
-        .where((DesktopRunProgressItem item) => item.status == 'failed')
+        .where((DesktopRunProgressItem item) => item.isFailed)
         .toList();
     final TextTheme textTheme = Theme.of(context).textTheme;
     return Column(

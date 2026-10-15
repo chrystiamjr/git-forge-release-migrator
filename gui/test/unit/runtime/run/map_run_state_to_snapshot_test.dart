@@ -13,6 +13,25 @@ import 'package:gfrm_gui/src/runtime/run/mappers/map_run_state_to_snapshot.dart'
 
 void main() {
   group('mapRunStateToSnapshot', () {
+    test('GUI lifecycle predicates stay aligned with every runtime lifecycle', () {
+      const Map<RunStateLifecycle, bool> terminalStates = <RunStateLifecycle, bool>{
+        RunStateLifecycle.idle: false,
+        RunStateLifecycle.running: false,
+        RunStateLifecycle.completed: true,
+        RunStateLifecycle.failed: true,
+      };
+      expect(terminalStates.keys, unorderedEquals(RunStateLifecycle.values));
+      for (final RunStateLifecycle lifecycle in RunStateLifecycle.values) {
+        final snapshot = mapRunStateToSnapshot(
+          sessionId: 'session-1',
+          state: const RunState.initial().copyWith(lifecycle: lifecycle),
+        );
+        expect(snapshot.isIdle, lifecycle == RunStateLifecycle.idle);
+        expect(snapshot.isCompleted, lifecycle == RunStateLifecycle.completed);
+        expect(snapshot.isTerminal, terminalStates[lifecycle]);
+      }
+    });
+
     test('maps run state into sorted GUI snapshot data', () {
       final RunState state = const RunState.initial().copyWith(
         runId: 'run-1',
@@ -72,6 +91,7 @@ void main() {
         'v2.0.0:tag:failed',
       ]);
       expect(snapshot.progressItems.first.assetCount, 2);
+      expect(snapshot.progressItems.where((item) => item.isFailed).map((item) => item.tag), <String>['v2.0.0']);
       expect(snapshot.latestFailure?.code, 'release_failed');
       expect(snapshot.latestFailure?.retryable, isTrue);
       expect(snapshot.totalTags, 2);
