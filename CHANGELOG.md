@@ -1,3 +1,19 @@
+## [0.19.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.18.2...v0.19.0) (2026-10-15)
+
+### Features
+
+* **ci:** add source verification and isolated routing experiments ([083e0d0](https://github.com/chrystiamjr/git-forge-release-migrator/commit/083e0d063c2fb052509ab2bf047d6ff1ac97709d))
+
+### Bug Fixes
+
+* **ci:** address review state and publication findings ([2a5fc05](https://github.com/chrystiamjr/git-forge-release-migrator/commit/2a5fc0578f467acf414cd6174e2449cc268332d2))
+* **ci:** harden verification and prepare the shadow rollout ([3934da9](https://github.com/chrystiamjr/git-forge-release-migrator/commit/3934da91eb8bd6e966b2d70e5733338a69892e6a))
+* **ci:** keep AI blocks through drafts and count every AI round ([9a63b50](https://github.com/chrystiamjr/git-forge-release-migrator/commit/9a63b5052f25ecad80b6ed4bc963433d06d8650e))
+* **ci:** keep AI findings blocking past the round limit ([f38f4a5](https://github.com/chrystiamjr/git-forge-release-migrator/commit/f38f4a5bfc6efaf32287785b704ebcaa687ab531))
+* **ci:** normalize named test evidence from machine reporters ([6df45d1](https://github.com/chrystiamjr/git-forge-release-migrator/commit/6df45d1bd832c8c3e238c2e5bf7e77dd8e7a400b))
+* **ci:** preserve review verdicts through checklist failures ([51b8363](https://github.com/chrystiamjr/git-forge-release-migrator/commit/51b836373b08fd49d710741c0eeefb0c8f338979))
+* **ci:** require revision-bound evidence for visual checkmarks ([e41830c](https://github.com/chrystiamjr/git-forge-release-migrator/commit/e41830cb40fecec685855ab7c19b8c285697355d))
+
 ## [0.18.2](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.18.1...v0.18.2) (2026-10-09)
 
 ### Bug Fixes
