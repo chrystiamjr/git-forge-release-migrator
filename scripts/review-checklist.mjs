@@ -76,6 +76,7 @@ export function renderChecklist({ head, files, requirements, assessmentHead, evi
   })));
   const body = [CHECKLIST_MARKER, '## Required tests', '', `Current PR head: \`${head}\``, '',
     reviewed ? 'Review-specific scenarios are included below.' : 'Preliminary checklist; review-specific scenarios are pending.', ''];
+  if (current.reason) body.push(markdownText(current.reason), '');
   for (const row of rows) {
     const passed = row.status === 'passed';
     body.push(`- [${passed ? 'x' : ' '}] ${markdownText(row.description)} — ${row.status}${row.reason ? `: ${markdownText(row.reason)}` : ''}${row.url ? ` ([evidence](${row.url}))` : ''}`);

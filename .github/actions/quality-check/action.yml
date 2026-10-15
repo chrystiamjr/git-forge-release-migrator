@@ -2,7 +2,7 @@ name: Quality Check
 description: Run project validation with comparable base coverage and retained evidence
 inputs:
   base_sha:
-    description: Immutable revision for coverage comparison
+    description: Immutable comparison base for non-PR runs; PR runs derive it from the tested merge
     required: false
 
 runs:
@@ -10,15 +10,21 @@ runs:
   steps:
     - name: Setup Node
       uses: ./.github/actions/node-setup
+    - name: Bind PR validation to the tested merge
+      if: github.event_name == 'pull_request'
+      shell: bash
+      env:
+        CI_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      run: node scripts/ci-validation-revision.mjs
     - name: Prepare comparable baseline and validate current source
       shell: bash
       env:
         PR_BASE_SHA: ${{ inputs.base_sha }}
         CI: 'true'
-        CI_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        CI_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
       run: |
-        if [[ -z "$PR_BASE_SHA" ]]; then
+        if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
+          PR_BASE_SHA="$CI_PR_BASE_SHA"
+        elif [[ -z "$PR_BASE_SHA" ]]; then
           PR_BASE_SHA="$(git rev-parse HEAD^)"
         fi
         BASE_REPORT="$(node scripts/prepare-validation-baseline.mjs "$PR_BASE_SHA" "$RUNNER_TEMP/gfrm-baseline")"

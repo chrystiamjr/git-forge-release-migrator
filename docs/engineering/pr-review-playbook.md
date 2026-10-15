@@ -97,9 +97,12 @@ and CI delegation is not a pass. This comment is informational and does not intr
 Checklist or evidence API failures are logged and cannot suppress analysis or verdict publication. When evidence
 cannot be collected, test rows stay pending and the review reports that the checklist may be incomplete.
 
-Validation reports include PR head/base, tested revision, workflow run/attempt, and named test results. The reader
+Validation reports include PR head/base, tested revision, workflow run/attempt, and named test results. PR validation
+derives its base from the tested merge's first parent and verifies the PR head is its second parent. The reader
 requires the current PR revision and latest CI attempt; a synthetic merge commit must have the current head and
-base as its parents. For AI-requested scenarios, a green suite is insufficient: the reviewer must inspect a test
+live target-branch Git ref as its parents. The PR/event base snapshot can be stale after target-branch pushes.
+An identity mismatch leaves rows pending with a revision-evidence explanation; it must never be repaired by
+manually ticking boxes. For AI-requested scenarios, a green suite is insufficient: the reviewer must inspect a test
 implementation and name the exact test that passed. Missing/skipped tests remain pending. Verified obsolete
 requirements can be withdrawn with a stated reason; failures to review do not remove prior requirements.
 

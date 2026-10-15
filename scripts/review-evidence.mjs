@@ -31,6 +31,7 @@ export function evidenceFromRun(run, jobs, report, head, base) {
   const evidence = { head, run_id: run.id, run_attempt: run.run_attempt, url: run.html_url, checks: {}, tests: [] };
   const validReport = report?.schema_version === 1 && !report.baseline && report.pr_head_sha === head &&
     report.pr_base_sha === base && report.base_sha === base && /^[a-f0-9]{40}$/.test(report.head_sha || '');
+  if (!validReport) evidence.reason = 'Validation evidence does not match the current PR head and target branch. Refresh the PR and run Quality Checks again.';
   if (validReport) {
     for (const check of report.checks || []) evidence.checks[check.name] = {
       status: ['passed', 'failed', 'pending', 'delegated', 'skipped', 'cancelled'].includes(check.status) ? check.status : 'pending',
@@ -68,10 +69,16 @@ export async function collectReviewEvidence(repository, number, head, request = 
   // A prior attempt's artifact must never certify a rerun.
   if (String(report?.ci_run_id) !== String(run.id) || Number(report?.ci_run_attempt) !== run.run_attempt) report = null;
   if (report && !/^[a-f0-9]{40}$/.test(report.head_sha || '')) report = null;
+  // The PR/event base SHA can lag behind its actual target branch after base pushes.
+  // Read the live Git ref near publication; older base evidence must stay pending.
+  if (!pull.base?.ref) return pending;
+  const target = await request(`/repos/${repository}/git/ref/heads/${encodeURIComponent(pull.base.ref)}`);
+  const base = target.object?.sha;
+  if (target.object?.type !== 'commit' || !/^[a-f0-9]{40}$/.test(base || '')) return pending;
   if (report && report.head_sha !== head) {
     const commit = await request(`/repos/${repository}/git/commits/${report.head_sha}`);
     const parents = (commit.parents || []).map((parent) => parent.sha);
-    if (!parents.includes(head) || !parents.includes(pull.base.sha) || parents.length !== 2) report = null;
+    if (!parents.includes(head) || !parents.includes(base) || parents.length !== 2) report = null;
   }
-  return evidenceFromRun(run, jobs, report, head, pull.base.sha);
+  return evidenceFromRun(run, jobs, report, head, base);
 }

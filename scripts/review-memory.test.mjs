@@ -325,7 +325,8 @@ test('CI evidence combines partial success and canonical visual evidence without
 test('an older run attempt or wrong merge parents cannot certify the current revision', async () => {
   for (const mismatch of ['attempt', 'parents']) {
     const request = async (path) => {
-      if (path.endsWith('/pulls/1')) return { state: 'open', head: { sha: head }, base: { sha: base } };
+      if (path.endsWith('/pulls/1')) return { state: 'open', head: { sha: head }, base: { ref: 'main', sha: base } };
+      if (path.includes('/git/ref/heads/')) return { object: { type: 'commit', sha: base } };
       if (path.includes('/git/commits/')) return { parents: [{ sha: 'wrong' }] };
       if (path.includes('/jobs?')) return { jobs: [] };
       return { workflow_runs: [{ id: 123, run_attempt: 2, head_sha: head, status: 'completed', pull_requests: [{ number: 1 }] }] };
