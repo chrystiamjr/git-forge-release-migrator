@@ -9,6 +9,17 @@ title: CI e Release
 - `.github/workflows/release.yml` roda em `push` para `main`
 - `.github/workflows/docs.yml` faz build e deploy do site Docusaurus
 
+## Progresso da revisão automatizada
+
+Cada PR tem um comentário **Required tests** do bot que também mostra o progresso da revisão: aguardando CI,
+preparando, avaliação na fila ou em execução, publicando e concluída/com falha/cancelada/ignorada. Cada atualização
+inclui horário UTC e um link para os checks ou o workflow da revisão. O status descreve etapas do workflow, não uma
+porcentagem nem a atividade do modelo em tempo real.
+
+As atualizações acompanham o commit e a tentativa atuais, preservam as evidências dos testes e não substituem a revisão
+humana. O bot edita o mesmo comentário em vez de publicar outro a cada etapa. Alterações no revisor entram em vigor após
+merge na branch padrão. Se o status não puder ser atualizado, consulte o estado atual pelo link do workflow.
+
 ## Comportamento de release
 
 - artefatos são gerados para Linux, Windows, macOS Intel e macOS Apple Silicon

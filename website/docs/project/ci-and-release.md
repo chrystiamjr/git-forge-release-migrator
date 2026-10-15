@@ -19,6 +19,16 @@ The metadata-only Ticket Delivery workflow uses trusted default-branch code. Act
 
 See the [testing playbook](https://github.com/chrystiamjr/git-forge-release-migrator/blob/main/docs/engineering/testing-playbook.md) and [delivery contract](https://github.com/chrystiamjr/git-forge-release-migrator/blob/main/docs/engineering/ticket-delivery.md).
 
+## Automated review progress
+
+Each PR has one bot-owned **Required tests** comment that also shows review progress: waiting for CI, preparing,
+evaluation queued or running, publishing, and complete/failed/cancelled/skipped. Stage updates include a UTC timestamp
+and a link to checks or the review workflow. The status describes workflow stages, not a percentage or live model activity.
+
+Updates follow the current commit and workflow attempt, preserve test evidence, and do not replace human review.
+The bot edits the same comment instead of posting a new comment for every stage. Reviewer changes activate after
+merge into the default branch. If a status cannot be updated, follow its workflow link for the current state.
+
 ## Release behavior
 
 - release assets are built for Linux, Windows, macOS Intel, and macOS Apple Silicon

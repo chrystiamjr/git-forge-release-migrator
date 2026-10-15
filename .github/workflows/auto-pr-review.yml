@@ -66,8 +66,20 @@ jobs:
           app-key: ${{ secrets.REVIEW_BOT_APP_PRIVATE_KEY }}
           bot-token: ${{ secrets.GH_REVIEW_BOT_TOKEN }}
           fallback-token: ${{ secrets.GH_TOKEN }}
+      - name: Show review preparation
+        if: steps.auth.outputs.configured == 'true'
+        continue-on-error: true
+        env:
+          REVIEW_PROGRESS_PHASE: preparing
+        run: node scripts/review-event.mjs progress
       - if: steps.auth.outputs.configured == 'true'
         run: node scripts/review-event.mjs evidence
+      - name: Show evaluation queued
+        if: always() && !cancelled() && steps.auth.outputs.configured == 'true'
+        continue-on-error: true
+        env:
+          REVIEW_PROGRESS_PHASE: evaluating
+        run: node scripts/review-event.mjs progress
 
   analysis:
     needs: [eligibility, evidence]
@@ -144,7 +156,9 @@ jobs:
 
   publish:
     needs: [eligibility, analysis]
-    if: always() && !cancelled() && needs.eligibility.outputs.eligible == 'true' && needs.analysis.result != 'cancelled' && needs.analysis.result != 'skipped'
+    # The short metadata cleanup may run after cancellation; verdict publication may not.
+    if: always() && needs.eligibility.outputs.eligible == 'true'
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     concurrency:
       group: review-publish-${{ github.repository }}-${{ needs.eligibility.outputs.number }}
@@ -160,33 +174,56 @@ jobs:
       REVIEW_EXPECTED_HEAD: ${{ needs.eligibility.outputs.head }}
     steps:
       - uses: actions/checkout@v7
+        if: always()
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
       - uses: actions/setup-node@v6
+        if: always()
         with:
           node-version-file: .nvmrc
       - name: Configure review result path
+        if: always()
         run: echo "REVIEW_RESULT_PATH=$RUNNER_TEMP/review-result/auto-pr-review.json" >> "$GITHUB_ENV"
       - uses: ./.github/actions/review-auth
         id: auth
+        if: always()
         with:
           app-id: ${{ secrets.REVIEW_BOT_APP_ID }}
           app-key: ${{ secrets.REVIEW_BOT_APP_PRIVATE_KEY }}
           bot-token: ${{ secrets.GH_REVIEW_BOT_TOKEN }}
           fallback-token: ${{ secrets.GH_TOKEN }}
       - id: guard
-        if: steps.auth.outputs.configured == 'true'
+        if: always() && steps.auth.outputs.configured == 'true'
         run: node scripts/review-event.mjs guard
+      - name: Show result publication
+        if: ${{ !cancelled() && needs.analysis.result != 'cancelled' && needs.analysis.result != 'skipped' && steps.guard.outputs.eligible == 'true' }}
+        continue-on-error: true
+        env:
+          REVIEW_PROGRESS_PHASE: publishing
+        run: node scripts/review-event.mjs progress
       - uses: actions/download-artifact@v4
-        if: steps.guard.outputs.eligible == 'true'
+        if: ${{ !cancelled() && needs.analysis.result != 'cancelled' && needs.analysis.result != 'skipped' && steps.guard.outputs.eligible == 'true' }}
         continue-on-error: true
         with:
           name: automated-review-result
           path: ${{ runner.temp }}/review-result
       - name: Publish checklist and review verdict
-        if: steps.guard.outputs.eligible == 'true'
+        id: publication
+        if: ${{ !cancelled() && needs.analysis.result != 'cancelled' && needs.analysis.result != 'skipped' && steps.guard.outputs.eligible == 'true' }}
         run: node scripts/publish-pr-review.mjs
       - name: Enforce automated verdict
-        if: steps.guard.outputs.eligible == 'true'
+        if: ${{ !cancelled() && needs.analysis.result != 'cancelled' && needs.analysis.result != 'skipped' && steps.guard.outputs.eligible == 'true' }}
         run: node scripts/review-event.mjs enforce
+      - name: Finish review progress
+        if: always() && !cancelled() && needs.analysis.result != 'cancelled' && steps.guard.outputs.eligible == 'true'
+        continue-on-error: true
+        env:
+          REVIEW_PROGRESS_PHASE: ${{ needs.analysis.result == 'skipped' && 'skipped' || (needs.analysis.result == 'failure' || steps.publication.outcome != 'success') && 'failed' || 'completed' }}
+        run: node scripts/review-event.mjs progress
+      - name: Finish cancelled review progress
+        if: always() && (cancelled() || needs.analysis.result == 'cancelled') && steps.guard.outputs.eligible == 'true'
+        continue-on-error: true
+        env:
+          REVIEW_PROGRESS_PHASE: cancelled
+        run: node scripts/review-event.mjs progress
