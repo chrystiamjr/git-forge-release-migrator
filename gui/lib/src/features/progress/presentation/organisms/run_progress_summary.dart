@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:gfrm_gui/src/application/run/models/desktop_run_snapshot.dart';
 import 'package:gfrm_gui/src/core/widgets/molecules/gfrm_empty_state.dart';
-import 'package:gfrm_gui/src/features/progress/presentation/molecules/run_progress_counts.dart';
+import 'package:gfrm_gui/src/core/widgets/molecules/gfrm_run_counts.dart';
 import 'package:gfrm_gui/src/theme/gfrm_app_theme.dart';
 
 class RunProgressSummary extends StatelessWidget {
@@ -20,9 +20,9 @@ class RunProgressSummary extends StatelessWidget {
         if (snapshot.completionStatus.isNotEmpty) Text('Outcome: ${snapshot.completionStatus}'),
         if (snapshot.latestFailure != null) Text('Failure: ${snapshot.latestFailure!.message}'),
         SizedBox(height: GfrmAppTheme.unit.s4),
-        RunProgressCounts(label: 'Tags', counts: snapshot.tagCounts),
+        GfrmRunCounts(label: 'Tags', counts: snapshot.tagCounts, keyPrefix: 'run-progress'),
         SizedBox(height: GfrmAppTheme.unit.s4),
-        RunProgressCounts(label: 'Releases', counts: snapshot.releaseCounts),
+        GfrmRunCounts(label: 'Releases', counts: snapshot.releaseCounts, keyPrefix: 'run-progress'),
         SizedBox(height: GfrmAppTheme.unit.s6),
         if (snapshot.sessionId.isEmpty && snapshot.runId.isEmpty && snapshot.lifecycle == 'idle')
           const GfrmEmptyState(title: 'No active run', description: 'Run progress appears when a migration starts.')

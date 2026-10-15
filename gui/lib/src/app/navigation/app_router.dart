@@ -6,7 +6,7 @@ import 'package:gfrm_gui/src/app/shell/gfrm_shell_page.dart';
 import 'package:gfrm_gui/src/features/dashboard/presentation/dashboard_empty_page.dart';
 import 'package:gfrm_gui/src/features/history/presentation/history_empty_page.dart';
 import 'package:gfrm_gui/src/features/new_migration/presentation/new_migration_page.dart';
-import 'package:gfrm_gui/src/features/results/presentation/results_empty_page.dart';
+import 'package:gfrm_gui/src/features/results/presentation/migration_results_page.dart';
 import 'package:gfrm_gui/src/features/progress/presentation/run_progress_page.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -52,7 +52,7 @@ GoRouter appRouter(Ref ref) {
           GoRoute(
             path: AppRoute.results.path,
             pageBuilder: (BuildContext context, GoRouterState state) {
-              return _page(const ResultsEmptyPage());
+              return _page(const MigrationResultsPage());
             },
           ),
           GoRoute(

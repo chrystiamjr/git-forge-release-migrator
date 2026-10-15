@@ -4,11 +4,12 @@ import 'package:gfrm_gui/src/application/run/models/desktop_run_count_summary.da
 import 'package:gfrm_gui/src/core/widgets/molecules/gfrm_stat_card.dart';
 import 'package:gfrm_gui/src/theme/gfrm_app_theme.dart';
 
-class RunProgressCounts extends StatelessWidget {
-  const RunProgressCounts({required this.label, required this.counts, super.key});
+class GfrmRunCounts extends StatelessWidget {
+  const GfrmRunCounts({required this.label, required this.counts, required this.keyPrefix, super.key});
 
   final String label;
   final DesktopRunCountSummary counts;
+  final String keyPrefix;
   static const double _cardWidth = 200;
 
   @override
@@ -28,7 +29,7 @@ class RunProgressCounts extends StatelessWidget {
             (entry) => SizedBox(
               width: _cardWidth,
               child: GfrmStatCard(
-                key: ValueKey<String>('run-progress-${label.toLowerCase()}-${entry.key}'),
+                key: ValueKey<String>('$keyPrefix-${label.toLowerCase()}-${entry.key}'),
                 label: '$label ${entry.key}',
                 value: '${entry.value}',
               ),

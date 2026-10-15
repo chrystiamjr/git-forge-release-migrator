@@ -108,7 +108,7 @@ void main() {
 
       expect(find.text('No results to display'), findsOneWidget);
       expect(
-        find.text('Migration summaries and artifact shortcuts will appear here after a run finishes.'),
+        find.text('Migration summaries and artifact paths will appear here after a run finishes.'),
         findsOneWidget,
       );
     });
