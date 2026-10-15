@@ -21,14 +21,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
       - uses: ./.github/actions/flutter-setup
 
       - uses: ./.github/actions/quality-check
-        with:
-          base_sha: ${{ github.event.pull_request.base.sha }}
 
   gui-visual:
     runs-on: macos-14
@@ -36,8 +35,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
           persist-credentials: false
       - uses: ./.github/actions/flutter-setup
+      - name: Verify visual checkout revision
+        env:
+          CI_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/ci-validation-revision.mjs
       - name: Compare maintained page goldens
         run: node ../scripts/run-dart.js --flutter test --tags visual test/visual
         working-directory: gui

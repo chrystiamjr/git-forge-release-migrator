@@ -89,4 +89,15 @@ The canonical visual job uses `macos-14` and the pinned Flutter SDK; fixture the
 
 `prepare-validation-baseline.mjs` creates an isolated fixed-base worktree in CI, resolves dependencies and measures matching production coverage. Local source must be committed; test SDK environment sanitization applies only to subprocesses. CI reports preserve tested revision/base, sanitized logs and LCOV. Native/live artifacts remain distinct acceptance evidence: CI cannot produce them, so `--ci-core` delegates them, and local `yarn verify:ticket` keeps any missing required scenario pending.
 
+For PR runs, core and visual jobs pin the same immutable workflow-event merge SHA. Before validation,
+`ci-validation-revision.mjs` verifies that checkout and its PR-head parent, then derives the comparison/report
+base from the merge's first parent. The event's `pull_request.base.sha` can lag behind the actual merge and
+must not label its report. The validation runner independently rejects contradictory PR/base metadata before
+running suites. Non-PR release validation retains its explicit-base or `HEAD^` comparison behavior.
+
+The review checklist checks report identities and merge parents against the live target-branch Git ref,
+not the potentially stale PR base snapshot. A target branch that advances beyond the tested base invalidates
+that evidence; refresh the PR and obtain a new Quality Checks run. A retry of an older workflow event can retain
+old revision data. Missing/stale evidence remains unchecked with an explanation, even if the job badges are green.
+
 Golden baselines must come from the pinned canonical macOS 14 CI runner, not an arbitrary local OS. Different macOS font rasterizers can produce genuine pixel differences even with the same Flutter version and bundled font bytes. Keep exact comparison; inspect CI `testImage`, `masterImage` and diff diagnostics, propose reviewed baseline changes, then require a clean canonical comparison run. Local noncanonical visual comparisons may remain pending; do not claim a full local aggregate pass when they differ. Core/widget checks and canonical CI evidence remain separate. Never regenerate baselines automatically during normal CI.
