@@ -17,6 +17,14 @@ export function resolveCiRevision({ revision, parents, expectedHead, expectedRev
   return { tested_sha: revision, pr_head_sha: expectedHead, pr_base_sha: parents[0] };
 }
 
+export function validateCiReportRevision({ base, declaredBase, ...context }) {
+  const revision = resolveCiRevision(context);
+  if (base !== revision.pr_base_sha || declaredBase !== base) {
+    throw new Error('Validation report base differs from the tested merge base');
+  }
+  return revision;
+}
+
 export async function main(env = process.env, cwd = process.cwd()) {
   if (!env.GITHUB_ENV) throw new Error('GITHUB_ENV is required to bind subsequent validation steps');
   const gitEnvironment = { ...env };

@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { resolveCiRevision, main } from './ci-validation-revision.mjs';
+import { resolveCiRevision, validateCiReportRevision, main } from './ci-validation-revision.mjs';
 import { collectReviewEvidence } from './review-evidence.mjs';
 import { renderChecklist } from './review-checklist.mjs';
 
@@ -77,10 +77,16 @@ test('revision binding refuses a different checkout, wrong PR parent and non-mer
   ]) assert.throws(() => resolveCiRevision({ ...context, ...mismatch }));
 });
 
-test('the validation runner rejects inconsistent PR metadata before writing reports or running suites', (t) => {
+test('the report guard accepts matching metadata and rejects mismatches before writing reports or running suites', (t) => {
   const f = mergeFixture(t);
   const runner = fileURLToPath(new URL('./run-ticket-checks.mjs', import.meta.url));
+  const context = { revision: f.revision, parents: f.parents, expectedHead: f.head, expectedRevision: f.revision };
+  assert.deepEqual(validateCiReportRevision({ ...context, base: f.base, declaredBase: f.base }), {
+    tested_sha: f.revision, pr_head_sha: f.head, pr_base_sha: f.base,
+  });
   for (const [base, declaredBase] of [[f.eventBase, f.eventBase], [f.base, f.eventBase]]) {
+    assert.throws(() => validateCiReportRevision({ ...context, base, declaredBase }),
+      /Validation report base differs from the tested merge base/);
     const out = join(f.directory, `invalid-${base}`);
     const result = spawnSync(process.execPath, [runner, '--ci-core', '--ticket', 'LOCAL-test', '--base', base, '--out', out], {
       cwd: f.cwd, encoding: 'utf8', env: {

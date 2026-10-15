@@ -90,10 +90,15 @@ export async function collectReviewEvidence(repository, number, head, request = 
   }
   // The PR/event base SHA can lag behind its actual target branch after base pushes.
   // Read the live Git ref near publication; older base evidence must stay pending.
-  if (!pull.base?.ref) return pending;
-  const target = await request(`/repos/${repository}/git/ref/heads/${encodeURIComponent(pull.base.ref)}`);
-  const base = target.object?.sha;
-  if (target.object?.type !== 'commit' || !/^[a-f0-9]{40}$/.test(base || '')) return pending;
+  const unresolvedTarget = () => evidenceFromRun(run, jobs, null, head, null,
+    'Target branch ref could not be resolved. Check PR metadata and target-branch access.');
+  if (typeof pull.base?.ref !== 'string' || !pull.base.ref) return unresolvedTarget();
+  const encodedRef = pull.base.ref.split('/').map(encodeURIComponent).join('/');
+  let target;
+  try { target = await request(`/repos/${repository}/git/ref/heads/${encodedRef}`); }
+  catch { return unresolvedTarget(); }
+  const base = target?.object?.sha;
+  if (target?.object?.type !== 'commit' || !/^[a-f0-9]{40}$/.test(base || '')) return unresolvedTarget();
   if (report && report.head_sha !== head) {
     const commit = await request(`/repos/${repository}/git/commits/${report.head_sha}`);
     const parents = (commit.parents || []).map((parent) => parent.sha);

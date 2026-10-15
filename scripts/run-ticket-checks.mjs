@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { parseTestEvidence } from './test-result-evidence.mjs';
-import { resolveCiRevision } from './ci-validation-revision.mjs';
+import { validateCiReportRevision } from './ci-validation-revision.mjs';
 import { realpathSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -48,13 +48,11 @@ export async function main(args = process.argv.slice(2)) {
   const head = git('rev-parse', 'HEAD');
   const base = options.baselineOnly ? head : git('rev-parse', '--verify', `${options.base}^{commit}`);
   if (!options.baselineOnly && options.ciCore && process.env.GITHUB_EVENT_NAME === 'pull_request') {
-    const revision = resolveCiRevision({
+    validateCiReportRevision({
       revision: head, parents: git('show', '-s', '--format=%P', 'HEAD').split(/\s+/),
       expectedHead: process.env.CI_PR_HEAD_SHA, expectedRevision: process.env.GITHUB_SHA,
+      base, declaredBase: process.env.CI_PR_BASE_SHA,
     });
-    if (base !== revision.pr_base_sha || process.env.CI_PR_BASE_SHA !== base) {
-      throw new Error('Validation report base differs from the tested merge base');
-    }
   }
   const out = resolve(options.out || '.local/validation', `${options.baselineOnly ? 'baseline' : options.ticket}-${head}`);
   await mkdir(out, { recursive: true });
