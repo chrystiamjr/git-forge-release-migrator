@@ -4,6 +4,29 @@ import { githubRequest, paginate } from './github-api.mjs';
 import { assertReviewCurrent, guardedRequest } from './review-lifecycle.mjs';
 
 export const CHECKLIST_MARKER = '<!-- gfrm-required-tests -->';
+const PROGRESS_LABELS = {
+  waiting_ci: 'Waiting for CI', preparing: 'Preparing review', evaluating: 'Evaluation queued or running',
+  publishing: 'Publishing results', completed: 'Review complete', failed: 'Review failed',
+  cancelled: 'Review cancelled', skipped: 'Review skipped',
+};
+const PROGRESS_ORDER = { waiting_ci: 0, preparing: 1, evaluating: 2, publishing: 3,
+  completed: 4, failed: 4, cancelled: 4, skipped: 4 };
+
+function mergeProgress(previous, incoming) {
+  if (!incoming) return previous;
+  if (!Object.hasOwn(PROGRESS_LABELS, incoming.phase)) throw new Error('Unknown review progress phase');
+  if (!Number.isSafeInteger(incoming.run_id) || incoming.run_id < 0 ||
+      !Number.isSafeInteger(incoming.run_attempt) || incoming.run_attempt < 1) throw new Error('Invalid review run identity');
+  if (previous) {
+    if (incoming.run_id < previous.run_id) return previous;
+    if (incoming.run_id === previous.run_id) {
+      if (incoming.run_attempt < previous.run_attempt) return previous;
+      if (incoming.run_attempt === previous.run_attempt &&
+          PROGRESS_ORDER[incoming.phase] <= PROGRESS_ORDER[previous.phase]) return previous;
+    }
+  }
+  return incoming;
+}
 
 export function checklistMetadata(body) {
   const match = String(body).match(/<!-- gfrm-test-state:([A-Za-z0-9+/=]+) -->/);
@@ -66,7 +89,7 @@ export function scenarioStatus(requirement, evidence, assessmentHead) {
 
 function markdownText(value) { return String(value).replace(/[\r\n]+/g, ' ').replace(/<!--/g, '&lt;!--'); }
 
-export function renderChecklist({ head, files, requirements, assessmentHead, evidence = {}, reviewed = false }) {
+export function renderChecklist({ head, files, requirements, assessmentHead, evidence = {}, reviewed = false, progress }) {
   const current = evidence.head === head ? evidence : {};
   const checks = current.checks || {};
   const rows = requiredChecks(files).map((row) => ({ ...row, ...(checks[row.id] || { status: 'pending' }) }));
@@ -74,8 +97,11 @@ export function renderChecklist({ head, files, requirements, assessmentHead, evi
     id: item.id, description: item.description,
     status: scenarioStatus(item, current, assessmentHead), url: current.url,
   })));
-  const body = [CHECKLIST_MARKER, '## Required tests', '', `Current PR head: \`${head}\``, '',
-    reviewed ? 'Review-specific scenarios are included below.' : 'Preliminary checklist; review-specific scenarios are pending.', ''];
+  const body = [CHECKLIST_MARKER, '## Required tests', '', `Current PR head: \`${head}\``, ''];
+  if (progress) body.push(`**Automated review:** ${PROGRESS_LABELS[progress.phase]}`,
+    `Updated: ${markdownText(progress.updated_at)} · [${progress.phase === 'waiting_ci' ? 'View checks' : 'View review workflow'}](${progress.url})`, '');
+  body.push(
+    reviewed ? 'Review-specific scenarios are included below.' : 'Preliminary checklist; review-specific scenarios are pending.', '');
   if (current.reason) body.push(markdownText(current.reason), '');
   for (const row of rows) {
     const passed = row.status === 'passed';
@@ -86,13 +112,14 @@ export function renderChecklist({ head, files, requirements, assessmentHead, evi
   // Full test inventories can exceed GitHub's comment limit. Persist only evidence for listed scenarios.
   const relevantTests = (current.tests || []).filter((test) => requirements.some((item) =>
     item.suite === test.suite && item.test_file === test.file && item.test_name === test.name));
-  const metadata = { head, requirements, assessment_head: assessmentHead, reviewed, evidence: { ...current, tests: relevantTests } };
+  const metadata = { head, requirements, assessment_head: assessmentHead, reviewed, progress,
+    evidence: { ...current, tests: relevantTests } };
   body.push('', `<!-- gfrm-test-state:${Buffer.from(JSON.stringify(metadata)).toString('base64')} -->`);
   return body.join('\n');
 }
 
 // Workflow publication jobs share a per-PR concurrency group; this read/merge/write must run inside it.
-export async function updateChecklist({ repository, number, head, botLogin, llm, evidence, request = githubRequest }) {
+export async function updateChecklist({ repository, number, head, botLogin, llm, evidence, progress, request = githubRequest }) {
   await assertReviewCurrent(repository, number, head, request);
   const current = await readChecklist(repository, number, botLogin, request);
   const files = await paginate(`/repos/${repository}/pulls/${number}/files`, request);
@@ -105,6 +132,7 @@ export async function updateChecklist({ repository, number, head, botLogin, llm,
     assessmentHead: completed ? head : sameHead ? old.assessment_head : null,
     reviewed: Boolean(completed || (sameHead && old.reviewed)),
     evidence: evidence || (sameHead ? old.evidence : {}) || {},
+    progress: mergeProgress(sameHead ? old.progress : undefined, progress),
   });
   if (current?.body === body) return current.html_url;
   const write = guardedRequest(repository, number, head, request);

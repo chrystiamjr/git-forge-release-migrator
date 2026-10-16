@@ -91,6 +91,19 @@ PR-head code. When Quality Checks completes, a separate evidence job updates tha
 The review publisher merges additional scenarios into the same comment before publishing its verdict. Reviews
 link to the checklist instead of repeating a "Tests needed" section.
 
+The same comment displays automated-review progress: waiting for CI, preparing review, evaluation queued or running,
+publishing results, and complete/failed/cancelled/skipped. Each transition includes a UTC update time and a link to
+checks or the review workflow. Evaluation includes runner/setup time; it is not a percentage or a live model heartbeat.
+Progress is bound to the current PR head and workflow run/attempt. Older runs and delayed stages cannot replace
+newer or terminal status; a new head resets the display. Progress updates preserve test evidence and do not grant
+merge readiness. Their API failures are best-effort and cannot suppress analysis or verdict publication.
+
+Only the existing serialized metadata writers update progress; the analysis job keeps read-only workflow permissions.
+Each progress step has a one-minute timeout and `continue-on-error: true`. API, configuration and programming errors
+remain visible as failed step outcomes while review continues. This deadline does not limit the verdict publication
+job. Cancellation cleanup can mark an open current revision cancelled, but cannot publish a verdict after cancellation.
+If GitHub stops cleanup or bot access fails, the linked workflow remains the source for live status.
+
 The checklist uses existing validation scope rules. Passing rows link to the CI run/job; failed, cancelled,
 skipped, missing, or delegated evidence stays unchecked with its status. Native/live acceptance remains separate
 and CI delegation is not a pass. This comment is informational and does not introduce a new merge gate.
@@ -118,7 +131,7 @@ Process and translation checks come from the bound validation report, not legacy
 
 If setup, analysis, or artifact transfer leaves no valid result, trusted recovery creates a blocking verdict bound
 to the triggering PR/head after checking live state. Existing valid results (including explicit skips) are retained;
-cancelled workflows do not recover or publish, and closed or superseded PRs are skipped.
+cancelled workflows do not recover or publish verdicts, and closed or superseded PRs are skipped.
 
 ### Closure and stale results
 

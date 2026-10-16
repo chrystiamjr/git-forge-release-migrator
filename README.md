@@ -20,6 +20,7 @@ Bitbucket with idempotent retries.
 Full documentation is available at **[gfrm.envolvosystems.com.br](https://gfrm.envolvosystems.com.br/)**.
 
 - Development/runtime guide: [dart_cli/README.md](dart_cli/README.md)
+- CI and review progress: [pipeline guide](https://gfrm.envolvosystems.com.br/docs/project/ci-and-release)
 
 ## Workspace
 
