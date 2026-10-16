@@ -1,3 +1,5 @@
+## [0.21.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.20.0...v0.21.0) (2026-10-16)
+
 ## [0.20.0](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.19.4...v0.20.0) (2026-10-15)
 
 ## [0.19.4](https://github.com/chrystiamjr/git-forge-release-migrator/compare/v0.19.3...v0.19.4) (2026-10-15)
