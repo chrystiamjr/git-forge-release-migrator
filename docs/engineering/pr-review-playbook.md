@@ -99,8 +99,10 @@ newer or terminal status; a new head resets the display. Progress updates preser
 merge readiness. Their API failures are best-effort and cannot suppress analysis or verdict publication.
 
 Only the existing serialized metadata writers update progress; the analysis job keeps read-only workflow permissions.
-A short, bounded publication cleanup can mark an open current revision cancelled, but it cannot publish a verdict
-after cancellation. If GitHub stops cleanup or bot access fails, the linked workflow remains the source for live status.
+Each progress step has a one-minute timeout and `continue-on-error: true`. API, configuration and programming errors
+remain visible as failed step outcomes while review continues. This deadline does not limit the verdict publication
+job. Cancellation cleanup can mark an open current revision cancelled, but cannot publish a verdict after cancellation.
+If GitHub stops cleanup or bot access fails, the linked workflow remains the source for live status.
 
 The checklist uses existing validation scope rules. Passing rows link to the CI run/job; failed, cancelled,
 skipped, missing, or delegated evidence stays unchecked with its status. Native/live acceptance remains separate

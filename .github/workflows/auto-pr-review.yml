@@ -69,6 +69,7 @@ jobs:
       - name: Show review preparation
         if: steps.auth.outputs.configured == 'true'
         continue-on-error: true
+        timeout-minutes: 1
         env:
           REVIEW_PROGRESS_PHASE: preparing
         run: node scripts/review-event.mjs progress
@@ -77,6 +78,7 @@ jobs:
       - name: Show evaluation queued
         if: always() && !cancelled() && steps.auth.outputs.configured == 'true'
         continue-on-error: true
+        timeout-minutes: 1
         env:
           REVIEW_PROGRESS_PHASE: evaluating
         run: node scripts/review-event.mjs progress
@@ -158,7 +160,6 @@ jobs:
     needs: [eligibility, analysis]
     # The short metadata cleanup may run after cancellation; verdict publication may not.
     if: always() && needs.eligibility.outputs.eligible == 'true'
-    timeout-minutes: 5
     runs-on: ubuntu-latest
     concurrency:
       group: review-publish-${{ github.repository }}-${{ needs.eligibility.outputs.number }}
@@ -199,6 +200,7 @@ jobs:
       - name: Show result publication
         if: ${{ !cancelled() && needs.analysis.result != 'cancelled' && needs.analysis.result != 'skipped' && steps.guard.outputs.eligible == 'true' }}
         continue-on-error: true
+        timeout-minutes: 1
         env:
           REVIEW_PROGRESS_PHASE: publishing
         run: node scripts/review-event.mjs progress
@@ -218,12 +220,14 @@ jobs:
       - name: Finish review progress
         if: always() && !cancelled() && needs.analysis.result != 'cancelled' && steps.guard.outputs.eligible == 'true'
         continue-on-error: true
+        timeout-minutes: 1
         env:
           REVIEW_PROGRESS_PHASE: ${{ needs.analysis.result == 'skipped' && 'skipped' || (needs.analysis.result == 'failure' || steps.publication.outcome != 'success') && 'failed' || 'completed' }}
         run: node scripts/review-event.mjs progress
       - name: Finish cancelled review progress
         if: always() && (cancelled() || needs.analysis.result == 'cancelled') && steps.guard.outputs.eligible == 'true'
         continue-on-error: true
+        timeout-minutes: 1
         env:
           REVIEW_PROGRESS_PHASE: cancelled
         run: node scripts/review-event.mjs progress

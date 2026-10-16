@@ -17,7 +17,9 @@ inclui horário UTC e um link para os checks ou o workflow da revisão. O status
 porcentagem nem a atividade do modelo em tempo real.
 
 As atualizações acompanham o commit e a tentativa atuais, preservam as evidências dos testes e não substituem a revisão
-humana. O bot edita o mesmo comentário em vez de publicar outro a cada etapa. Alterações no revisor entram em vigor após
+humana. As etapas de progresso têm limite de um minuto; seus erros ficam visíveis no Actions sem interromper a revisão.
+Esse limite do progresso não se aplica ao job de publicação do parecer.
+O bot edita o mesmo comentário em vez de publicar outro a cada etapa. Alterações no revisor entram em vigor após
 merge na branch padrão. Se o status não puder ser atualizado, consulte o estado atual pelo link do workflow.
 
 ## Comportamento de release

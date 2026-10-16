@@ -46,7 +46,6 @@ export async function handleReviewEvent(event, mode, env = process.env, request 
     }
   } catch (error) {
     if (error instanceof ReviewStopped) console.log(error.message);
-    else if (mode === 'progress') console.warn(`Review progress unavailable: ${error.message}`);
     else throw error;
   }
 }

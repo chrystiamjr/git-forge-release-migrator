@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { checklistMetadata, renderChecklist, updateChecklist } from './review-checklist.mjs';
@@ -110,14 +110,51 @@ const env = { GITHUB_REPOSITORY: 'o/r', PR_NUMBER: '1', REVIEW_BOT_LOGIN: 'bot',
   GITHUB_RUN_ID: '10', GITHUB_RUN_ATTEMPT: '1', REVIEW_PROGRESS_PHASE: 'evaluating' };
 const event = { workflow_run: { head_sha: head } };
 
-test('workflow progress events update the owned checklist and tolerate publication outages', async (t) => {
+test('workflow progress events update the owned checklist and expose API failures to the workflow', async () => {
   const { state, request } = fixture();
   await handleReviewEvent(event, 'progress', env, request);
   assert.equal(checklistMetadata(state.comments[0].body).progress.phase, 'evaluating');
-  const warnings = [];
-  t.mock.method(console, 'warn', (message) => warnings.push(message));
-  await handleReviewEvent(event, 'progress', env, async () => { throw new Error('API unavailable'); });
-  assert.match(warnings[0], /Review progress unavailable: API unavailable/);
+  const outage = new Error('API unavailable');
+  await assert.rejects(handleReviewEvent(event, 'progress', env, async () => { throw outage; }),
+    (error) => error === outage);
+});
+
+test('progress surfaces programming errors and invalid phase/run configuration', async () => {
+  const bug = new TypeError('Broken progress writer');
+  await assert.rejects(handleReviewEvent(event, 'progress', env, async () => { throw bug; }),
+    (error) => error === bug);
+  for (const [override, message] of [
+    [{ REVIEW_PROGRESS_PHASE: 'invalid-phase' }, /Unknown review progress phase/],
+    [{ GITHUB_RUN_ID: 'invalid-run' }, /Invalid review run identity/],
+  ]) {
+    const { state, request } = fixture();
+    await assert.rejects(handleReviewEvent(event, 'progress', { ...env, ...override }, request), message);
+    assert.equal(state.writes.length, 0);
+  }
+});
+
+test('a missing terminal result remains a visible progress-step failure', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'gfrm-progress-missing-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const { state, request } = fixture();
+  await assert.rejects(handleReviewEvent(event, 'progress', { ...env, REVIEW_PROGRESS_PHASE: 'completed',
+    REVIEW_RESULT_PATH: join(directory, 'missing.json') }, request), { code: 'ENOENT' });
+  assert.equal(state.writes.length, 0);
+});
+
+test('progress deadlines and failures are isolated from verdict publication', async () => {
+  const workflow = await readFile(new URL('../.github/workflows/auto-pr-review.yml', import.meta.url), 'utf8');
+  const publisher = workflow.split(/(?=^  [\w-]+:\n)/m).find((block) => block.startsWith('  publish:\n'));
+  assert.ok(publisher);
+  assert.doesNotMatch(publisher, /^    timeout-minutes:/m,
+    'The progress deadline must not limit the whole verdict publication job');
+  const progressSteps = workflow.split(/^      - /m).filter((block) => block.includes('run: node scripts/review-event.mjs progress'));
+  assert.ok(progressSteps.length > 0);
+  for (const step of progressSteps) {
+    assert.match(step, /^        continue-on-error: true$/m, 'Progress failures must not block the review');
+    const timeout = Number(step.match(/^        timeout-minutes: (\d+)$/m)?.[1]);
+    assert.ok(timeout > 0 && timeout <= 5, 'Progress steps need their own short deadline');
+  }
 });
 
 test('initial lifecycle status links to checks; stale triggering heads cannot be overridden', async (t) => {
