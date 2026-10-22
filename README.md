@@ -28,6 +28,7 @@ Full documentation is available at **[gfrm.envolvosystems.com.br](https://gfrm.e
 - `gui/` holds the Flutter desktop app foundation for macOS, Windows, and Linux.
 
 Run Progress and Results observe typed runtime state, including final outcomes, artifact paths, and retry guidance.
+Results offers [Retry Failed Tags](https://gfrm.envolvosystems.com.br/docs/guides/resume-and-retry) for retryable runs with preserved context and retry files.
 See [runtime events](https://gfrm.envolvosystems.com.br/docs/configuration/runtime-events).
 
 GUI quick start:

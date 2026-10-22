@@ -19,6 +19,9 @@ abstract interface class DesktopRunController {
 
   Future<DesktopRunSession> resumeRun(DesktopRunResumeRequest request);
 
+  /// Retry failed tags from the current terminal run using its retained context.
+  Future<DesktopRunSession> retryFailedTags();
+
   Future<DesktopRunActionResult> cancelActiveRun();
 
   void dispose();

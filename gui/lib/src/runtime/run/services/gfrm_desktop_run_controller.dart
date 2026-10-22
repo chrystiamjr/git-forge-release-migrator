@@ -1,6 +1,7 @@
 // ignore_for_file: implementation_imports
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:gfrm_dart/src/application/preflight_check.dart';
 import 'package:gfrm_dart/src/application/preflight_service.dart';
@@ -66,6 +67,7 @@ final class GfrmDesktopRunController implements DesktopRunController {
 
   DesktopRunSnapshot _currentSnapshot = const DesktopRunSnapshot.initial();
   bool _runInFlight = false;
+  DesktopRunResumeRequest? _retryRequest;
   int _nextSessionId = 0;
   DateTime? _runStartedAt;
 
@@ -103,6 +105,20 @@ final class GfrmDesktopRunController implements DesktopRunController {
   }
 
   @override
+  Future<DesktopRunSession> retryFailedTags() {
+    final DesktopRunResumeRequest? request = _retryRequest;
+    if (_runInFlight || !_currentSnapshot.isTerminal || !_currentSnapshot.canResume || request == null) {
+      throw StateError('No failed tags are available to retry.');
+    }
+    if (!_retryFilesExist(request)) {
+      _retryRequest = null;
+      _emitSnapshot(_currentSnapshot.copyWith(canResume: false));
+      throw StateError('Retry files are no longer available.');
+    }
+    return resumeRun(request);
+  }
+
+  @override
   Future<DesktopRunActionResult> cancelActiveRun() async {
     return const DesktopRunActionResult(supported: false, message: 'Runtime cancel is not available yet.');
   }
@@ -122,6 +138,7 @@ final class GfrmDesktopRunController implements DesktopRunController {
     final DesktopRunSnapshot initialSnapshot = DesktopRunSnapshot.initial(sessionId: sessionId);
     final Completer<DesktopRunCompletion> completer = Completer<DesktopRunCompletion>();
 
+    _retryRequest = null;
     _runInFlight = true;
     _currentSnapshot = initialSnapshot;
     _runStartedAt = DateTime.now();
@@ -165,6 +182,7 @@ final class GfrmDesktopRunController implements DesktopRunController {
       final DesktopRunFailureSummary? latestFailure = result.failures.isEmpty
           ? null
           : mapDesktopRunFailureToSummary(result.failures.first);
+      _retryRequest = _buildRetryRequest(runtimeRequest.options, result);
       final DesktopRunSnapshot finalSnapshot = _currentSnapshot.copyWith(
         preflight: preflight,
         artifacts: _currentSnapshot.artifacts.copyWith(
@@ -180,7 +198,7 @@ final class GfrmDesktopRunController implements DesktopRunController {
           RunStatus.runtimeFailure => 'runtime_failure',
         },
         retryCommand: result.retryCommand,
-        canResume: result.retryCommand.trim().isNotEmpty || result.failures.any((failure) => failure.retryable),
+        canResume: _retryRequest != null,
       );
 
       _emitSnapshot(finalSnapshot);
@@ -202,6 +220,42 @@ final class GfrmDesktopRunController implements DesktopRunController {
       _runInFlight = false;
     }
   }
+
+  DesktopRunResumeRequest? _buildRetryRequest(RuntimeOptions options, RunResult result) {
+    if (!_currentSnapshot.isTerminal ||
+        _currentSnapshot.failedTags <= 0 ||
+        !result.failures.any((failure) => failure.retryable)) {
+      return null;
+    }
+    final DesktopRunResumeRequest request = DesktopRunResumeRequest(
+      sourceProvider: options.sourceProvider,
+      sourceUrl: options.sourceUrl,
+      sourceToken: options.sourceToken,
+      targetProvider: options.targetProvider,
+      targetUrl: options.targetUrl,
+      targetToken: options.targetToken,
+      settingsProfile: options.settingsProfile,
+      fromTag: options.fromTag,
+      toTag: options.toTag,
+      skipTagMigration: options.skipTagMigration,
+      skipReleaseMigration: options.skipReleaseMigration,
+      skipReleaseAssetMigration: options.skipReleaseAssetMigration,
+      dryRun: options.dryRun,
+      workdir: options.effectiveWorkdir(),
+      logFile: options.logFile,
+      downloadWorkers: options.downloadWorkers,
+      releaseWorkers: options.releaseWorkers,
+      checkpointFile: result.checkpointPath,
+      tagsFile: result.failedTagsPath,
+    );
+    return _retryFilesExist(request) ? request : null;
+  }
+
+  bool _retryFilesExist(DesktopRunResumeRequest request) =>
+      request.tagsFile.isNotEmpty &&
+      request.checkpointFile.isNotEmpty &&
+      File(request.tagsFile).existsSync() &&
+      File(request.checkpointFile).existsSync();
 
   void _emitSnapshot(DesktopRunSnapshot snapshot) {
     final DateTime? startedAt = _runStartedAt;

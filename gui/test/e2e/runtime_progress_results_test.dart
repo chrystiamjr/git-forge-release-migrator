@@ -14,10 +14,12 @@ import 'package:gfrm_dart/src/core/types/canonical_release.dart';
 import 'package:gfrm_dart/src/core/types/existing_release_info.dart';
 import 'package:gfrm_dart/src/core/types/publish_release_input.dart';
 import 'package:gfrm_dart/src/providers/registry.dart';
+import 'package:gfrm_dart/src/models/runtime_options.dart';
 import 'package:gfrm_gui/src/app/gfrm_app.dart';
 import 'package:gfrm_gui/src/app/navigation/app_router.dart';
 import 'package:gfrm_gui/src/application/run/models/desktop_run_completion.dart';
 import 'package:gfrm_gui/src/application/run/models/desktop_run_session.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_resume_request.dart';
 import 'package:gfrm_gui/src/application/run/models/desktop_run_snapshot.dart';
 import 'package:gfrm_gui/src/application/run/models/desktop_run_start_request.dart';
 import 'package:gfrm_gui/src/core/widgets/molecules/gfrm_stat_card.dart';
@@ -33,9 +35,11 @@ void main() {
   late _PausedTarget target;
   late GfrmDesktopRunController controller;
   DesktopRunSession? session;
+  late List<RuntimeOptions> runOptions;
 
   setUp(() {
     session = null;
+    runOptions = <RuntimeOptions>[];
     directory = Directory.systemTemp.createTempSync('gfrm-runtime-ui-');
     final ProviderRegistry registry = buildTestRegistry(
       releases: <Map<String, dynamic>>[buildMinimalReleasePayload('v1.0.0'), buildMinimalReleasePayload('v2.0.0')],
@@ -47,7 +51,10 @@ void main() {
       logger: createSilentLogger(),
       runService: RunService(
         logger: createSilentLogger(),
-        registryFactory: (_) => registry,
+        registryFactory: (RuntimeOptions options) {
+          runOptions.add(options);
+          return registry;
+        },
         preflightService: preflight,
       ),
       preflightService: preflight,
@@ -138,14 +145,133 @@ void main() {
         expect(find.textContaining('Destination rejected v2.0.0'), findsOneWidget);
         expect(find.text(completion.snapshot.retryCommand), findsOneWidget);
         expect(completion.snapshot.retryCommand, startsWith('gfrm resume '));
+        expect(completion.snapshot.canResume, isTrue);
+        final Finder retry = find.byKey(const ValueKey<String>('run-results-retry-failed-tags'));
+        expect(retry, findsOneWidget);
+        await tester.ensureVisible(retry);
+        target.failSecondRelease = false;
+        target.operations.clear();
+        final Future<DesktopRunSnapshot> retried = controller.snapshots.firstWhere(
+          (DesktopRunSnapshot snapshot) =>
+              snapshot.sessionId != completion.snapshot.sessionId && snapshot.completionStatus == 'success',
+        );
+        final DesktopRunSnapshot result = (await tester.runAsync(() async {
+          await tester.tap(retry);
+          return retried.timeout(_operationTimeout);
+        }))!;
+        await tester.pumpAndSettle();
+        expect(result.failedTags, 0);
+        expect(result.canResume, isFalse);
+        expect(target.operations.where((String op) => op.startsWith('publish-release:')), <String>[
+          'publish-release:v2.0.0',
+        ]);
+        expect(target.operations.where((String op) => op.startsWith('create-tag:')), isEmpty);
+        expect(find.text('Outcome: success'), findsOneWidget);
+        expect(find.byKey(const ValueKey<String>('run-results-retry-failed-tags')), findsNothing);
+        final Map<String, dynamic> retrySummary =
+            jsonDecode(File(result.artifacts.summaryPath).readAsStringSync()) as Map<String, dynamic>;
+        expect(retrySummary['command'], 'resume');
+        expect(result.totalTags, 1);
+        expect(retrySummary['schema_version'], 2);
+        expect(File(result.artifacts.failedTagsPath).readAsLinesSync(), isEmpty);
+        final RuntimeOptions original = runOptions.first;
+        final RuntimeOptions resumed = runOptions.last;
+        expect(resumed.commandName, 'resume');
+        expect(resumed.sourceProvider, original.sourceProvider);
+        expect(resumed.sourceUrl, original.sourceUrl);
+        expect(resumed.targetProvider, original.targetProvider);
+        expect(resumed.targetUrl, original.targetUrl);
+        expect(resumed.sourceToken, original.sourceToken);
+        expect(resumed.targetToken, original.targetToken);
+        expect(resumed.settingsProfile, original.settingsProfile);
+        expect(resumed.fromTag, original.fromTag);
+        expect(resumed.toTag, original.toTag);
+        expect(resumed.skipTagMigration, original.skipTagMigration);
+        expect(resumed.skipReleaseMigration, original.skipReleaseMigration);
+        expect(resumed.skipReleaseAssetMigration, original.skipReleaseAssetMigration);
+        expect(resumed.dryRun, original.dryRun);
+        expect(resumed.downloadWorkers, original.downloadWorkers);
+        expect(resumed.releaseWorkers, original.releaseWorkers);
+        expect(resumed.logFile, original.logFile);
+        expect(Directory(resumed.effectiveWorkdir()).parent.path, directory.path);
+        expect(resumed.effectiveWorkdir(), isNot(original.effectiveWorkdir()));
+        expect(resumed.effectiveCheckpointFile(), original.effectiveCheckpointFile());
+        expect(resumed.tagsFile, completion.snapshot.artifacts.failedTagsPath);
       } else {
         expect(find.text('Failed items'), findsNothing);
         expect(find.text('Retry from the terminal'), findsNothing);
         expect(completion.snapshot.retryCommand, isEmpty);
+        expect(completion.snapshot.canResume, isFalse);
+        expect(find.byKey(const ValueKey<String>('run-results-retry-failed-tags')), findsNothing);
       }
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('retry rejects idle, active, missing files and stale context', (WidgetTester tester) async {
+    expect(controller.retryFailedTags, throwsStateError);
+    target.failSecondRelease = true;
+    session = await tester.runAsync(() => controller.startRun(_request(directory)));
+    await _reach(tester, target.preflight);
+    expect(controller.retryFailedTags, throwsStateError);
+    final DesktopRunCompletion completion = (await tester.runAsync(() async {
+      target.releaseAll();
+      return session!.completion.timeout(_operationTimeout);
+    }))!;
+    expect(completion.snapshot.canResume, isTrue);
+    File(completion.snapshot.artifacts.failedTagsPath).deleteSync();
+    expect(controller.retryFailedTags, throwsStateError);
+    expect(controller.currentSnapshot.canResume, isFalse);
+    // A fresh unrelated run must not reuse the prior retry context.
+    session = await tester.runAsync(() => controller.startRun(_request(directory, targetToken: '')));
+    await tester.runAsync(() => session!.completion.timeout(_operationTimeout));
+    expect(controller.retryFailedTags, throwsStateError);
+    expect(controller.currentSnapshot.canResume, isFalse);
+  });
+
+  testWidgets('retry checks checkpoint existence and preserves terminal checkpoint work', (WidgetTester tester) async {
+    target.failSecondRelease = true;
+    target.releaseAll();
+    final DesktopRunCompletion first = (await tester.runAsync(() async {
+      session = await controller.startRun(_request(directory));
+      return session!.completion.timeout(_operationTimeout);
+    }))!;
+    final File checkpoint = File(runOptions.first.effectiveCheckpointFile());
+    final String checkpointContents = checkpoint.readAsStringSync();
+    checkpoint.deleteSync();
+    expect(controller.retryFailedTags, throwsStateError);
+    expect(controller.currentSnapshot.canResume, isFalse);
+    checkpoint.writeAsStringSync(checkpointContents);
+    // Resume explicitly to establish a new eligible context after the rejected action.
+    target.operations.clear();
+    target.failSecondRelease = false;
+    File(first.snapshot.artifacts.failedTagsPath).writeAsStringSync('v1.0.0\nv2.0.0\n');
+    final DesktopRunCompletion second = (await tester.runAsync(() async {
+      session = await controller.resumeRun(
+        DesktopRunResumeRequest(
+          sourceProvider: 'github',
+          sourceUrl: 'https://github.com/acme/source',
+          sourceToken: 'source-token',
+          targetProvider: 'gitlab',
+          targetUrl: 'https://gitlab.com/acme/target',
+          targetToken: 'target-token',
+          workdir: directory.path,
+          fromTag: 'v1.0.0',
+          toTag: 'v2.0.0',
+          checkpointFile: checkpoint.path,
+          tagsFile: first.snapshot.artifacts.failedTagsPath,
+        ),
+      );
+      return session!.completion.timeout(_operationTimeout);
+    }))!;
+    expect(second.status, 'success');
+    expect(target.operations.where((String op) => op.startsWith('publish-release:')), <String>[
+      'publish-release:v2.0.0',
+    ]);
+    expect(target.operations.where((String op) => op.startsWith('create-tag:')), isEmpty);
+    expect(second.snapshot.canResume, isFalse);
+    expect(controller.retryFailedTags, throwsStateError);
+  });
 
   testWidgets('real preflight stop reaches both screens without migration or written artifacts', (
     WidgetTester tester,
@@ -196,6 +322,12 @@ DesktopRunStartRequest _request(Directory directory, {String targetToken = 'targ
   targetUrl: 'https://gitlab.com/acme/target',
   targetToken: targetToken,
   workdir: directory.path,
+  fromTag: 'v1.0.0',
+  toTag: 'v2.0.0',
+  settingsProfile: 'gui-retry',
+  skipReleaseAssetMigration: true,
+  downloadWorkers: 2,
+  logFile: '${directory.path}/custom-log.jsonl',
 );
 
 Future<ProviderContainer> _openRuntime(WidgetTester tester, GfrmDesktopRunController controller) async {
@@ -274,6 +406,8 @@ final class _PausedTarget extends ProviderAdapter {
   final _Milestone releases = _Milestone();
   final List<String> operations = <String>[];
   bool failSecondRelease = false;
+  final Set<String> createdTags = <String>{};
+  final Set<String> publishedReleases = <String>{};
 
   void releaseAll() {
     preflight.release();
@@ -293,7 +427,7 @@ final class _PausedTarget extends ProviderAdapter {
   @override
   Future<List<String>> listTags(ProviderRef ref, String token) async {
     operations.add('list-tags');
-    return delegate.listTags(ref, token);
+    return createdTags.toList();
   }
 
   @override
@@ -322,11 +456,15 @@ final class _PausedTarget extends ProviderAdapter {
       await tags.wait();
     }
     await delegate.createTagForMigration(ref, token, tag, sha, canonical);
+    createdTags.add(tag);
   }
 
   @override
   Future<ExistingReleaseInfo> existingReleaseInfo(ProviderRef ref, String token, String tag, int expectedLinkAssets) =>
       delegate.existingReleaseInfo(ref, token, tag, expectedLinkAssets);
+
+  @override
+  Future<bool> releaseExists(ProviderRef ref, String token, String tag) async => publishedReleases.contains(tag);
 
   @override
   Future<String> publishRelease(PublishReleaseInput input) async {
@@ -337,6 +475,8 @@ final class _PausedTarget extends ProviderAdapter {
         throw Exception('Destination rejected v2.0.0');
       }
     }
-    return delegate.publishRelease(input);
+    final String result = await delegate.publishRelease(input);
+    publishedReleases.add(input.tag);
+    return result;
   }
 }

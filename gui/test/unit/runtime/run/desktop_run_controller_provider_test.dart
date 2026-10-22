@@ -97,6 +97,9 @@ final class _FakeDesktopRunController implements DesktopRunController {
   }
 
   @override
+  Future<DesktopRunSession> retryFailedTags() => throw UnimplementedError();
+
+  @override
   Future<DesktopRunActionResult> cancelActiveRun() async {
     return const DesktopRunActionResult(supported: false, message: 'unsupported');
   }

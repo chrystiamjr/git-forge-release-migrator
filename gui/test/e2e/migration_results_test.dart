@@ -14,6 +14,8 @@ import 'package:gfrm_gui/src/application/run/contracts/desktop_run_controller.da
 import 'package:gfrm_gui/src/application/run/models/desktop_preflight_request.dart';
 import 'package:gfrm_gui/src/application/run/models/desktop_preflight_summary.dart';
 import 'package:gfrm_gui/src/application/run/models/desktop_run_action_result.dart';
+import 'package:gfrm_gui/src/application/run/models/desktop_run_completion.dart';
+import 'package:gfrm_gui/src/core/widgets/atoms/gfrm_button.dart';
 import 'package:gfrm_gui/src/application/run/models/desktop_run_resume_request.dart';
 import 'package:gfrm_gui/src/application/run/models/desktop_run_session.dart';
 import 'package:gfrm_gui/src/application/run/models/desktop_run_snapshot.dart';
@@ -25,15 +27,75 @@ import 'package:gfrm_gui/src/runtime/run/providers/desktop_run_controller_provid
 import '../support/results_fixture.dart';
 
 void main() {
+  testWidgets('retry is single-flight, disabled while pending and safe after navigation', (WidgetTester tester) async {
+    final _ResultsController controller = _ResultsController()
+      ..currentSnapshot = resultsSnapshot('partial-failure').copyWith(canResume: true);
+    final ProviderContainer container = await _openResults(tester, controller);
+    final Finder retry = find.byKey(const ValueKey<String>('run-results-retry-failed-tags'));
+    await tester.ensureVisible(retry);
+    final VoidCallback submit = tester.widget<GfrmButton>(retry).onPressed!;
+    submit();
+    submit();
+    await tester.pumpAndSettle();
+    expect(controller.retryCalls, 1);
+    expect(tester.widget<GfrmButton>(retry).onPressed, isNull);
+    await tester.tap(retry);
+    expect(controller.retryCalls, 1);
+    container.read(appRouterProvider).go('/dashboard');
+    await tester.pumpAndSettle();
+    controller.retry.completeError(StateError('sensitive runtime detail'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('retry start failure is readable without exposing runtime details', (WidgetTester tester) async {
+    final _ResultsController controller = _ResultsController()
+      ..currentSnapshot = resultsSnapshot('partial-failure').copyWith(canResume: true);
+    await _openResults(tester, controller);
+    final Finder retry = find.byKey(const ValueKey<String>('run-results-retry-failed-tags'));
+    await tester.ensureVisible(retry);
+    await tester.tap(retry);
+    controller.retry.completeError(StateError('sensitive runtime detail'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey<String>('run-results-retry-error')), findsOneWidget);
+    expect(find.textContaining('sensitive runtime detail'), findsNothing);
+    expect(tester.widget<GfrmButton>(retry).onPressed, isNotNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('retry completion failure reenables action without exposing runtime details', (
+    WidgetTester tester,
+  ) async {
+    final _ResultsController controller = _ResultsController()
+      ..currentSnapshot = resultsSnapshot('partial-failure').copyWith(canResume: true);
+    await _openResults(tester, controller);
+    final Finder retry = find.byKey(const ValueKey<String>('run-results-retry-failed-tags'));
+    final Completer<DesktopRunCompletion> completion = Completer<DesktopRunCompletion>();
+    await tester.ensureVisible(retry);
+    await tester.tap(retry);
+    controller.retry.complete(
+      DesktopRunSession(sessionId: 'retry', initialSnapshot: controller.currentSnapshot, completion: completion.future),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.widget<GfrmButton>(retry).onPressed, isNull);
+    completion.completeError(StateError('sensitive runtime detail'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey<String>('run-results-retry-error')), findsOneWidget);
+    expect(tester.widget<GfrmButton>(retry).onPressed, isNotNull);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('idle and active runs hide final outputs even when intermediate paths exist', (
     WidgetTester tester,
   ) async {
     final _ResultsController controller = _ResultsController();
     await _openResults(tester, controller);
     expect(find.text('No results to display'), findsOneWidget);
+    expect(find.byKey(const ValueKey<String>('run-results-retry-failed-tags')), findsNothing);
     controller.emit(resultsSnapshot('partial-failure').copyWith(lifecycle: 'running'));
     await tester.pumpAndSettle();
     expect(find.text('Migration in progress'), findsOneWidget);
+    expect(find.byKey(const ValueKey<String>('run-results-retry-failed-tags')), findsNothing);
     expect(find.text('Artifacts'), findsNothing);
     expect(find.text(resultsRetryCommand), findsNothing);
     expect(find.text('Outcome: partial_failure'), findsNothing);
@@ -58,6 +120,7 @@ void main() {
       expect(find.text('$resultsDirectory/$name'), findsOneWidget);
     }
     expect(find.text('Retry from the terminal'), findsNothing);
+    expect(find.byKey(const ValueKey<String>('run-results-retry-failed-tags')), findsNothing);
   });
 
   testWidgets('completed partial failure exposes the exact runtime retry command', (WidgetTester tester) async {
@@ -79,7 +142,7 @@ void main() {
 
   testWidgets('early failure exposes context without inventing artifacts or retry', (WidgetTester tester) async {
     final _ResultsController controller = _ResultsController()..currentSnapshot = resultsSnapshot('early-failure');
-    expect(controller.currentSnapshot.canResume, isTrue);
+    expect(controller.currentSnapshot.canResume, isFalse);
     await _openResults(tester, controller);
     expect(find.text('Status: failed'), findsOneWidget);
     expect(find.text('Code: preflight_failed'), findsOneWidget);
@@ -88,6 +151,7 @@ void main() {
     expect(find.text('No artifact paths were reported for this run.'), findsOneWidget);
     expect(find.text('summary.json'), findsNothing);
     expect(find.text('Retry from the terminal'), findsNothing);
+    expect(find.byKey(const ValueKey<String>('run-results-retry-failed-tags')), findsNothing);
     expect(find.byKey(const ValueKey<String>('run-results-outcome')), findsNothing);
   });
 
@@ -109,6 +173,7 @@ void main() {
     expect(find.text('summary.json'), findsNothing);
     expect(find.text('failed-tags.txt'), findsNothing);
     expect(find.text('Retry from the terminal'), findsNothing);
+    expect(find.byKey(const ValueKey<String>('run-results-retry-failed-tags')), findsNothing);
   });
 
   testWidgets('re-entry, stream errors and a new run preserve only current results', (WidgetTester tester) async {
@@ -129,6 +194,7 @@ void main() {
     controller.emit(resultsSnapshot('running').copyWith(sessionId: 'session-2'));
     await tester.pumpAndSettle();
     expect(find.text('Migration in progress'), findsOneWidget);
+    expect(find.byKey(const ValueKey<String>('run-results-retry-failed-tags')), findsNothing);
     expect(find.text(resultsRetryCommand), findsNothing);
     expect(find.text('Result updates are unavailable.'), findsNothing);
     expect(find.text('Artifacts'), findsNothing);
@@ -166,7 +232,7 @@ void main() {
             artifactPaths: RunStateArtifactPaths(pathsByType: <String, String>{'summary': longPath}),
             retryCommand: longCommand,
           ),
-        );
+        ).copyWith(canResume: true);
       await _openResults(tester, controller, size: size);
       expect(tester.takeException(), isNull);
       await tester.ensureVisible(find.text(longPath));
@@ -175,6 +241,10 @@ void main() {
       await tester.ensureVisible(find.text(longCommand));
       await tester.pumpAndSettle();
       expect(find.text(longCommand).hitTestable(), findsOneWidget);
+      final Finder retry = find.byKey(const ValueKey<String>('run-results-retry-failed-tags'));
+      await tester.ensureVisible(retry);
+      await tester.pumpAndSettle();
+      expect(retry.hitTestable(), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }
@@ -213,6 +283,8 @@ Future<ProviderContainer> _openResults(
 final class _ResultsController implements DesktopRunController {
   final StreamController<DesktopRunSnapshot> updates = StreamController<DesktopRunSnapshot>.broadcast();
   bool disposed = false;
+  int retryCalls = 0;
+  final Completer<DesktopRunSession> retry = Completer<DesktopRunSession>();
   @override
   DesktopRunSnapshot currentSnapshot = const DesktopRunSnapshot.initial();
   @override
@@ -230,6 +302,12 @@ final class _ResultsController implements DesktopRunController {
   Future<DesktopRunSession> startRun(DesktopRunStartRequest request) => throw UnimplementedError();
   @override
   Future<DesktopRunSession> resumeRun(DesktopRunResumeRequest request) => throw UnimplementedError();
+  @override
+  Future<DesktopRunSession> retryFailedTags() {
+    retryCalls++;
+    return retry.future;
+  }
+
   @override
   Future<DesktopRunActionResult> cancelActiveRun() => throw UnimplementedError();
   @override

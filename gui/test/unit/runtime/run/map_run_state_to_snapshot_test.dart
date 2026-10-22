@@ -97,7 +97,7 @@ void main() {
       expect(snapshot.totalTags, 2);
       expect(snapshot.failedTags, 1);
       expect(snapshot.canCancel, isFalse);
-      expect(snapshot.canResume, isTrue);
+      expect(snapshot.canResume, isFalse);
     });
 
     test('uses idle preflight fallback when runtime status is empty', () {
