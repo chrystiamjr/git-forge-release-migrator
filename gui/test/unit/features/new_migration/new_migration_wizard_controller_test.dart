@@ -183,6 +183,9 @@ final class _ThrowingDesktopRunController implements DesktopRunController {
   }
 
   @override
+  Future<DesktopRunSession> retryFailedTags() => throw UnimplementedError();
+
+  @override
   Future<DesktopRunActionResult> cancelActiveRun() {
     throw UnimplementedError();
   }

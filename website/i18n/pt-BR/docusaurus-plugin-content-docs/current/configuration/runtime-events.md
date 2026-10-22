@@ -62,7 +62,7 @@ mapeado a partir do `RunState` compartilhado. Não interpreta saída de terminal
 Sem execução, exibe estado vazio; uma falha do stream exibe aviso de atualização e mantém o snapshot atual.
 
 Iniciar migração pelo wizard ainda está indisponível. Esta tela observa execuções iniciadas pelo controller desktop
-tipado; ações de retry/cancelamento são trabalhos separados.
+tipado; cancelamento continua indisponível.
 
 ## Migration Results no desktop
 
@@ -77,8 +77,10 @@ parcial não tem uma exceção no nível da execução.
 Os caminhos de `summary.json`, `failed-tags.txt` e `migration-log.jsonl` aparecem apenas quando informados pelo
 runtime. A tela exibe caminhos selecionáveis sem abrir arquivos nem verificar se ainda existem.
 A orientação de retry aparece apenas quando o snapshot final fornece um comando de resume não vazio; a contagem
-de falhas sozinha não cria um comando. Você pode selecionar esse comando para usá-lo no terminal. Executar retries
-e abrir artefatos pela GUI continuam sendo trabalhos separados.
+de falhas sozinha não cria um comando. Você pode selecionar esse comando para usá-lo no terminal. **Retry Failed Tags**
+também fica disponível quando o controller confirma falha terminal retentável, tags falhas, contexto preservado e
+arquivos de retry/checkpoint existentes. Usa o fluxo tipado compartilhado de resume e fica desabilitado durante o envio.
+Veja [Retomar e Repetir](../guides/resume-and-retry.md). Abrir artefatos pela GUI continua indisponível.
 
 Entrar em Results após a conclusão mostra o snapshot atual sem aguardar outro evento. Erros do stream exibem um
 aviso e preservam os resultados atuais; iniciar uma nova execução substitui os resultados anteriores pelo estado

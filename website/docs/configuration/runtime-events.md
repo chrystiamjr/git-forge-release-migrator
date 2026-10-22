@@ -62,7 +62,7 @@ mapped from shared `RunState`. It does not parse terminal output or advance coun
 it displays an empty state; a stream failure displays an update warning while retaining the current snapshot.
 
 Starting a migration from the wizard is still unavailable. This screen observes runs started through the typed
-desktop controller; retry/cancel actions are separate work.
+desktop controller; cancellation remains unavailable.
 
 ## Desktop Migration Results
 
@@ -76,8 +76,10 @@ item identity and reported message, even when a partial failure has no run-level
 Artifact paths for `summary.json`, `failed-tags.txt`, and `migration-log.jsonl` appear only when reported by the
 runtime. The screen displays selectable paths without opening files or checking whether they still exist.
 Retry guidance appears only when the final snapshot supplies a nonempty resume command; a failure count alone does
-not create one. You can select that command for use in a terminal. Executing retries and opening artifacts from the
-GUI remain separate work.
+not create one. You can select that command for use in a terminal. **Retry Failed Tags** is also available when
+the controller confirms a retryable terminal failure, failed tags, retained run context, and existing retry/checkpoint
+files. It calls the shared typed resume path and is disabled while being submitted. See [Resume and Retry](../guides/resume-and-retry.md).
+Opening artifacts from the GUI remains unavailable.
 
 Entering Results after completion shows the current snapshot without waiting for another event. A stream error
 shows a warning while retaining current results; starting a new run replaces the previous results with its pending

@@ -67,7 +67,8 @@ DesktopRunSnapshot mapRunStateToSnapshot({
     totalTags: state.totalTags,
     failedTags: state.failedTags,
     canCancel: false,
-    canResume: state.retryCommand.trim().isNotEmpty || state.failedTags > 0 || state.lifecycle.value == 'failed',
+    // Only the controller can confirm usable retry files and retained run context.
+    canResume: false,
   );
 }
 

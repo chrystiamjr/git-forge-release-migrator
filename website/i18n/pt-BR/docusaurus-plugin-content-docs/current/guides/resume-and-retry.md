@@ -23,6 +23,22 @@ gfrm resume --session-file ./sessions/last-session.json
 - estados terminais de checkpoint evitam trabalho duplicado
 - itens incompletos são tentados novamente
 
+## Retry pela tela Results do desktop
+
+**Retry Failed Tags** aparece após uma execução com falha retentável quando o controller ainda possui o contexto
+da execução, tags com falha e os arquivos `failed-tags.txt` e checkpoint existentes. A ação fica desabilitada durante
+o envio do retry. Execuções vazias, em andamento, bem-sucedidas ou com falha não retentável não oferecem essa ação.
+
+A ação usa o fluxo tipado compartilhado de execução `resume`. Preserva repositórios, contexto de tokens já
+resolvidos, perfil de settings, intervalo de tags, opções de migração, workers, raiz de saída e checkpoint originais.
+Seleciona apenas as tags com falha; itens concluídos no checkpoint continuam ignorados. Progress e Results
+acompanham a nova execução. O comando de terminal exibido não é interpretado para reconstruir credenciais ou parâmetros.
+
+O contexto de retry fica em memória no controller desktop atual. Reiniciar o aplicativo não o restaura.
+Se os arquivos de retry desaparecerem, o controller rejeita a ação e Results exibe uma mensagem de falha.
+Caminhos informados, por si só, não comprovam disponibilidade. O resume pelo terminal permanece disponível quando
+você possui o contexto de sessão necessário.
+
 ## Triagem de falhas
 
 Inspecione:

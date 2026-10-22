@@ -2,6 +2,7 @@
 
 Dart runtime package for `git-forge-release-migrator`.
 Shared by CLI entrypoints and the desktop GUI workspace in `../gui`.
+Desktop Retry Failed Tags reuses the typed resume path; see the [resume guide](https://gfrm.envolvosystems.com.br/docs/guides/resume-and-retry).
 
 ## Requirements
 

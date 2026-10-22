@@ -3,15 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:gfrm_gui/src/application/run/models/desktop_run_failure_summary.dart';
 import 'package:gfrm_gui/src/application/run/models/desktop_run_progress_item.dart';
 import 'package:gfrm_gui/src/application/run/models/desktop_run_snapshot.dart';
+import 'package:gfrm_gui/src/core/widgets/atoms/gfrm_button.dart';
 import 'package:gfrm_gui/src/core/widgets/molecules/gfrm_empty_state.dart';
 import 'package:gfrm_gui/src/core/widgets/molecules/gfrm_run_counts.dart';
 import 'package:gfrm_gui/src/features/results/presentation/molecules/migration_result_artifacts.dart';
 import 'package:gfrm_gui/src/theme/gfrm_app_theme.dart';
 
 class MigrationResultsSummary extends StatelessWidget {
-  const MigrationResultsSummary({required this.snapshot, super.key});
+  const MigrationResultsSummary({required this.snapshot, this.onRetryFailedTags, this.isRetrying = false, super.key});
 
   final DesktopRunSnapshot snapshot;
+  final VoidCallback? onRetryFailedTags;
+  final bool isRetrying;
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +63,15 @@ class MigrationResultsSummary extends StatelessWidget {
             Text('${item.kind}: ${item.tag}'),
             if (item.message.trim().isNotEmpty) SelectableText(item.message),
           ],
+        ],
+        if (snapshot.canResume && onRetryFailedTags != null) ...<Widget>[
+          SizedBox(height: GfrmAppTheme.unit.s6),
+          GfrmButton(
+            key: const ValueKey<String>('run-results-retry-failed-tags'),
+            label: isRetrying ? 'Retrying failed tags…' : 'Retry Failed Tags',
+            icon: Icons.refresh,
+            onPressed: isRetrying ? null : onRetryFailedTags,
+          ),
         ],
         SizedBox(height: GfrmAppTheme.unit.s6),
         MigrationResultArtifacts(artifacts: snapshot.artifacts),

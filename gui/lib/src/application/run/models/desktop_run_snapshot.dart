@@ -66,6 +66,8 @@ final class DesktopRunSnapshot {
   final int totalTags;
   final int failedTags;
   final bool canCancel;
+
+  /// Controller-confirmed failed-tag retry with retained context and existing files.
   final bool canResume;
   final Duration elapsedTime;
   final Duration? estimatedRemainingTime;

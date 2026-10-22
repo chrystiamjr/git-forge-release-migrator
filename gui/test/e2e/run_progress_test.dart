@@ -184,6 +184,9 @@ final class _RunController implements DesktopRunController {
   @override
   Future<DesktopRunSession> resumeRun(DesktopRunResumeRequest request) => throw UnimplementedError();
   @override
+  Future<DesktopRunSession> retryFailedTags() => throw UnimplementedError();
+
+  @override
   Future<DesktopRunActionResult> cancelActiveRun() => throw UnimplementedError();
   @override
   void dispose() {

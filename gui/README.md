@@ -15,8 +15,9 @@ shelling out to the CLI binary.
 
 Run Progress renders current controller state and live snapshots, including phase, lifecycle,
 tag/release counters, and item outcomes. Results displays final outcomes, failure details, reported artifact paths,
-and the runtime-provided resume command. Wizard start and GUI retry/artifact-opening actions remain unavailable;
-runtime actions go through `DesktopRunController`.
+and the runtime-provided resume command. Retry Failed Tags uses `DesktopRunController` to resume retryable failures
+with retained context and existing retry/checkpoint files. Wizard start and artifact opening remain unavailable.
+See [resume and retry](https://gfrm.envolvosystems.com.br/docs/guides/resume-and-retry).
 See [runtime events](https://gfrm.envolvosystems.com.br/docs/configuration/runtime-events).
 
 ## Quick Start
