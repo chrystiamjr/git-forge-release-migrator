@@ -29,7 +29,7 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
       - id: guard
@@ -56,7 +56,7 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
       - uses: ./.github/actions/review-auth
@@ -99,7 +99,7 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
       - name: Configure review result path
@@ -148,7 +148,7 @@ jobs:
         run: node scripts/review-result.mjs
       - name: Retain head-bound analysis result
         if: always() && !cancelled() && steps.guard.outputs.eligible == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: automated-review-result
           path: ${{ runner.temp }}/auto-pr-review.json
@@ -179,7 +179,7 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         if: always()
         with:
           node-version-file: .nvmrc
@@ -204,7 +204,7 @@ jobs:
         env:
           REVIEW_PROGRESS_PHASE: publishing
         run: node scripts/review-event.mjs progress
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         if: ${{ !cancelled() && needs.analysis.result != 'cancelled' && needs.analysis.result != 'skipped' && steps.guard.outputs.eligible == 'true' }}
         continue-on-error: true
         with:
